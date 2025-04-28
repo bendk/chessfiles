@@ -13,9 +13,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "solid-js": "^1.9.5"
+    "@ark-ui/solid": "^5.7.0",
+    "@fontsource-variable/inter": "^5.2.5",
+    "@tailwindcss/vite": "^4.1.4",
+    "@thisbeyond/solid-dnd": "^0.7.5",
+    "lucide-solid": "^0.503.0",
+    "solid-js": "^1.9.5",
+    "tailwindcss": "^4.1.4",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/node": "^22.15.9",
     "prettier": "^3.5.3",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.31.0",

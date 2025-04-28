@@ -1,0 +1,1 @@
+export { ChessfilesStorage } from "./storage";

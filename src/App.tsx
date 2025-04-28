@@ -1,34 +1,53 @@
-import { createSignal } from "solid-js";
-import solidLogo from "./assets/solid.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+import { createSignal, createEffect, Switch, Match } from "solid-js";
+import { Library, LibraryStorage } from "./library";
+import { Navbar } from "./Navbar";
+import { Settings } from "./Settings";
+import { Training } from "./Training";
+
+function themeFromLocalStorage(): string {
+  const storedValue = localStorage.getItem("theme");
+  if (
+    storedValue === "dark" ||
+    (storedValue === undefined &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches)
+  ) {
+    return "dark";
+  } else {
+    return "light";
+  }
+}
 
 function App() {
-  const [count, setCount] = createSignal(0);
+  const [theme, setTheme] = createSignal(themeFromLocalStorage());
+  const [page, setPage] = createSignal("library");
+  const storage = new LibraryStorage();
+  createEffect(() => {
+    document.documentElement.classList.toggle("dark", theme() == "dark");
+    localStorage.setItem("theme", theme());
+  });
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} class="logo" alt="Vite logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={solidLogo} class="logo solid" alt="Solid logo" />
-        </a>
+    <div class="flex flex-col bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 min-h-screen outline-hidden">
+      <div class="text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300">
+        <Navbar
+          page={page()}
+          setPage={setPage}
+          theme={theme()}
+          setTheme={setTheme}
+        />
       </div>
-      <h1>Vite + Solid</h1>
-      <div class="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count()}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p class="read-the-docs">
-        Click on the Vite and Solid logos to learn more
-      </p>
-    </>
+      <Switch>
+        <Match when={page() == "library"}>
+          <Library storage={storage} />
+        </Match>
+        <Match when={page() == "training"}>
+          <Training />
+        </Match>
+        <Match when={page() == "settings"}>
+          <Settings />
+        </Match>
+      </Switch>
+    </div>
   );
 }
 
