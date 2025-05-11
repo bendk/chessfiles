@@ -1,6 +1,6 @@
 import * as pgn from "chessops/pgn";
 
-import type { Chess } from "chessops/chess";
+import { Chess } from "chessops/chess";
 import { type NormalMove as Move } from "chessops/types";
 import {
   parseSan as chessParseSan,
@@ -27,6 +27,10 @@ export {
   Chess,
 };
 export type { Move, PgnGame, PgnChildNode, PgnNode, Shape, ShapeColor };
+export { chessgroundDests } from "chessops/compat";
+export { makeFen, parseFen, INITIAL_FEN } from "chessops/fen";
+export type { Role } from "chessops/types";
+export { squareFile, squareRank } from "chessops/util";
 
 export function parseSan(position: Chess, san: string): Move {
   const move = chessParseSan(position, san);
