@@ -3,9 +3,11 @@ import { Toast, Toaster, createToaster } from "@ark-ui/solid";
 import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
 import Loader from "lucide-solid/icons/loader-2";
+import X from "lucide-solid/icons/x";
 import type { DirEntry } from "~/lib/storage";
 import type { LibraryStorage } from "./storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
+import { RootNode } from "~/lib/node";
 import { Button } from "~/Button";
 import { Editor } from "../editor";
 import { CreateFileDialog } from "./CreateFileDialog";
@@ -15,29 +17,36 @@ interface LibraryBrowserProps {
   storage: LibraryStorage;
 }
 
+export interface Book {
+  filename: string;
+  rootNode: RootNode;
+}
+
 export function LibraryBrowser(props: LibraryBrowserProps) {
   const [dialog, setDialog] = createSignal("");
-  const [currentBook, setCurrentBook] = createSignal<string>();
+  const [currentBook, setCurrentBook] = createSignal<Book>();
 
   const toaster = createToaster({
     placement: "bottom-end",
     gap: 24,
   });
 
-  async function onCreateBook(name: string) {
-    if (await props.storage.exists(name)) {
+  async function onCreateBook(filename: string) {
+    if (await props.storage.exists(filename)) {
       throw new FileExistsError();
     }
-    setCurrentBook(name);
+    setCurrentBook({
+      filename,
+      rootNode: RootNode.fromInitialPosition(),
+    });
     setDialog("");
   }
 
   async function onSaveBook(content: string) {
-    const filename = currentBook();
-    setCurrentBook(undefined);
-    if (filename) {
+    const book = currentBook();
+    if (book) {
       try {
-        await props.storage.createFile(filename, content);
+        await props.storage.writeFile(book.filename, content);
       } catch (e) {
         toaster.create({
           title: "Create book failed",
@@ -95,7 +104,17 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
   }
 
   async function onFileMenuAction(entry: DirEntry, action: string) {
-    if (action == "delete") {
+    if (action == "open") {
+      if (entry.type == "dir") {
+        props.storage.setDir(entry.filename);
+      } else if (entry.type == "file") {
+        const data = await props.storage.readFile(entry.filename);
+        setCurrentBook({
+          filename: entry.filename,
+          rootNode: RootNode.fromPgnString(data, 0),
+        });
+      }
+    } else if (action == "delete") {
       try {
         await props.storage.remove(entry.filename);
         toaster.create({
@@ -116,8 +135,14 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
   return (
     <>
       <Switch>
-        <Match when={currentBook()}>
-          <Editor onSave={onSaveBook} onExit={onExitBook} />
+        <Match when={currentBook()} keyed>
+          {(book) => (
+            <Editor
+              rootNode={book.rootNode}
+              onSave={onSaveBook}
+              onExit={onExitBook}
+            />
+          )}
         </Match>
         <Match when={!currentBook()}>
           <div class="grow px-8 py-4">
@@ -185,7 +210,6 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
                 </div>
                 <BooksList
                   files={props.storage.files()!}
-                  onDirClick={(entry) => props.storage.setDir(entry.filename)}
                   onFileAction={onFileMenuAction}
                   onFileDrag={moveFile}
                 />
@@ -218,18 +242,26 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
             onClose={() => setDialog("")}
             onCreate={onCreateFolder}
           />
-          <Toaster toaster={toaster}>
-            {(toast) => (
-              <Toast.Root class="border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2">
-                <Toast.Title class="font-bold text-lg">
-                  {toast().title}
-                </Toast.Title>
-                <Toast.Description>{toast().description}</Toast.Description>
-              </Toast.Root>
-            )}
-          </Toaster>
         </Match>
       </Switch>
+      <Toaster toaster={toaster}>
+        {(toast) => (
+          <Toast.Root
+            class="border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2"
+            style="translate: var(--x) var(--y);"
+          >
+            <div class="flex justify-between">
+              <Toast.Title class="font-bold text-lg">
+                {toast().title}
+              </Toast.Title>
+              <Toast.CloseTrigger class="cursor-pointer hover:text-red-500">
+                <X />
+              </Toast.CloseTrigger>
+            </div>
+            <Toast.Description>{toast().description}</Toast.Description>
+          </Toast.Root>
+        )}
+      </Toaster>
     </>
   );
 }

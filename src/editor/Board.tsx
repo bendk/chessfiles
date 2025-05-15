@@ -1,16 +1,14 @@
 import {
-  Chess,
   chessgroundDests,
   makeFen,
-  parseFen,
   parseSquare,
   squareFile,
   squareRank,
 } from "~/lib/chess";
-import type { Role } from "~/lib/chess";
+import type { Move, Role, Chess } from "~/lib/chess";
 import type { Api as ChessgroundApi } from "chessground/api";
 import { Chessground } from "chessground";
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, createEffect, Show } from "solid-js";
 
 import "./chessground.base.css";
 import "./chessground.brown.css";
@@ -26,12 +24,16 @@ interface PromotionSelectorProps {
 function PromotionSelector(props: PromotionSelectorProps) {
   return (
     <div
-      class="absolute shadow-lg shadow-zinc-800 bg-zinc-300 flex flex-col"
+      class="absolute shadow-lg shadow-zinc-800 bg-zinc-300 flex"
+      classList={{
+        "flex-col": props.color == "white",
+        "flex-col-reverse": props.color == "black",
+      }}
       style={{
         width: "12.5%",
         height: "50%",
         left: `${12.5 * squareFile(props.to)}%`,
-        top: `${12.5 * (7 - squareRank(props.to))}%`,
+        top: props.color == "white" ? 0 : "50%",
         "z-index": 100,
       }}
     >
@@ -56,7 +58,10 @@ function PromotionSelector(props: PromotionSelectorProps) {
 }
 
 interface BoardProps {
-  fen: string;
+  chess: Chess;
+  onMove: (move: Move) => void;
+  onMoveBackwards: () => void;
+  onMoveForwards: () => void;
 }
 
 interface PendingPromotionState {
@@ -68,88 +73,78 @@ interface PendingPromotionState {
 export function Board(props: BoardProps) {
   let ref!: HTMLDivElement;
   let board: ChessgroundApi;
-  const [pendingPromitionState, setPendingPromitionState] =
+  const [pendingPromotionState, setPendingPromotionState] =
     createSignal<PendingPromotionState>();
-  const chess = Chess.fromSetup(parseFen(props.fen).unwrap()).unwrap();
 
-  function initBoard() {
-    board.set({
-      fen: makeFen(chess.toSetup()),
-      movable: {
-        dests: chessgroundDests(chess),
-      },
-    });
+  // Make the board match the current `props.chess` value.  This is how we initialize the board and
+  // react to changes to `props.chess`.
+  function syncBoard() {
+    if (!board) {
+      board = Chessground(ref, {
+        coordinates: false,
+        movable: {
+          free: false,
+        },
+        events: {
+          move: onMove,
+          select: () => {
+            if (pendingPromotionState()) {
+              onPromotionSelect(null);
+            }
+          },
+        },
+      });
+    }
+    if (board) {
+      board.set({
+        fen: makeFen(props.chess.toSetup()),
+        movable: {
+          dests: chessgroundDests(props.chess),
+        },
+      });
+    }
   }
 
+  function playMove(move: Move) {
+    props.onMove(move);
+  }
+
+  createEffect(syncBoard);
+
+  // React to a move being played on the board
+  function onMove(fromStr: string, toStr: string) {
+    const from = parseSquare(fromStr);
+    const to = parseSquare(toStr);
+    if (
+      props.chess.board.get(from)?.role == "pawn" &&
+      (squareRank(to) == 7 || squareRank(to) == 0)
+    ) {
+      // Pawn moved to the promotion square, set the pending promotion state so the user can pick
+      // the piece
+      setPendingPromotionState({ from, to, color: props.chess.turn });
+    } else {
+      playMove({ from, to });
+    }
+  }
+
+  // Handle the user picking a promotion piece
   function onPromotionSelect(role: Role | null) {
-    const pendingPromotion = pendingPromitionState();
+    const pendingPromotion = pendingPromotionState();
     if (!pendingPromotion) {
       return;
     }
     if (role) {
-      chess.play({
+      playMove({
         from: pendingPromotion.from,
         to: pendingPromotion.to,
         promotion: role,
       });
+    } else {
+      // Reset board state to before the move,
+      syncBoard();
     }
-    board.set({
-      fen: makeFen(chess.toSetup()),
-      movable: {
-        dests: chessgroundDests(chess),
-      },
-    });
-    setPendingPromitionState(undefined);
+    setPendingPromotionState(undefined);
   }
-
-  onMount(() => {
-    board = Chessground(ref, {
-      coordinates: false,
-      movable: {
-        free: false,
-      },
-      events: {
-        move: (fromStr, toStr) => {
-          const from = parseSquare(fromStr);
-          if (from === undefined) {
-            throw Error(`Invalid from square: ${fromStr}`);
-          }
-          const to = parseSquare(toStr);
-          if (to === undefined) {
-            throw Error(`Invalid to square: ${toStr}`);
-          }
-          if (
-            chess.turn == "white" &&
-            chess.board.get(from)?.role == "pawn" &&
-            squareRank(to) == 7
-          ) {
-            setPendingPromitionState({ from, to, color: chess.turn });
-          } else if (
-            chess.turn == "black" &&
-            chess.board.get(from)?.role == "pawn" &&
-            squareRank(to) == 0
-          ) {
-            setPendingPromitionState({ from, to, color: chess.turn });
-          } else {
-            chess.play({ from, to });
-            board.set({
-              fen: makeFen(chess.toSetup()),
-              movable: {
-                dests: chessgroundDests(chess),
-              },
-            });
-          }
-        },
-        select: (sq) => {
-          console.log("select", sq);
-          if (pendingPromitionState()) {
-            onPromotionSelect(null);
-          }
-        },
-      },
-    });
-    initBoard();
-  });
 
   // TODO: rank and file letters
   return (
@@ -157,12 +152,18 @@ export function Board(props: BoardProps) {
       <div
         class="w-full h-full"
         classList={{
-          "opacity-50": pendingPromitionState() !== undefined,
+          "opacity-50": pendingPromotionState() !== undefined,
         }}
-        onWheel={(evt) => console.log("wheel", Math.sign(evt.deltaY))}
+        onWheel={(evt) => {
+          if (evt.deltaY < 0) {
+            props.onMoveForwards();
+          } else {
+            props.onMoveBackwards();
+          }
+        }}
         ref={ref}
       />
-      <Show when={pendingPromitionState()}>
+      <Show when={pendingPromotionState()}>
         {(state) => (
           <PromotionSelector onSelect={onPromotionSelect} {...state()} />
         )}

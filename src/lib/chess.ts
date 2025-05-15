@@ -7,7 +7,7 @@ import {
   makeSan,
   makeSanAndPlay,
 } from "chessops/san";
-import { moveEquals, parseSquare } from "chessops/util";
+import { moveEquals, parseSquare as chessParseSquare } from "chessops/util";
 
 type Shape = pgn.CommentShape;
 type ShapeColor = pgn.CommentShapeColor;
@@ -16,12 +16,13 @@ type PgnNode = pgn.Node<pgn.PgnNodeData>;
 type PgnChildNode = pgn.ChildNode<pgn.PgnNodeData>;
 const pgnToString = pgn.makePgn;
 const pgnParseComment = pgn.parseComment;
+const parsePgn = pgn.parsePgn;
 
 export {
   makeSan,
   makeSanAndPlay,
   moveEquals,
-  parseSquare,
+  parsePgn,
   pgnParseComment,
   pgnToString,
   Chess,
@@ -38,6 +39,14 @@ export function parseSan(position: Chess, san: string): Move {
     throw Error(`Invalid move: ${san}`);
   }
   return move;
+}
+
+export function parseSquare(square: string): number {
+  const parsed = chessParseSquare(square);
+  if (parsed === undefined) {
+    throw Error(`Invalid square: ${square}`);
+  }
+  return parsed;
 }
 
 export function shapeEquals(left: Shape, right: Shape): boolean {
@@ -143,12 +152,14 @@ nagTextMap.set(Nag.InterestingMove, "!?");
 nagTextMap.set(Nag.DubiousMove, "?!");
 nagTextMap.set(Nag.PoorMove, "?");
 nagTextMap.set(Nag.BlunderMove, "??");
+nagTextMap.set(Nag.PlusOverMinusPosition, "+/-");
 nagTextMap.set(Nag.PlusMinusPosition, "+-");
-nagTextMap.set(Nag.PlusEqualsPosition, "+");
+nagTextMap.set(Nag.PlusEqualsPosition, "+=");
 nagTextMap.set(Nag.EqualPosition, "=");
 nagTextMap.set(Nag.UnclearPosition, "\u221E");
 nagTextMap.set(Nag.EqualsPlusPosition, "=+");
 nagTextMap.set(Nag.MinusPlusPosition, "-+");
+nagTextMap.set(Nag.MinusOverPlusPosition, "-/+");
 
 /**
  * Get a text string for a NAG

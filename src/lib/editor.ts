@@ -234,6 +234,7 @@ export class Editor {
     if (!removedNag) {
       nextNags.push(nag);
     }
+    nextNags.sort((left, right) => left - right);
     this.performOp(new SetNags(nextNags));
   }
 
@@ -287,6 +288,12 @@ export class Editor {
       this.cursor.move(move);
     }
     this.performOp(action.op, "redo");
+  }
+
+  clearUndo() {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateView();
   }
 }
 

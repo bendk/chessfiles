@@ -1,9 +1,11 @@
-import type { Chess, Move, Nag, PgnChildNode, PgnGame, Shape } from "./chess";
+import type { Move, Nag, PgnChildNode, PgnGame, Shape } from "./chess";
+import { Chess, INITIAL_FEN, parseFen } from "./chess";
 import {
   makeSanAndPlay,
   moveEquals,
   newPgnChildNode,
   newPgnGame,
+  parsePgn,
   parseSan,
   pgnParseComment,
   pgnStartingPosition,
@@ -148,6 +150,17 @@ export class RootNode extends Node {
     super(children);
     this.position = position;
     this.headers = headers ?? new Map();
+  }
+
+  static fromInitialPosition(): RootNode {
+    return new RootNode(
+      Chess.fromSetup(parseFen(INITIAL_FEN).unwrap()).unwrap(),
+    );
+  }
+
+  static fromPgnString(pgn: string, index: number): RootNode {
+    const games = parsePgn(pgn);
+    return RootNode.import(games[index]);
   }
 
   static import(game: PgnGame): RootNode {

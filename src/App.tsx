@@ -27,7 +27,7 @@ function App() {
   });
 
   return (
-    <div class="flex flex-col bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 min-h-screen outline-hidden">
+    <div class="flex flex-col bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 min-h-screen outline-hidden">
       <div class="text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300">
         <Navbar
           page={page()}

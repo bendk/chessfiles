@@ -52,7 +52,6 @@ function dirMenuItems(): MenuItem[] {
 
 export interface BooksListProps {
   files: DirEntry[];
-  onDirClick: (entry: DirEntry) => void;
   onFileAction: (entry: DirEntry, action: BooksListAction) => void;
   onFileDrag: (dragFile: string, dropFile: string) => void;
 }
@@ -123,7 +122,13 @@ export function BooksList(props: BooksListProps) {
                     elt={
                       <button
                         use:draggable
-                        class="draggable touch-none flex items-center gap-2 py-2 text-lg px-2 grow"
+                        class="draggable cursor-pointer w-full touch-none flex items-center gap-2 py-2 text-lg px-2 grow"
+                        onMouseDown={() => setHandleClick(true)}
+                        onClick={() => {
+                          if (handleClick()) {
+                            props.onFileAction(file, "open");
+                          }
+                        }}
                       >
                         <Book />
                         {file.filename}
@@ -163,11 +168,11 @@ export function BooksList(props: BooksListProps) {
                       <button
                         use:droppable
                         use:draggable
-                        class="droppable cursor-pointer draggable flex items-center gap-2 py-2 text-lg px-2 grow"
+                        class="droppable w-full cursor-pointer draggable flex items-center gap-2 py-2 text-lg px-2"
                         onMouseDown={() => setHandleClick(true)}
                         onClick={() => {
                           if (handleClick()) {
-                            props.onDirClick(file);
+                            props.onFileAction(file, "open");
                           }
                         }}
                       >

@@ -75,7 +75,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 
   async createFile(path: string, content: string) {
-    this.createEntry(path, "file", content);
+    await this.createEntry(path, "file", content);
   }
 
   async writeFile(path: string, content: string) {

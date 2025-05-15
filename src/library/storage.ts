@@ -48,14 +48,24 @@ export class LibraryStorage {
     this.setDirPath(path);
   }
 
-  async createFile(filename: string, content: string) {
-    // TODO: check success
+  async readFile(filename: string): Promise<string> {
     const path = joinPath(this.dir(), filename);
-    await this.storage().createFile(path, content);
-    this.mutateFiles((current) => [
-      ...current!,
-      { filename: filename, type: "file" },
-    ]);
+    const storage = this.storage();
+    return await storage.readFile(path);
+  }
+
+  async writeFile(filename: string, content: string) {
+    const path = joinPath(this.dir(), filename);
+    const storage = this.storage();
+    if (await this.exists(filename)) {
+      await storage.writeFile(path, content);
+    } else {
+      await storage.createFile(path, content);
+      this.mutateFiles((current) => [
+        ...current!,
+        { filename: filename, type: "file" },
+      ]);
+    }
   }
 
   async exists(filename: string): Promise<boolean> {
@@ -63,7 +73,6 @@ export class LibraryStorage {
   }
 
   async createDir(filename: string) {
-    // TODO: check success
     const path = joinPath(this.dir(), filename);
     await this.storage().createDir(path);
     this.mutateFiles((current) => [
@@ -73,9 +82,8 @@ export class LibraryStorage {
   }
 
   async remove(filename: string) {
-    // TODO: check success
     const path = joinPath(this.dir(), filename);
-    this.storage().remove(path);
+    await this.storage().remove(path);
     this.mutateFiles((current) =>
       current!.filter((f) => f.filename != filename),
     );
