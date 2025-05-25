@@ -4,8 +4,8 @@ import IconBook from "lucide-solid/icons/book";
 import IconSettings from "lucide-solid/icons/settings";
 import IconTodo from "lucide-solid/icons/list-todo";
 import type { JSX } from "solid-js";
-import { Menu } from "@ark-ui/solid";
 import { Match, Show, Switch, splitProps } from "solid-js";
+import { Menu } from "./Menu";
 
 interface NavbarButtonProps {
   text?: string;
@@ -60,11 +60,8 @@ export function Navbar(props: NavbarProps) {
         />
       </div>
       <div class="flex items-center gap-2">
-        <Menu.Root
-          onSelect={(item) => props.setTheme(item.value)}
-          positioning={{ placement: "bottom" }}
-        >
-          <Menu.Trigger class="cursor-pointer outline-hidden hover:text-sky-300 px-2">
+        <Menu
+          elt={
             <Switch>
               <Match when={props.theme === "light"}>
                 <IconSun size={16} />
@@ -73,30 +70,23 @@ export function Navbar(props: NavbarProps) {
                 <IconMoon fill="currentColor" size={16} />
               </Match>
             </Switch>
-          </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content class="bg-zinc-900 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col gap-1">
-              <Menu.Item
-                value="light"
-                class="flex items-center text-lg gap-2 cursor-pointer hover:bg-slate-700 pl-4 pr-16 py-2"
-                classList={{
-                  "bg-slate-700": props.theme == "light",
-                }}
-              >
-                <IconSun size={16} /> Light
-              </Menu.Item>
-              <Menu.Item
-                value="dark"
-                class="flex items-center text-lg gap-2 cursor-pointer hover:bg-slate-700 pl-4 pr-16 py-2"
-                classList={{
-                  "bg-slate-700": props.theme == "dark",
-                }}
-              >
-                <IconMoon size={16} /> Dark
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
-        </Menu.Root>
+          }
+          items={[
+            {
+              value: "light",
+              icon: <IconSun size={16} />,
+              text: "Light",
+              selected: props.theme == "light",
+            },
+            {
+              value: "dark",
+              icon: <IconMoon size={16} />,
+              text: "Dark",
+              selected: props.theme == "dark",
+            },
+          ]}
+          onSelect={(value) => props.setTheme(value)}
+        />
         <NavbarLink
           name="settings"
           text={props.page == "settings" ? "Settings" : undefined}
