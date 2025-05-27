@@ -4,7 +4,6 @@ import { FileExistsError } from "~/lib/storage";
 import { Dialog } from "~/Dialog";
 
 interface CreateFileDialogProps {
-  open: boolean;
   title: string;
   submitText: string;
   onClose: () => void;
@@ -14,6 +13,7 @@ interface CreateFileDialogProps {
 export function CreateFileDialog(props: CreateFileDialogProps) {
   const [name, setName] = createSignal("");
   const [error, setError] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
   function disabled() {
     // TODO: check for invalid chars, "..", ".", etc.
     return name() == "" || name().indexOf("/") != -1;
@@ -27,9 +27,11 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
     if (disabled()) {
       return;
     }
+    setLoading(true);
     try {
       await props.onCreate(name());
     } catch (e) {
+      setLoading(false);
       if (e instanceof FileExistsError) {
         setError("File Already Exists");
         return;
@@ -37,10 +39,16 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
         throw e;
       }
     }
+    setLoading(false);
     setName("");
   }
   return (
-    <Dialog disabled={disabled()} onSubmit={onCreate} {...props}>
+    <Dialog
+      disabled={disabled()}
+      onSubmit={onCreate}
+      loading={loading()}
+      {...props}
+    >
       <Field.Root class="flex flex-col gap-1" invalid={error() != ""}>
         <Field.Label>Name</Field.Label>
         <Field.Input

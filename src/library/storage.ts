@@ -1,9 +1,6 @@
 import type { ChessfilesStorage, DirEntry, PathComponent } from "~/lib/storage";
-import {
-  joinPath,
-  pathComponents,
-  ChessfilesStorageLocal,
-} from "~/lib/storage";
+import { createStorage, joinPath, pathComponents } from "~/lib/storage";
+import * as settings from "~/lib/settings";
 
 import type { Resource } from "solid-js";
 import { createMemo, createSignal, createResource } from "solid-js";
@@ -17,28 +14,29 @@ export class LibraryStorage {
   dir: () => string;
   dirComponents: () => PathComponent[];
   files: Resource<DirEntry[]>;
-  setStorage: (storage: ChessfilesStorage) => void;
   refetchFiles: () => void;
   private setDirPath: (dir: string) => void;
-  private storage: () => ChessfilesStorage;
-  private mutateFiles: (mutate: (files: DirEntry[]) => DirEntry[]) => void;
+  storage: () => ChessfilesStorage;
 
   constructor() {
-    [this.storage, this.setStorage] = createSignal(
-      new ChessfilesStorageLocal(),
+    this.storage = createMemo<ChessfilesStorage>(() =>
+      createStorage(settings.storage()),
     );
+
     [this.dir, this.setDirPath] = createSignal("/");
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
-    [this.files, { mutate: this.mutateFiles, refetch: this.refetchFiles }] =
-      createResource(this.dir, async (dir) => {
-        const files = await this.storage().listDir(dir);
+    [this.files, { refetch: this.refetchFiles }] = createResource(
+      () => ({ storage: this.storage(), dir: this.dir() }),
+      async ({ storage, dir }) => {
+        const files = await storage.listDir(dir);
         files.sort((a, b) => {
           if (a.type == "dir" && b.type == "file") return -1;
           if (a.type == "file" && b.type == "dir") return 1;
           return a.filename.localeCompare(b.filename);
         });
         return files;
-      });
+      },
+    );
   }
 
   setDir(path: string) {
@@ -61,10 +59,6 @@ export class LibraryStorage {
       await storage.writeFile(path, content);
     } else {
       await storage.createFile(path, content);
-      this.mutateFiles((current) => [
-        ...current!,
-        { filename: filename, type: "file" },
-      ]);
     }
   }
 
@@ -75,18 +69,11 @@ export class LibraryStorage {
   async createDir(filename: string) {
     const path = joinPath(this.dir(), filename);
     await this.storage().createDir(path);
-    this.mutateFiles((current) => [
-      ...current!,
-      { filename: filename, type: "dir" },
-    ]);
   }
 
   async remove(filename: string) {
     const path = joinPath(this.dir(), filename);
     await this.storage().remove(path);
-    this.mutateFiles((current) =>
-      current!.filter((f) => f.filename != filename),
-    );
   }
 
   async move(

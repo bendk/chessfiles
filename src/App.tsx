@@ -1,4 +1,5 @@
 import { createSignal, createEffect, Switch, Match } from "solid-js";
+import { completeLogin } from "~/lib/auth";
 import { Library, LibraryStorage } from "./library";
 import { Navbar } from "./Navbar";
 import { Settings } from "./Settings";
@@ -18,9 +19,18 @@ function themeFromLocalStorage(): string {
 }
 
 function App() {
+  if (completeLogin()) {
+    return <></>;
+  }
+
   const [theme, setTheme] = createSignal(themeFromLocalStorage());
   const [page, setPage] = createSignal("library");
   const storage = new LibraryStorage();
+
+  if (window.location.hash.startsWith("#settings")) {
+    setPage("settings");
+  }
+
   createEffect(() => {
     document.documentElement.classList.toggle("dark", theme() == "dark");
     localStorage.setItem("theme", theme());
@@ -44,7 +54,7 @@ function App() {
           <Training />
         </Match>
         <Match when={page() == "settings"}>
-          <Settings />
+          <Settings storage={storage} />
         </Match>
       </Switch>
     </div>

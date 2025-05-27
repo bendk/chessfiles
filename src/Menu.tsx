@@ -49,7 +49,7 @@ export function Menu(props: MenuProps) {
       </Show>
       <ArkMenu.Positioner>
         <ArkMenu.Content
-          class="text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col gap-1"
+          class="text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col"
           classList={{
             grid: props.style == "nags",
             "grid-cols-2": props.style == "nags",
@@ -67,7 +67,8 @@ export function Menu(props: MenuProps) {
                     classList={{
                       "dark:bg-slate-700": item.selected,
                       "bg-slate-500": item.selected,
-                      "text-white": item.selected,
+                      "dark:text-white": item.selected,
+                      "text-zinc-100": item.selected,
                     }}
                   >
                     {item.icon}

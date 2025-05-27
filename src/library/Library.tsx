@@ -42,19 +42,26 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
     setDialog("");
   }
 
-  async function onSaveBook(content: string) {
+  async function onSaveBook(content: string): Promise<boolean> {
     const book = currentBook();
     if (book) {
       try {
         await props.storage.writeFile(book.filename, content);
+        props.storage.refetchFiles();
+        toaster.create({
+          title: "Book saved",
+          type: "success",
+        });
+        return true;
       } catch (e) {
         toaster.create({
-          title: "Create book failed",
+          title: "Book failed to save",
           description: `${e}`,
           type: "error",
         });
       }
     }
+    return false;
   }
 
   async function onExitBook() {
@@ -65,9 +72,9 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
     if (await props.storage.exists(name)) {
       throw new FileExistsError();
     }
-    setDialog("");
     try {
       await props.storage.createDir(name);
+      props.storage.refetchFiles();
     } catch (e) {
       toaster.create({
         title: "Create folder failed",
@@ -75,10 +82,16 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
         type: "error",
       });
     }
+    setDialog("");
   }
 
   async function moveFile(sourceFilename: string, destFilename: string) {
     const fullPath = joinPath(destFilename, sourceFilename);
+    const toast = toaster.create({
+      title: "Moving",
+      description: `${sourceFilename} -> ${destFilename}`,
+      type: "info",
+    });
     if (await props.storage.exists(joinPath(destFilename, sourceFilename))) {
       toaster.create({
         title: "Move failed",
@@ -89,13 +102,13 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
     }
     try {
       await props.storage.move(sourceFilename, destFilename);
-      toaster.create({
+      toaster.update(toast, {
         title: "Move successful",
-        description: `${sourceFilename} moved to ${destFilename}`,
-        type: "info",
+        description: `${sourceFilename} -> ${destFilename}`,
+        type: "success",
       });
     } catch (e) {
-      toaster.create({
+      toaster.update(toast, {
         title: "Move failed",
         description: `${e}`,
         type: "error",
@@ -115,15 +128,21 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
         });
       }
     } else if (action == "delete") {
+      const toast = toaster.create({
+        title: "Deleting file",
+        description: `${entry.filename}`,
+        type: "info",
+      });
       try {
         await props.storage.remove(entry.filename);
-        toaster.create({
+        toaster.update(toast, {
           title: "Delete successful",
-          description: `${entry.filename} was removed`,
-          type: "info",
+          description: `${entry.filename}`,
+          type: "success",
         });
+        props.storage.refetchFiles();
       } catch (e) {
-        toaster.create({
+        toaster.update(toast, {
           title: "Delete failed",
           description: `${e}`,
           type: "error",
@@ -146,17 +165,40 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
         </Match>
         <Match when={!currentBook()}>
           <div class="grow px-8 py-4">
+            <div class="text-lg pb-4">
+              <Index each={props.storage.dirComponents()}>
+                {(component, index) => (
+                  <>
+                    <Show when={index != 0}>
+                      <span class="mx-2">/</span>
+                    </Show>
+                    <Switch>
+                      <Match
+                        when={index < props.storage.dirComponents().length - 1}
+                      >
+                        <button
+                          class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
+                          onClick={() => props.storage.setDir(component().path)}
+                        >
+                          {component().filename}
+                        </button>
+                      </Match>
+                      <Match
+                        when={index == props.storage.dirComponents().length - 1}
+                      >
+                        <span>{component().filename}</span>
+                      </Match>
+                    </Switch>
+                  </>
+                )}
+              </Index>
+            </div>
             <Switch>
               <Match when={props.storage.files.loading}>
-                <div class="text-3xl flex gap-2 items-center justify-center">
-                  <Loader class="animate-spin duration-1000" size={32} />
-                  Loading books
-                </div>
+                <Loader class="animate-spin duration-1000" size={32} />
               </Match>
               <Match when={props.storage.files.error}>
-                <div class="text-3xl flex gap-2 items-center justify-center">
-                  Error loading books
-                </div>
+                <div class="text-2xl flex gap-2">Error loading files</div>
               </Match>
               <Match
                 when={
@@ -174,40 +216,6 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
                 </div>
               </Match>
               <Match when={props.storage.files.state == "ready"}>
-                <div class="text-lg pb-4">
-                  <Index each={props.storage.dirComponents()}>
-                    {(component, index) => (
-                      <>
-                        <Show when={index != 0}>
-                          <span class="mx-2">/</span>
-                        </Show>
-                        <Switch>
-                          <Match
-                            when={
-                              index < props.storage.dirComponents().length - 1
-                            }
-                          >
-                            <button
-                              class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
-                              onClick={() =>
-                                props.storage.setDir(component().path)
-                              }
-                            >
-                              {component().filename}
-                            </button>
-                          </Match>
-                          <Match
-                            when={
-                              index == props.storage.dirComponents().length - 1
-                            }
-                          >
-                            <span>{component().filename}</span>
-                          </Match>
-                        </Switch>
-                      </>
-                    )}
-                  </Index>
-                </div>
                 <BooksList
                   files={props.storage.files()!}
                   onFileAction={onFileMenuAction}
@@ -228,37 +236,41 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
               onClick={() => setDialog("create-folder")}
             />
           </div>
-          <CreateFileDialog
-            title="Create New Book"
-            submitText="Create Book"
-            open={dialog() == "create-book"}
-            onClose={() => setDialog("")}
-            onCreate={onCreateBook}
-          />
-          <CreateFileDialog
-            title="Create New Folder"
-            submitText="Create Folder"
-            open={dialog() == "create-folder"}
-            onClose={() => setDialog("")}
-            onCreate={onCreateFolder}
-          />
+          <Show when={dialog() == "create-book"} keyed>
+            <CreateFileDialog
+              title="Create New Book"
+              submitText="Create Book"
+              onClose={() => setDialog("")}
+              onCreate={onCreateBook}
+            />
+          </Show>
+          <Show when={dialog() == "create-folder"} keyed>
+            <CreateFileDialog
+              title="Create New Folder"
+              submitText="Create Folder"
+              onClose={() => setDialog("")}
+              onCreate={onCreateFolder}
+            />
+          </Show>
         </Match>
       </Switch>
       <Toaster toaster={toaster}>
         {(toast) => (
           <Toast.Root
-            class="border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2"
+            class="border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2 data-[type=success]:text-sky-600 data-[type=success]:dark:text-sky-500 data-[type=error]:text-red-500"
             style="translate: var(--x) var(--y);"
           >
             <div class="flex justify-between">
               <Toast.Title class="font-bold text-lg">
                 {toast().title}
               </Toast.Title>
-              <Toast.CloseTrigger class="cursor-pointer hover:text-red-500">
+              <Toast.CloseTrigger class="cursor-pointer text-zinc-800 dark:text-zinc-300 hover:text-red-500">
                 <X />
               </Toast.CloseTrigger>
             </div>
-            <Toast.Description>{toast().description}</Toast.Description>
+            <Toast.Description class="text-zinc-800 dark:text-zinc-300">
+              {toast().description}
+            </Toast.Description>
           </Toast.Root>
         )}
       </Toaster>

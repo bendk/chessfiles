@@ -8,7 +8,7 @@ import type { Move, Nag } from "~/lib/chess";
 import { pgnToString } from "~/lib/chess";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { Board } from "./Board";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { Button } from "../Button";
@@ -17,7 +17,7 @@ import { Line } from "./Line";
 
 interface EditorProps {
   rootNode: RootNode;
-  onSave: (content: string) => void;
+  onSave: (content: string) => Promise<boolean>;
   onExit: () => void;
   fen?: string;
 }
@@ -85,11 +85,12 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
-  function save() {
+  async function save() {
     const data = pgnToString(editor.rootNode.export());
-    props.onSave(data);
-    editor.clearUndo();
-    setView(editor.view);
+    if (await props.onSave(data)) {
+      editor.clearUndo();
+      setView(editor.view);
+    }
   }
 
   function exit() {
@@ -172,16 +173,17 @@ export function Editor(props: EditorProps) {
           }
         </div>
       </div>
-      <Dialog
-        open={confirmExitDialog()}
-        onSubmit={onExitSubmit}
-        onClose={() => setConfirmExitDialog(false)}
-        title="Confirm exit"
-        submitText="Exit"
-        withCancel
-      >
-        <div>There are unsaved changes, are you sure you want to exit?</div>
-      </Dialog>
+      <Show when={confirmExitDialog()} keyed>
+        <Dialog
+          onSubmit={onExitSubmit}
+          onClose={() => setConfirmExitDialog(false)}
+          title="Confirm exit"
+          submitText="Exit"
+          withCancel
+        >
+          <div>There are unsaved changes, are you sure you want to exit?</div>
+        </Dialog>
+      </Show>
     </div>
   );
 }

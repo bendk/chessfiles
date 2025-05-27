@@ -8,7 +8,7 @@ import {
   FileExistsError,
 } from "./base";
 
-interface LocalDirEntry extends DirEntry {
+interface DirEntryLocal extends DirEntry {
   id: string;
 }
 
@@ -21,9 +21,9 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     }
   }
 
-  private lookup(path: string, expectedType?: string): LocalDirEntry {
+  private lookup(path: string, expectedType?: string): DirEntryLocal {
     path = normalizePath(path);
-    let entry: LocalDirEntry = {
+    let entry: DirEntryLocal = {
       id: "root",
       filename: "",
       type: "dir",
@@ -44,7 +44,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     return entry;
   }
 
-  private readEntry(entry: LocalDirEntry): string {
+  private readEntry(entry: DirEntryLocal): string {
     const key = entryKey(entry);
     const entryData = localStorage.getItem(key);
     if (entryData === null) {
@@ -53,11 +53,11 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     return entryData;
   }
 
-  private readDirEntry(entry: LocalDirEntry): LocalDirEntry[] {
+  private readDirEntry(entry: DirEntryLocal): DirEntryLocal[] {
     return JSON.parse(this.readEntry(entry));
   }
 
-  async listDir(path: string): Promise<LocalDirEntry[]> {
+  async listDir(path: string): Promise<DirEntryLocal[]> {
     const entry = this.lookup(path, "dir");
     return this.readDirEntry(entry);
   }
@@ -97,7 +97,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
       );
     }
 
-    const newEntry: LocalDirEntry = {
+    const newEntry: DirEntryLocal = {
       id: uuidv4(),
       filename,
       type,
@@ -144,7 +144,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     localStorage.setItem(entryKey(dirEntry), JSON.stringify(newEntries));
   }
 
-  private removeEntryRecursive(entry: LocalDirEntry) {
+  private removeEntryRecursive(entry: DirEntryLocal) {
     if (entry.type == "dir") {
       for (const childEntry of this.readDirEntry(entry)) {
         this.removeEntryRecursive(childEntry);
@@ -154,6 +154,6 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 }
 
-function entryKey(entry: LocalDirEntry): string {
+function entryKey(entry: DirEntryLocal): string {
   return `files-${entry.id}`;
 }
