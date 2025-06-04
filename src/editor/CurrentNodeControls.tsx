@@ -29,7 +29,12 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
     <Show
       when={!props.currentNode.isDraft}
       fallback={
-        <Button text="Add Line" icon={<SquarePlus />} onClick={props.addLine} />
+        <Button
+          text="Add Line"
+          icon={<SquarePlus />}
+          onClick={props.addLine}
+          style="flat"
+        />
       }
     >
       <textarea
@@ -46,7 +51,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
             <Menu
               top
               style="nags"
-              elt={<Button icon=<Tags /> />}
+              elt={<Button icon=<Tags /> style="flat" />}
               items={[
                 item(Nag.BrilliantMove, "row-start-2"),
                 item(Nag.GoodMove),
@@ -76,7 +81,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               </Index>
             </div>
           </div>
-          <Button icon={<Trash />} onClick={props.deleteLine} />
+          <Button icon={<Trash />} onClick={props.deleteLine} style="flat" />
         </div>
       </Show>
     </Show>

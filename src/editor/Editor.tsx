@@ -4,7 +4,7 @@ import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
 import Undo from "lucide-solid/icons/undo";
-import type { Move, Nag } from "~/lib/chess";
+import type { Move, Nag, Shape } from "~/lib/chess";
 import { pgnToString } from "~/lib/chess";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
@@ -30,6 +30,11 @@ export function Editor(props: EditorProps) {
 
   function onMove(move: Move) {
     editor.move(move);
+    setView(editor.view);
+  }
+
+  function toggleShape(shape: Shape) {
+    editor.toggleShape(shape);
     setView(editor.view);
   }
 
@@ -128,22 +133,27 @@ export function Editor(props: EditorProps) {
                 text="Save"
                 disabled={!view().canUndo}
                 onClick={save}
-                narrow
+                style="flat"
               />
-              <Button icon={<LogOut />} text="Exit" onClick={exit} narrow />
+              <Button
+                icon={<LogOut />}
+                text="Exit"
+                onClick={exit}
+                style="flat"
+              />
             </div>
             <div class="flex gap-2">
               <Button
                 disabled={!view().canRedo}
                 icon={<Redo />}
                 onClick={redo}
-                narrow
+                style="flat"
               />
               <Button
                 disabled={!view().canUndo}
                 icon={<Undo />}
                 onClick={undo}
-                narrow
+                style="flat"
               />
             </div>
           </div>
@@ -151,6 +161,9 @@ export function Editor(props: EditorProps) {
             <Board
               chess={view().position}
               onMove={onMove}
+              enableShapes={view().ply > 0 && !view().currentNode.isDraft}
+              toggleShape={toggleShape}
+              shapes={view().currentNode.shapes}
               onMoveBackwards={moveBackwards}
               onMoveForwards={moveForwards}
             />

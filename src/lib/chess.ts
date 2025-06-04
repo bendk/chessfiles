@@ -7,7 +7,11 @@ import {
   makeSan,
   makeSanAndPlay,
 } from "chessops/san";
-import { moveEquals, parseSquare as chessParseSquare } from "chessops/util";
+import {
+  makeSquare,
+  moveEquals,
+  parseSquare as chessParseSquare,
+} from "chessops/util";
 
 type Shape = pgn.CommentShape;
 type ShapeColor = pgn.CommentShapeColor;
@@ -21,6 +25,7 @@ const parsePgn = pgn.parsePgn;
 export {
   makeSan,
   makeSanAndPlay,
+  makeSquare,
   moveEquals,
   parsePgn,
   pgnParseComment,

@@ -56,7 +56,7 @@ export function Dialog(props: DialogProps) {
                     }
                     disabled={disabled()}
                     onClick={onButtonClick}
-                    primary
+                    style="primary"
                   />
                 </Show>
                 <Show when={props.withCancel}>

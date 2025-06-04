@@ -1,12 +1,15 @@
 import {
   chessgroundDests,
   makeFen,
+  makeSquare,
   parseSquare,
   squareFile,
   squareRank,
 } from "~/lib/chess";
-import type { Move, Role, Chess } from "~/lib/chess";
+import type { Move, Role, Chess, Shape, ShapeColor } from "~/lib/chess";
+import type { DrawShape } from "chessground/draw";
 import type { Api as ChessgroundApi } from "chessground/api";
+import type { Key } from "chessground/types";
 import { Chessground } from "chessground";
 import { createSignal, createEffect, Show } from "solid-js";
 
@@ -60,6 +63,9 @@ function PromotionSelector(props: PromotionSelectorProps) {
 interface BoardProps {
   chess: Chess;
   onMove: (move: Move) => void;
+  shapes: readonly Shape[];
+  enableShapes?: boolean;
+  toggleShape?: (shape: Shape) => void;
   onMoveBackwards: () => void;
   onMoveForwards: () => void;
 }
@@ -72,13 +78,28 @@ interface PendingPromotionState {
 
 export function Board(props: BoardProps) {
   let ref!: HTMLDivElement;
-  let board: ChessgroundApi;
+  let board: ChessgroundApi | undefined;
+  const [shapeFromSquare, setShapeFromSquare] = createSignal<Key | undefined>(
+    undefined,
+    {
+      equals: (left, right) => left == right,
+    },
+  );
+  const [pendingShape, setPendingShape] = createSignal<DrawShape | undefined>(
+    undefined,
+    {
+      equals: (left, right) =>
+        left?.orig == right?.orig &&
+        left?.dest == right?.dest &&
+        left?.brush == right?.brush,
+    },
+  );
   const [pendingPromotionState, setPendingPromotionState] =
     createSignal<PendingPromotionState>();
 
   // Make the board match the current `props.chess` value.  This is how we initialize the board and
   // react to changes to `props.chess`.
-  function syncBoard() {
+  function syncPosition() {
     if (!board) {
       board = Chessground(ref, {
         coordinates: false,
@@ -93,23 +114,74 @@ export function Board(props: BoardProps) {
             }
           },
         },
-      });
-    }
-    if (board) {
-      board.set({
-        fen: makeFen(props.chess.toSetup()),
-        movable: {
-          dests: chessgroundDests(props.chess),
+        drawable: {
+          eraseOnClick: false,
+          enabled: false,
+          visible: true,
         },
       });
     }
+    board.set({
+      fen: makeFen(props.chess.toSetup()),
+      movable: {
+        dests: chessgroundDests(props.chess),
+      },
+    });
   }
 
   function playMove(move: Move) {
     props.onMove(move);
   }
 
-  createEffect(syncBoard);
+  function syncShapes() {
+    if (!board) {
+      return;
+    }
+    const shapes: DrawShape[] = props.shapes.map((shape) => {
+      if (shape.from == shape.to) {
+        return {
+          orig: makeSquare(shape.from),
+          brush: shape.color,
+        };
+      } else {
+        return {
+          orig: makeSquare(shape.from),
+          dest: makeSquare(shape.to),
+          brush: shape.color,
+        };
+      }
+    });
+    const pending = pendingShape();
+    if (pending) {
+      shapes.push(pending);
+    }
+    board.setShapes(shapes);
+  }
+
+  createEffect(syncPosition);
+  createEffect(syncShapes);
+
+  function addPendingShape() {
+    const shape = pendingShape();
+    if (!shape || !props.toggleShape) {
+      return;
+    }
+    if (shape.dest) {
+      props.toggleShape({
+        from: parseSquare(shape.orig),
+        to: parseSquare(shape.dest),
+        color: (shape.brush ?? "green") as ShapeColor,
+      });
+    } else {
+      const square = parseSquare(shape.orig);
+      props.toggleShape({
+        from: square,
+        to: square,
+        color: (shape.brush ?? "green") as ShapeColor,
+      });
+    }
+    setPendingShape(undefined);
+  }
 
   // React to a move being played on the board
   function onMove(fromStr: string, toStr: string) {
@@ -141,18 +213,59 @@ export function Board(props: BoardProps) {
       });
     } else {
       // Reset board state to before the move,
-      syncBoard();
+      syncPosition();
     }
     setPendingPromotionState(undefined);
   }
 
-  // TODO: rank and file letters
   return (
     <div class="w-full h-full relative">
       <div
         class="w-full h-full"
         classList={{
           "opacity-50": pendingPromotionState() !== undefined,
+        }}
+        on:contextmenu={(evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+        }}
+        onMouseDown={(evt) => {
+          if (board && evt.button == 2) {
+            if (!props.enableShapes) {
+              return;
+            }
+            const from = board.getKeyAtDomPos([evt.clientX, evt.clientY]);
+            if (from) {
+              setShapeFromSquare(from);
+              setPendingShape({
+                orig: from,
+                dest: from,
+                brush: "green",
+              });
+              return false;
+            }
+          }
+        }}
+        onMouseMove={(evt) => {
+          const from = shapeFromSquare();
+          if (board && from) {
+            const to = board.getKeyAtDomPos([evt.clientX, evt.clientY]);
+            if (to) {
+              setPendingShape({
+                orig: from,
+                dest: to,
+                brush: "green",
+              });
+            }
+          }
+        }}
+        onMouseUp={(evt) => {
+          setShapeFromSquare(undefined);
+          if (evt.button == 2) {
+            addPendingShape();
+          } else {
+            syncShapes();
+          }
         }}
         onWheel={(evt) => {
           if (evt.deltaY < 0) {
