@@ -1,12 +1,14 @@
 import * as pgn from "chessops/pgn";
 
 import { Chess } from "chessops/chess";
+import type { Color } from "chessops/types";
 import { type NormalMove as Move } from "chessops/types";
 import {
   parseSan as chessParseSan,
   makeSan,
   makeSanAndPlay,
 } from "chessops/san";
+import { setupEquals } from "chessops/setup";
 import {
   makeSquare,
   moveEquals,
@@ -30,9 +32,10 @@ export {
   parsePgn,
   pgnParseComment,
   pgnToString,
+  setupEquals,
   Chess,
 };
-export type { Move, PgnGame, PgnChildNode, PgnNode, Shape, ShapeColor };
+export type { Color, Move, PgnGame, PgnChildNode, PgnNode, Shape, ShapeColor };
 export { chessgroundDests } from "chessops/compat";
 export { makeFen, parseFen, INITIAL_FEN } from "chessops/fen";
 export type { Role } from "chessops/types";
@@ -44,6 +47,12 @@ export function parseSan(position: Chess, san: string): Move {
     throw Error(`Invalid move: ${san}`);
   }
   return move;
+}
+
+export function playSan(position: Chess, ...moves: string[]) {
+  for (const san of moves) {
+    position.play(parseSan(position, san));
+  }
 }
 
 export function parseSquare(square: string): number {

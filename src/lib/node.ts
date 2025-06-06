@@ -1,15 +1,28 @@
-import type { Move, Nag, PgnChildNode, PgnGame, Shape } from "./chess";
-import { Chess, INITIAL_FEN, parseFen } from "./chess";
+import type { Color, Move, Nag, PgnChildNode, PgnGame, Shape } from "./chess";
 import {
+  Chess,
+  INITIAL_FEN,
+  makeFen,
   makeSanAndPlay,
   moveEquals,
   newPgnChildNode,
   newPgnGame,
+  parseFen,
   parsePgn,
   parseSan,
   pgnParseComment,
   pgnStartingPosition,
+  pgnToString,
 } from "./chess";
+
+/**
+ * Move priority values
+ */
+export enum Priority {
+  Default = 0,
+  TrainFirst = 1,
+  TrainLast = -1,
+}
 
 /**
  * Single position in a move tree
@@ -125,31 +138,41 @@ export class Node {
   }
 
   lineCount(): number {
+    if (this.isEmpty()) {
+      return 1;
+    }
+
     let count = 0;
     for (const child of this.children) {
-      if (child.isEmpty()) {
-        count += 1;
-      } else {
-        count += child.lineCount();
-      }
+      count += child.lineCount();
     }
     return count;
+  }
+
+  lineCountByPriority(): Record<Priority, number> {
+    return {
+      [Priority.TrainFirst]: 0,
+      [Priority.Default]: this.lineCount(),
+      [Priority.TrainLast]: 0,
+    };
   }
 }
 
 export class RootNode extends Node {
-  readonly position: Chess;
+  readonly initialPosition: Chess;
+  initialMoves: readonly Move[];
   shapes?: readonly Shape[];
   headers: Map<string, string>;
 
   constructor(
-    position: Chess,
+    initialPosition: Chess,
     children: ChildNode[] = [],
     headers?: Map<string, string>,
   ) {
     super(children);
-    this.position = position;
+    this.initialPosition = initialPosition;
     this.headers = headers ?? new Map();
+    this.initialMoves = [];
   }
 
   static fromInitialPosition(): RootNode {
@@ -162,6 +185,28 @@ export class RootNode extends Node {
     const games = parsePgn(pgn);
     return RootNode.import(games[index]);
   }
+
+  toPgnString(): string {
+    return pgnToString(this.export());
+  }
+
+  get color(): Color | undefined {
+    const value = this.headers.get("TrainingColor");
+    if (value != "white" && value != "black") {
+      return undefined;
+    }
+    return value;
+  }
+
+  set color(color: Color | undefined) {
+    if (color === undefined) {
+      this.headers.delete("TrainingColor");
+      return;
+    }
+    this.headers.set("TrainingColor", color);
+  }
+
+  // TODO initialMoves
 
   static import(game: PgnGame): RootNode {
     const position = pgnStartingPosition(game);
@@ -176,9 +221,11 @@ export class RootNode extends Node {
 
   export(): PgnGame {
     const children = this.children.map((child) =>
-      child.export(this.position.clone()),
+      child.export(this.initialPosition.clone()),
     );
-    return newPgnGame(this.headers, children, this.comment);
+    const headers = new Map([...this.headers]);
+    headers.set("FEN", makeFen(this.initialPosition.toSetup()));
+    return newPgnGame(headers, children, this.comment);
   }
 }
 
@@ -186,6 +233,7 @@ export class ChildNode extends Node {
   readonly move: Move;
   nags?: readonly Nag[];
   shapes?: readonly Shape[];
+  priority = Priority.Default;
 
   constructor(move: Move, children: ChildNode[] = []) {
     super(children);

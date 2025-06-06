@@ -1,0 +1,1243 @@
+import { describe, test, expect } from "vitest";
+import type {
+  CurrentLineEntry,
+  TrainingBoardFeedback,
+  TrainingState,
+} from "./training";
+import { Training } from "./training";
+import type { Move, Shape } from "./chess";
+import { makeFen, parseSan, playSan, Chess } from "./chess";
+import type { RootNode } from "./node";
+import { Priority } from "./node";
+import { buildNode } from "./node.test";
+
+function ruyLopezRootNode(): RootNode {
+  return buildNode({
+    initialMoves: ["e4", "e5", "Nf3", "Nc6", "Bb5"],
+    color: "white",
+    Nf6: {
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      "O-O": {
+        Nxe4: {
+          d4: {
+            comment: "White temporarily sacrifices a pawn",
+            shapes: [
+              {
+                from: 0,
+                to: 8,
+                color: "green",
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
+}
+
+// Toy endgame where the kings start on a1 and a8
+function endgameRootNode(): RootNode {
+  return buildNode({
+    position: "k7/8/8/8/8/8/8/K7 w - - 0 1",
+    color: "black",
+    Kb1: {
+      Kb8: {},
+    },
+    Kb2: {
+      Kb7: {},
+    },
+  });
+}
+
+// Another endgame where the kings start on h1 and h8
+function endgameRootNode2(): RootNode {
+  return buildNode({
+    position: "7k/8/8/8/8/8/8/7K b - - 0 1",
+    color: "white",
+    Kg8: {
+      Kg1: {},
+    },
+  });
+}
+
+// root node used to test priority order
+function frenchDefenseRootNode() {
+  return buildNode({
+    position: "rnbqkbnr/ppp2ppp/4p3/3p4/3PP3/2N5/PPP2PPP/R1BQKBNR b KQkq - 1 3",
+    dxe4: {
+      Nxe4: {},
+    },
+    Nf6: {
+      e5: {
+        Nfd7: {
+          priority: Priority.TrainFirst,
+          f4: {
+            priority: Priority.TrainFirst,
+          },
+        },
+        Ne4: {
+          priority: Priority.TrainLast,
+          Nxe4: {
+            priority: Priority.TrainLast,
+          },
+        },
+      },
+    },
+    Bb4: {
+      priority: Priority.TrainFirst,
+      e5: {
+        priority: Priority.TrainFirst,
+      },
+    },
+  });
+}
+
+interface CheckTrainingSpec {
+  state: TrainingState;
+  position: Chess;
+  correct: number;
+  incorrect: number;
+  activityCorrect?: number;
+  activityIncorrect?: number;
+  linesTrained?: number;
+  feedback?: TrainingBoardFeedback;
+  comment?: string;
+  shapes?: Shape[];
+}
+
+function checkTraining(training: Training, spec: CheckTrainingSpec) {
+  expect(training.state).toEqual(spec.state);
+  expect(training.meta.correctCount).toEqual(spec.correct);
+  expect(training.meta.incorrectCount).toEqual(spec.incorrect);
+  expect(training.meta.linesTrained).toEqual(spec.linesTrained ?? 0);
+  expect(training.activity.correctCount).toEqual(
+    spec.activityCorrect ?? spec.correct,
+  );
+  expect(training.activity.incorrectCount).toEqual(
+    spec.activityIncorrect ?? spec.incorrect,
+  );
+  expect(makeFen(training.board.position.toSetup())).toEqual(
+    makeFen(spec.position.toSetup()),
+  );
+  expect(training.board.comment).toEqual(spec.comment ?? "");
+  expect(training.board.shapes).toEqual(spec.shapes ?? []);
+  expect(training.board.feedback).toEqual(spec.feedback ?? null);
+}
+
+interface CurrentLineEntrySpec {
+  move: string;
+  score: "correct" | "incorrect" | null;
+  incorrectTries?: string[];
+}
+
+function buildLine(
+  position: Chess,
+  ...spec: CurrentLineEntrySpec[]
+): CurrentLineEntry[] {
+  position = position.clone();
+  return spec.map((item) => {
+    const move = parseSan(position, item.move);
+    const incorrectTriesSan = item.incorrectTries ?? [];
+    const incorrectTries = incorrectTriesSan.map((san) =>
+      parseSan(position, san),
+    );
+    position.play(move);
+    return { move, score: item.score, incorrectTries };
+  });
+}
+
+function tryMoveSan(training: Training, position: Chess, san: string): Move {
+  const move = parseSan(position, san);
+  training.tryMove(move);
+  return move;
+}
+
+function tryMoveSanAndPlay(
+  training: Training,
+  position: Chess,
+  san: string,
+): Move {
+  const move = tryMoveSan(training, position, san);
+  position.play(move);
+  return move;
+}
+
+describe("Training", () => {
+  test("moving through a single position", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [ruyLopezRootNode()],
+      false,
+    );
+
+    const position = Chess.default();
+    playSan(position, "e4", "e5", "Nf3", "Nc6", "Bb5");
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    training.advance();
+    playSan(position, "Nf6");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+    });
+
+    tryMoveSanAndPlay(training, position, "O-O");
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    tryMoveSanAndPlay(training, position, "d4");
+    checkTraining(training, {
+      position,
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          ruyLopezRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: null,
+          },
+          {
+            move: "O-O",
+            score: "correct",
+          },
+          {
+            move: "Nxe4",
+            score: null,
+          },
+          {
+            move: "d4",
+            score: "correct",
+          },
+        ),
+      },
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 1,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+    });
+
+    training.finishLine();
+    checkTraining(training, {
+      state: { type: "show-training-summary" },
+      position: Chess.default(),
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 1,
+    });
+  });
+
+  test("moving through a multiple positions", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [endgameRootNode(), endgameRootNode2()],
+      false,
+    );
+    let position = endgameRootNode().initialPosition;
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    training.advance();
+    playSan(position, "Kb1");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    tryMoveSanAndPlay(training, position, "Kb8");
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          endgameRootNode().initialPosition,
+          {
+            move: "Kb1",
+            score: null,
+          },
+          {
+            move: "Kb8",
+            score: "correct",
+          },
+        ),
+      },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 1,
+    });
+
+    training.finishLine();
+    position = endgameRootNode().initialPosition;
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 1,
+    });
+
+    training.advance();
+    playSan(position, "Kb2");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 1,
+    });
+
+    tryMoveSanAndPlay(training, position, "Kb7");
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          endgameRootNode().initialPosition,
+          {
+            move: "Kb2",
+            score: null,
+          },
+          {
+            move: "Kb7",
+            score: "correct",
+          },
+        ),
+      },
+      position,
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 2,
+    });
+
+    training.finishLine();
+    position = endgameRootNode2().initialPosition;
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 2,
+    });
+
+    training.advance();
+    playSan(position, "Kg8");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 2,
+    });
+
+    tryMoveSanAndPlay(training, position, "Kg1");
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          endgameRootNode2().initialPosition,
+          {
+            move: "Kg8",
+            score: null,
+          },
+          {
+            move: "Kg1",
+            score: "correct",
+          },
+        ),
+      },
+      position,
+      correct: 3,
+      incorrect: 0,
+      linesTrained: 3,
+    });
+
+    training.finishLine();
+    checkTraining(training, {
+      state: {
+        type: "show-training-summary",
+      },
+      position: Chess.default(),
+      correct: 3,
+      incorrect: 0,
+      linesTrained: 3,
+    });
+  });
+
+  test("resuming a session", () => {
+    // Start a training session and play some moves
+    let training = new Training(
+      "training-1",
+      "book.pgn",
+      [ruyLopezRootNode()],
+      false,
+    );
+
+    let position = ruyLopezRootNode().initialPosition;
+    training.advance();
+    playSan(position, "Nf6");
+    tryMoveSanAndPlay(training, position, "O-O");
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    // Restart the session, the session should move back to the start of the line and play the
+    // moves forward
+    const data = training.export();
+    training = Training.import(data);
+    position = ruyLopezRootNode().initialPosition;
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      activityCorrect: 0,
+      activityIncorrect: 0,
+    });
+
+    training.advance();
+    playSan(position, "Nf6");
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      activityCorrect: 0,
+      activityIncorrect: 0,
+    });
+
+    training.advance();
+    playSan(position, "O-O");
+    checkTraining(training, {
+      state: { type: "advance-after-delay" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      activityCorrect: 0,
+      activityIncorrect: 0,
+    });
+
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      activityCorrect: 0,
+      activityIncorrect: 0,
+    });
+
+    tryMoveSanAndPlay(training, position, "d4");
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          ruyLopezRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: null,
+          },
+          {
+            move: "O-O",
+            score: "correct",
+          },
+          {
+            move: "Nxe4",
+            score: null,
+          },
+          {
+            move: "d4",
+            score: "correct",
+          },
+        ),
+      },
+      position,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 1,
+      activityCorrect: 1,
+      activityIncorrect: 0,
+    });
+  });
+
+  test("wrong moves", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [ruyLopezRootNode()],
+      false,
+    );
+
+    const position = ruyLopezRootNode().initialPosition;
+    training.advance();
+    playSan(position, "Nf6");
+    let move = tryMoveSan(training, position, "d4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+    move = tryMoveSan(training, position, "Nc3");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      // A second wrong move shouldn't change the count
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+
+    // Guessing the correct move should move to the show-correct-move step, without changing
+    // the counts
+    move = tryMoveSanAndPlay(training, position, "O-O");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+    });
+
+    // We're at the very last move.  If the user guesses incorrect, then we should
+    // show the correct move screen, then continue to show-line-summary.
+    move = tryMoveSan(training, position, "Re1");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 2,
+      linesTrained: 0,
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+    move = tryMoveSanAndPlay(training, position, "d4");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 0,
+      incorrect: 2,
+      linesTrained: 0,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          ruyLopezRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: null,
+          },
+          {
+            move: "O-O",
+            score: "incorrect",
+            incorrectTries: ["d4", "Nc3"],
+          },
+          {
+            move: "Nxe4",
+            score: null,
+          },
+          {
+            move: "d4",
+            score: "incorrect",
+            incorrectTries: ["Re1"],
+          },
+        ),
+      },
+      position,
+      correct: 0,
+      incorrect: 2,
+      linesTrained: 1,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+    });
+  });
+
+  test("playing both sides", () => {
+    const rootNode = ruyLopezRootNode();
+    // If color is `undefined` then the user needs to choose moves for both sides
+    rootNode.color = undefined;
+    const training = new Training("training-1", "book.pgn", [rootNode], false);
+
+    const position = rootNode.initialPosition.clone();
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    tryMoveSanAndPlay(training, position, "Nf6");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+    });
+
+    let move = tryMoveSanAndPlay(training, position, "O-O");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 2,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    // Test wrong moves
+    move = tryMoveSan(training, position, "d6");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 2,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+
+    move = tryMoveSanAndPlay(training, position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 2,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 2,
+      incorrect: 1,
+      linesTrained: 0,
+    });
+
+    move = tryMoveSan(training, position, "Re1");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 2,
+      incorrect: 2,
+      linesTrained: 0,
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+
+    move = tryMoveSanAndPlay(training, position, "d4");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 2,
+      incorrect: 2,
+      linesTrained: 0,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          rootNode.initialPosition,
+          {
+            move: "Nf6",
+            score: "correct",
+          },
+          {
+            move: "O-O",
+            score: "correct",
+          },
+          {
+            move: "Nxe4",
+            score: "incorrect",
+            incorrectTries: ["d6"],
+          },
+          {
+            move: "d4",
+            score: "incorrect",
+            incorrectTries: ["Re1"],
+          },
+        ),
+      },
+      position,
+      correct: 2,
+      incorrect: 2,
+      linesTrained: 1,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+    });
+  });
+
+  test("wrong move adjustments", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [ruyLopezRootNode()],
+      false,
+    );
+
+    const position = ruyLopezRootNode().initialPosition;
+    training.advance();
+    playSan(position, "Nf6");
+    let move = tryMoveSan(training, position, "d4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+    move = tryMoveSanAndPlay(training, position, "O-O");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.updateLastScore("correct");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+    });
+
+    move = tryMoveSan(training, position, "Re1");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 1,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "incorrect",
+        move,
+      },
+    });
+
+    move = tryMoveSanAndPlay(training, position, "d4");
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 1,
+      incorrect: 1,
+      linesTrained: 0,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.updateLastScore(null);
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 0,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          ruyLopezRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: null,
+          },
+          {
+            move: "O-O",
+            score: "correct",
+            incorrectTries: ["d4"],
+          },
+          {
+            move: "Nxe4",
+            score: null,
+          },
+          {
+            move: "d4",
+            score: null,
+            incorrectTries: ["Re1"],
+          },
+        ),
+      },
+      position,
+      correct: 1,
+      incorrect: 0,
+      linesTrained: 1,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+    });
+  });
+
+  test("skipping moves", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [ruyLopezRootNode()],
+      false,
+    );
+
+    const position = ruyLopezRootNode().initialPosition;
+    training.advance();
+    playSan(position, "Nf6");
+
+    // Test advance from the `choose-move` state.
+    let move = parseSan(position, "O-O");
+    position.play(move);
+    training.advance();
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+    // Let's try that again
+    training.advance();
+    playSan(position, "Nxe4");
+    checkTraining(training, {
+      state: { type: "choose-move" },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+    });
+
+    training.advance();
+    move = parseSan(position, "d4");
+    position.play(move);
+    checkTraining(training, {
+      state: { type: "show-correct-move" },
+      position,
+      correct: 0,
+      incorrect: 2,
+      linesTrained: 0,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+      feedback: {
+        type: "correct",
+        move,
+      },
+    });
+
+    training.advance();
+    checkTraining(training, {
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          ruyLopezRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: null,
+          },
+          {
+            move: "O-O",
+            score: "incorrect",
+          },
+          {
+            move: "Nxe4",
+            score: null,
+          },
+          {
+            move: "d4",
+            score: "incorrect",
+          },
+        ),
+      },
+      position,
+      correct: 0,
+      incorrect: 2,
+      linesTrained: 1,
+      comment: "White temporarily sacrifices a pawn",
+      shapes: [
+        {
+          from: 0,
+          to: 8,
+          color: "green",
+        },
+      ],
+    });
+  });
+  //
+  // function checkMoves(state: TrainingReducer.State, expectedMoves: Move[]) {
+  //     expect(
+  //         state.training.currentBook?.currentLine.moves.map((m) => m.move),
+  //     ).toEqual(expectedMoves);
+  // }
+  //
+  test("trainingSession ordering by priority", () => {
+    const training = new Training(
+      "training-1",
+      "book.pgn",
+      [frenchDefenseRootNode()],
+      false,
+    );
+
+    // Train the high-priority lines first.  (For the unit tests,
+    // high-priority lines will be ordered by the order of their keys.
+    // In a real session, they will be randomly ordered).
+    //
+    // Play the entire line, then check it at the end
+    let position = frenchDefenseRootNode().initialPosition;
+    tryMoveSanAndPlay(training, position, "Nf6");
+    tryMoveSanAndPlay(training, position, "e5");
+    tryMoveSanAndPlay(training, position, "Nfd7");
+    tryMoveSanAndPlay(training, position, "f4");
+    checkTraining(training, {
+      position,
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          frenchDefenseRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: "correct",
+          },
+          {
+            move: "e5",
+            score: "correct",
+          },
+          {
+            move: "Nfd7",
+            score: "correct",
+          },
+          {
+            move: "f4",
+            score: "correct",
+          },
+        ),
+      },
+      correct: 4,
+      incorrect: 0,
+      linesTrained: 1,
+    });
+
+    training.finishLine();
+    position = frenchDefenseRootNode().initialPosition;
+    tryMoveSanAndPlay(training, position, "Bb4");
+    tryMoveSanAndPlay(training, position, "e5");
+    checkTraining(training, {
+      position,
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          frenchDefenseRootNode().initialPosition,
+          {
+            move: "Bb4",
+            score: "correct",
+          },
+          {
+            move: "e5",
+            score: "correct",
+          },
+        ),
+      },
+      correct: 6,
+      incorrect: 0,
+      linesTrained: 2,
+    });
+
+    training.finishLine();
+    position = frenchDefenseRootNode().initialPosition;
+    tryMoveSanAndPlay(training, position, "dxe4");
+    tryMoveSanAndPlay(training, position, "Nxe4");
+    checkTraining(training, {
+      position,
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          frenchDefenseRootNode().initialPosition,
+          {
+            move: "dxe4",
+            score: "correct",
+          },
+          {
+            move: "Nxe4",
+            score: "correct",
+          },
+        ),
+      },
+      correct: 8,
+      incorrect: 0,
+      linesTrained: 3,
+    });
+
+    training.finishLine();
+    position = frenchDefenseRootNode().initialPosition;
+    tryMoveSanAndPlay(training, position, "Nf6");
+    tryMoveSanAndPlay(training, position, "e5");
+    tryMoveSanAndPlay(training, position, "Ne4");
+    tryMoveSanAndPlay(training, position, "Nxe4");
+    checkTraining(training, {
+      position,
+      state: {
+        type: "show-line-summary",
+        line: buildLine(
+          frenchDefenseRootNode().initialPosition,
+          {
+            move: "Nf6",
+            score: "correct",
+          },
+          {
+            move: "e5",
+            score: "correct",
+          },
+          {
+            move: "Ne4",
+            score: "correct",
+          },
+          {
+            move: "Nxe4",
+            score: "correct",
+          },
+        ),
+      },
+      correct: 12,
+      incorrect: 0,
+      linesTrained: 4,
+    });
+  });
+});

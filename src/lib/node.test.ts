@@ -1,7 +1,6 @@
-import { Chess } from "chessops/chess";
-import { parseSan } from "chessops/san";
 import { describe, test, expect } from "vitest";
-import { type Move, Nag } from "./chess";
+import type { Color } from "./chess";
+import { type Move, Chess, parseSan, parseFen, Nag } from "./chess";
 import { ChildNode, RootNode } from "./node";
 
 /**
@@ -11,11 +10,40 @@ import { ChildNode, RootNode } from "./node";
  *    than inside the `children` field.
  */
 export function buildNode(nodeSpec: object): RootNode {
-  const position = Chess.default();
+  let chess;
+  if ("position" in nodeSpec) {
+    chess = Chess.fromSetup(
+      parseFen(nodeSpec.position as string).unwrap(),
+    ).unwrap();
+    delete nodeSpec["position"];
+  } else {
+    chess = Chess.default();
+  }
+  const initialMoves = [];
+
+  if ("initialMoves" in nodeSpec) {
+    for (const san of nodeSpec.initialMoves as string[]) {
+      const move = parseSan(chess, san);
+      chess.play(move);
+      initialMoves.push(move);
+    }
+    delete nodeSpec["initialMoves"];
+  }
+  let color = undefined;
+  if ("color" in nodeSpec) {
+    color = nodeSpec["color"] as Color;
+    delete nodeSpec["color"];
+  }
+
   const children = Object.entries(nodeSpec).map(([key, value]) =>
-    buildChildNode(position.clone(), key, value),
+    buildChildNode(chess.clone(), key, value),
   );
-  return new RootNode(position, children);
+  const node = new RootNode(chess, children);
+  if (initialMoves.length > 0) {
+    node.initialMoves = initialMoves;
+  }
+  node.color = color;
+  return node;
 }
 
 export function buildChildNode(
@@ -38,6 +66,8 @@ export function buildChildNode(
       node.nags = value;
     } else if (key === "shapes") {
       node.shapes = value;
+    } else if (key === "priority") {
+      node.priority = value;
     } else {
       children.push(buildChildNode(position.clone(), key, value));
     }
@@ -47,7 +77,7 @@ export function buildChildNode(
 }
 
 export function moveList(root: RootNode, moves: string[]): Move[] {
-  const position = root.position.clone();
+  const position = root.initialPosition.clone();
   return moves.map((san) => {
     const move = parseSan(position, san);
     if (!(move && "from" in move)) {
@@ -108,7 +138,7 @@ describe("Node", function () {
     ).toEqual(1);
     expect(
       node.getDescendant(moveList(node, ["e4", "e6"]))!.lineCount(),
-    ).toEqual(0);
+    ).toEqual(1);
   });
 });
 
@@ -141,6 +171,10 @@ describe("Node import/export", function () {
       },
     });
     node.headers.set("White", "Chess Files");
+    node.headers.set(
+      "FEN",
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    );
     expect(RootNode.import(node.export())).toEqual(node);
   });
 });

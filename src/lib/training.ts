@@ -1,0 +1,525 @@
+import type { ChildNode, Node } from "./node";
+import { Priority, RootNode } from "./node";
+import type { Move, Shape } from "./chess";
+import { Chess } from "./chess";
+
+/**
+ * Training session
+ *
+ */
+export class Training {
+  meta: TrainingMeta;
+  state: TrainingState;
+  board: TrainingBoard;
+  activity: TrainingActivity;
+  private currentRootNode: RootNode | undefined;
+  private rootNodesToGo: RootNode[];
+  private currentLine: CurrentLineEntry[];
+  private draftEntry: DraftHistoryEntry;
+  private currentNode: Node | undefined;
+  private shuffle: boolean;
+  // Are we replying the current line because we imported an in-progress session?/
+  private currentLineReplayCount = -1;
+
+  constructor(
+    filename: string,
+    bookPath: string,
+    rootNodes: RootNode[],
+    shuffle: boolean = true,
+  ) {
+    this.meta = {
+      filename,
+      bookPath,
+      correctCount: 0,
+      incorrectCount: 0,
+      linesTrained: 0,
+      totalLines: rootNodes.reduce(
+        (count, node) => count + node.lineCount(),
+        0,
+      ),
+    };
+    if (shuffle) {
+      shuffleArray(rootNodes);
+    }
+    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
+    this.currentNode = this.currentRootNode;
+    this.currentLine = [];
+    this.draftEntry = {
+      score: null,
+      incorrectTries: [],
+    };
+    this.shuffle = shuffle;
+    this.activity = newActivity(filename);
+    this.board = newBoard(this.currentRootNode);
+    this.state = stateForNewNode(this.currentRootNode);
+  }
+
+  restart() {
+    this.meta.correctCount = 0;
+    this.meta.incorrectCount = 0;
+    this.meta.linesTrained = 0;
+  }
+
+  advance() {
+    assertIsDefined(this.currentNode);
+    if (this.state.type == "show-correct-move") {
+      this.board.feedback = null;
+      if (this.isUsersMove() || this.currentNode.isEmpty()) {
+        this.updateStateForCurrentNode();
+      } else {
+        const child = pickChildNode(this.currentNode, this.shuffle);
+        this.advanceToChild(child);
+      }
+      return;
+    }
+    if (this.state.type == "choose-move") {
+      // User skipped when asked to choose a move
+      this.updateCurrentScore(null, false);
+    } else if (this.state.type != "advance-after-delay") {
+      throw Error(`advance(): invalid state ${this.state.type}`);
+    }
+    const child = pickChildNode(this.currentNode, this.shuffle);
+    this.advanceToChild(child);
+  }
+
+  tryMove(move: Move) {
+    assertIsDefined(this.currentNode);
+    if (this.state.type != "choose-move") {
+      throw Error(`tryMove: invalid state (${this.state.type})`);
+    }
+    const nodeForMove = this.currentNode.getChild(move);
+    if (nodeForMove === undefined) {
+      this.updateCurrentScore(move, false);
+      return;
+    }
+    this.updateCurrentScore(move, true);
+    this.advanceToChild(nodeForMove);
+  }
+
+  finishLine() {
+    assertIsDefined(this.currentRootNode);
+    this.removeCurrentLineFromRootNode();
+    this.currentLine = [];
+    if (this.currentRootNode.isEmpty()) {
+      [this.currentRootNode, ...this.rootNodesToGo] = this.rootNodesToGo;
+    }
+    this.board = newBoard(this.currentRootNode);
+    this.state = stateForNewNode(this.currentRootNode);
+    this.currentNode = this.currentRootNode;
+  }
+
+  updateLastScore(score: "correct" | "incorrect" | null) {
+    if (this.state.type != "show-correct-move") {
+      throw Error(`updateLastScore: invalid state (${this.state.type})`);
+    }
+    const entry = this.currentLine.at(-1);
+    if (entry === undefined) {
+      throw Error("No history entry");
+    }
+    if (entry.score == "correct") {
+      this.meta.correctCount--;
+      this.activity.correctCount--;
+    } else if (entry.score == "incorrect") {
+      this.meta.incorrectCount--;
+      this.activity.incorrectCount--;
+    }
+    if (score == "correct") {
+      this.meta.correctCount++;
+      this.activity.correctCount++;
+    } else if (score == "incorrect") {
+      this.meta.incorrectCount++;
+      this.activity.incorrectCount++;
+    }
+    entry.score = score;
+    // TODO: increment score
+  }
+
+  private advanceToChild(child: ChildNode) {
+    assertIsDefined(this.currentRootNode);
+    this.board.position.play(child.move);
+    this.board.comment = child.comment ?? "";
+    this.board.shapes = child.shapes ?? [];
+    this.board.feedback = null;
+    this.currentNode = child;
+    const wasIncorrect = this.draftEntry.score == "incorrect";
+    if (this.currentLineReplayCount >= 0) {
+      // Replaying moves after an import:
+      // * Don't push to `this.currentLine`.
+      // * Choose "advance-after-delay", except for the last pass
+      this.currentLineReplayCount--;
+      if (this.currentLineReplayCount >= 0) {
+        this.state = {
+          type: "advance-after-delay",
+        };
+        return;
+      }
+    } else {
+      this.currentLine.push({
+        ...this.draftEntry,
+        move: child.move,
+      });
+      this.draftEntry = {
+        score: null,
+        incorrectTries: [],
+      };
+    }
+
+    if (wasIncorrect) {
+      this.state = {
+        type: "show-correct-move",
+      };
+      this.board.feedback = {
+        type: "correct",
+        move: child.move,
+      };
+    } else {
+      this.updateStateForCurrentNode();
+    }
+  }
+  private updateStateForCurrentNode() {
+    assertIsDefined(this.currentNode);
+    assertIsDefined(this.currentRootNode);
+    if (this.currentNode.isEmpty()) {
+      this.meta.linesTrained++;
+      this.state = {
+        type: "show-line-summary",
+        line: [...this.currentLine],
+      };
+    } else if (this.isUsersMove()) {
+      this.state = {
+        type: "choose-move",
+      };
+    } else {
+      this.state = {
+        type: "advance-after-delay",
+      };
+    }
+  }
+
+  private isUsersMove(): boolean {
+    assertIsDefined(this.currentRootNode);
+    return (
+      this.currentRootNode.color === undefined ||
+      this.currentRootNode.color == this.board.position.turn
+    );
+  }
+
+  private updateCurrentScore(move: Move | null, correct: boolean) {
+    if (!correct && move !== null) {
+      this.draftEntry.incorrectTries.push(move);
+    }
+
+    if (this.draftEntry.score === null) {
+      if (correct) {
+        this.draftEntry.score = "correct";
+        this.meta.correctCount++;
+        this.activity.correctCount++;
+      } else {
+        this.draftEntry.score = "incorrect";
+        this.meta.incorrectCount++;
+        this.activity.incorrectCount++;
+      }
+    }
+
+    if (this.draftEntry.score !== null && move !== null) {
+      this.board.feedback = {
+        type: this.draftEntry.score,
+        move: move,
+      };
+    } else {
+      this.board.feedback = null;
+    }
+  }
+
+  private removeCurrentLineFromRootNode() {
+    assertIsDefined(this.currentRootNode);
+    let lastBranch: [Node, Move] | null = null;
+
+    let node: Node = this.currentRootNode;
+    for (const entry of this.currentLine) {
+      const move = entry.move;
+      if (node.children.length > 1) {
+        lastBranch = [node, move];
+      }
+      const child = node.getChild(move);
+      assertIsDefined(child);
+      node = child;
+    }
+
+    if (lastBranch !== null) {
+      lastBranch[0].removeChild(lastBranch[1]);
+    } else {
+      // No branches found, remove the last move from the root node
+      this.currentRootNode.children = [];
+    }
+  }
+
+  export(): string {
+    return JSON.stringify({
+      ...this,
+      currentRootNode: this.currentRootNode?.toPgnString(),
+      rootNodesToGo: this.rootNodesToGo.map((node) => node.toPgnString()),
+      activity: undefined,
+      // TODO: export board
+    });
+  }
+
+  static import(data: string): Training {
+    const parsed = JSON.parse(data);
+    let rootNode = undefined;
+    if (parsed.currentRootNode) {
+      rootNode = RootNode.fromPgnString(parsed.currentRootNode, 0);
+    }
+
+    const training = new Training(parsed.filename, parsed.bookPath, []);
+    training.meta = parsed.meta;
+    training.currentLine = parsed.currentLine;
+    training.board = newBoard(rootNode);
+    training.currentNode = training.currentRootNode = rootNode;
+    training.rootNodesToGo = parsed.rootNodesToGo.map((pgn: string) =>
+      RootNode.fromPgnString(pgn, 0),
+    );
+    if (training.currentLine.length > 0) {
+      training.currentLineReplayCount = training.currentLine.length - 1;
+      training.state = { type: "advance-after-delay" };
+    } else {
+      training.state = stateForNewNode(training.currentRootNode);
+    }
+    return training;
+  }
+}
+
+function stateForNewNode(rootNode: RootNode | undefined): TrainingState {
+  if (rootNode === undefined) {
+    return { type: "show-training-summary" };
+  }
+  if (
+    rootNode.color === undefined ||
+    rootNode.color == rootNode.initialPosition.turn
+  ) {
+    return { type: "choose-move" };
+  } else {
+    return { type: "advance-after-delay" };
+  }
+}
+
+/**
+ * Metadata about a training session
+ *
+ * These are stored together in the `ChessFiles.index` file.
+ */
+export interface TrainingMeta {
+  filename: string;
+  bookPath: string;
+  correctCount: number;
+  incorrectCount: number;
+  linesTrained: number;
+  totalLines: number;
+}
+
+// Activity record from a single training session
+export interface TrainingActivity {
+  timestamp: number;
+  filename: string;
+  correctCount: number;
+  incorrectCount: number;
+}
+
+function newActivity(filename: string): TrainingActivity {
+  return {
+    timestamp: Date.now(),
+    filename,
+    correctCount: 0,
+    incorrectCount: 0,
+  };
+}
+
+/**
+ * Wait a short delay, then call `advance()`
+ *
+ * This allows us to animate moves on the board.
+ */
+export interface TrainingStateMoveAfterDelay {
+  type: "advance-after-delay";
+}
+
+/**
+ * Let the user try to choose the correct move then call `chooseMove` with the choice.
+ *
+ * `wrongMove` is non-null if the user has already chosen an incorrect move for this position.
+ */
+export interface TrainingStateChooseMove {
+  type: "choose-move";
+}
+
+/**
+ * Show the user the correct move
+ *
+ * This happens after the user chooses the wrong move, then advances forward.  Once the user is
+ * ready, call `advance()`.
+ */
+export interface TrainingStateShowCorrectMove {
+  type: "show-correct-move";
+}
+
+/**
+ * Show a summary of the entire line.
+ *
+ * Once the user is ready to move on, call `advance()`.
+ */
+export interface TrainingStateShowLineSummary {
+  type: "show-line-summary";
+  line: readonly CurrentLineEntry[];
+}
+
+/**
+ * Show a summary of the entire training
+ *
+ * This is the final step for a training.  After this, either delete the training or reset it by
+ * calling `newTraining` and saving that data.
+ */
+export interface ShowTrainingSummary {
+  type: "show-training-summary";
+}
+
+export type TrainingState =
+  | TrainingStateMoveAfterDelay
+  | TrainingStateChooseMove
+  | TrainingStateShowCorrectMove
+  | TrainingStateShowLineSummary
+  | ShowTrainingSummary;
+
+/**
+ * Represents the board that's displayed
+ */
+export interface TrainingBoard {
+  position: Chess;
+  feedback: TrainingBoardFeedback | null;
+  comment: string;
+  shapes: readonly Shape[];
+}
+
+function newBoard(rootNode: RootNode | undefined): TrainingBoard {
+  if (rootNode === undefined) {
+    return {
+      position: Chess.default(),
+      feedback: null,
+      comment: "",
+      shapes: [],
+    };
+  }
+  return {
+    position: rootNode.initialPosition.clone(),
+    feedback: null,
+    comment: rootNode.comment ?? "",
+    shapes: [],
+  };
+}
+
+export interface TrainingBoardFeedback {
+  type: "correct" | "incorrect";
+  move: Move;
+}
+
+/**
+ * Entry in the history array
+ */
+export interface CurrentLineEntry {
+  move: Move;
+  score: "correct" | "incorrect" | null;
+  incorrectTries: Move[];
+}
+
+type DraftHistoryEntry = Omit<CurrentLineEntry, "move">;
+
+/**
+ * Pick the next move of a training line
+ *
+ * Prioritize moves based on the priority of the final move in each line from the node
+ *
+ * Used to pick a random move from a node, where each weight is the number of lines for that move.
+ */
+function pickChildNode(node: Node, shuffle: boolean): ChildNode {
+  const lineCountsTrainFirst: Map<ChildNode, number> = new Map();
+  const lineCountsDefault: Map<ChildNode, number> = new Map();
+  const lineCountsTrainLast: Map<ChildNode, number> = new Map();
+
+  for (const child of node.children) {
+    const allCounts = child.lineCountByPriority();
+    if (allCounts[Priority.TrainFirst] > 0) {
+      lineCountsTrainFirst.set(child, allCounts[Priority.TrainFirst]);
+    }
+    if (allCounts[Priority.Default] > 0) {
+      lineCountsDefault.set(child, allCounts[Priority.Default]);
+    }
+    if (allCounts[Priority.TrainLast] > 0) {
+      lineCountsTrainLast.set(child, allCounts[Priority.TrainLast]);
+    }
+  }
+
+  const lineCountsInPriorityOrder = [
+    lineCountsTrainFirst,
+    lineCountsDefault,
+    lineCountsTrainLast,
+  ];
+  for (const lineCounts of lineCountsInPriorityOrder) {
+    if (lineCounts.size > 0) {
+      if (shuffle) {
+        return pickChildRandomly(lineCounts);
+      } else {
+        for (const move of lineCounts.keys()) {
+          return move;
+        }
+      }
+    }
+  }
+
+  throw Error("TrainingReducer.pickChildNode(): all lines counts are 0");
+}
+
+/**
+ * Pick a move randomly, but with each move having a different weight
+ *
+ * Used to pick a random move from a node, where each weight is the number of lines for that move.
+ */
+function pickChildRandomly(moveMap: Map<ChildNode, number>): ChildNode {
+  if (moveMap.size == 0) {
+    throw Error("TrainingReducer.pickChildRandomly(): no moves to pick from");
+  }
+  let totalWeight = 0;
+  for (const weight of moveMap.values()) {
+    totalWeight += weight;
+  }
+  let choice = Math.floor(Math.random() * totalWeight);
+
+  for (const [move, weight] of moveMap.entries()) {
+    if (choice < weight) {
+      return move;
+    } else {
+      choice -= weight;
+    }
+  }
+
+  throw Error("pickMoveRandomly: failed to pick a move");
+}
+
+/**
+ * Implementation of Durstenfeld shuffle
+ *
+ * Used to shuffle books and endgame positions when training
+ *
+ * From: https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function assertIsDefined<T>(val: T): asserts val is NonNullable<T> {
+  if (val === undefined || val === null) {
+    throw new Error(`Expected 'val' to be defined, but received ${val}`);
+  }
+}

@@ -12,7 +12,7 @@ function moveSan(editor: Editor, san: string) {
 }
 
 function setMovesSan(editor: Editor, san: string[]) {
-  const position = editor.rootNode.position.clone();
+  const position = editor.rootNode.initialPosition.clone();
   const moves = san.map((san) => {
     const move = parseSan(position, san);
     position.play(move);
@@ -44,7 +44,7 @@ interface EditorStateSpec {
 }
 
 function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
-  const currentPosition = editor.rootNode.position.clone();
+  const currentPosition = editor.rootNode.initialPosition.clone();
 
   const line: EditorNode[] = [];
   const movesToNode = [];
@@ -901,7 +901,7 @@ test("shapes", () => {
 test("reorder moves", () => {
   const editor = new Editor(testRootNode());
   setMovesSan(editor, ["e4", "e6"]);
-  const position = editor.rootNode.position.clone();
+  const position = editor.rootNode.initialPosition.clone();
   position.play(parseSan(position, "e4"));
   editor.reorderMoves([parseSan(position, "e6"), parseSan(position, "e5")]);
   checkEditorState(editor, {
@@ -1030,7 +1030,7 @@ test("noop actions", () => {
   expect(editor.view.canUndo).toBeFalsy();
 
   setMovesSan(editor, ["e4", "e5"]);
-  const position = editor.rootNode.position.clone();
+  const position = editor.rootNode.initialPosition.clone();
   position.play(parseSan(position, "e4"));
   editor.reorderMoves([parseSan(position, "e5")]);
   expect(editor.view.canUndo).toBeFalsy();

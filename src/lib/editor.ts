@@ -307,7 +307,7 @@ class Cursor {
   lastSelectedPly = 0;
 
   constructor(public rootNode: RootNode) {
-    this.positions = [rootNode.position.clone()];
+    this.positions = [rootNode.initialPosition.clone()];
     this.nodes = [rootNode];
     this.pushFirstMovesIfAtLineEnd();
     this.ply = 0;
