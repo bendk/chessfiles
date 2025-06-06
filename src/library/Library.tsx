@@ -164,7 +164,7 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <div class="grow px-8 py-4">
+          <div class="grow flex flex-col min-h-0 px-8 py-4">
             <div class="text-lg pb-4">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
@@ -216,11 +216,13 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
                 </div>
               </Match>
               <Match when={props.storage.files.state == "ready"}>
-                <BooksList
-                  files={props.storage.files()!}
-                  onFileAction={onFileMenuAction}
-                  onFileDrag={moveFile}
-                />
+                <div class="min-h-0 overflow-y-auto">
+                  <BooksList
+                    files={props.storage.files()!}
+                    onFileAction={onFileMenuAction}
+                    onFileDrag={moveFile}
+                  />
+                </div>
               </Match>
             </Switch>
           </div>
