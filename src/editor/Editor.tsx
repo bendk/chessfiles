@@ -4,8 +4,10 @@ import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
 import Undo from "lucide-solid/icons/undo";
-import type { Move, Nag, Shape } from "~/lib/chess";
+import Settings from "lucide-solid/icons/settings";
+import type { Color, Move, Nag, Shape } from "~/lib/chess";
 import { pgnToString } from "~/lib/chess";
+import type { Priority } from "~/lib/node";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
 import { createSignal, Show } from "solid-js";
@@ -14,9 +16,12 @@ import { CurrentNodeControls } from "./CurrentNodeControls";
 import { Button } from "../Button";
 import { Dialog } from "~/Dialog";
 import { Line } from "./Line";
+import { EditorDialog } from "./EditorDialog";
+import { Navbar } from "~/Navbar";
 
 interface EditorProps {
   rootNode: RootNode;
+  filename: string;
   onSave: (content: string) => Promise<boolean>;
   onExit: () => void;
   fen?: string;
@@ -24,6 +29,7 @@ interface EditorProps {
 
 export function Editor(props: EditorProps) {
   const editor = new EditorBackend(props.rootNode);
+  const [settingsDialag, setSettingsDialag] = createSignal(false);
   const [view, setView] = createSignal(editor.view);
   const [draftComment, setDraftComment] = createSignal<string>();
   const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
@@ -80,6 +86,16 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
+  function setPriority(priority: Priority) {
+    editor.setPriority(priority);
+    setView(editor.view);
+  }
+
+  function setTrainingColor(color: Color | undefined) {
+    editor.setTrainingColor(color);
+    setView(editor.view);
+  }
+
   function undo() {
     editor.undo();
     setView(editor.view);
@@ -112,7 +128,49 @@ export function Editor(props: EditorProps) {
   }
 
   return (
-    <div class="flex justify-center pt-4">
+    <div class="flex-col justify-center mx-auto">
+      <Navbar class="flex items-center justify-between gap-4">
+        <div class="flex-col gap-2">
+          <div class="flex gap-2">
+            <Button
+              icon={<Save />}
+              title="Save"
+              disabled={!view().canUndo}
+              onClick={save}
+              style="flat"
+            />
+            <Button
+              icon={<Settings />}
+              title="Settings"
+              onClick={() => setSettingsDialag(true)}
+              style="flat"
+            />
+            <Button
+              icon={<LogOut />}
+              title="Exit"
+              onClick={exit}
+              style="flat"
+            />
+          </div>
+        </div>
+        <div class="text-lg truncate text-ellipsis">{props.filename} </div>
+        <div class="flex gap-2">
+          <Button
+            disabled={!view().canRedo}
+            icon={<Redo />}
+            title="Redo"
+            onClick={redo}
+            style="flat"
+          />
+          <Button
+            disabled={!view().canUndo}
+            icon={<Undo />}
+            title="Undo"
+            onClick={undo}
+            style="flat"
+          />
+        </div>
+      </Navbar>
       <div class="flex gap-4">
         <div class="w-100 flex flex-col-reverse h-200 gap-4">
           <CurrentNodeControls
@@ -122,41 +180,11 @@ export function Editor(props: EditorProps) {
             commitDraftComment={commitDraftComment}
             toggleNag={toggleNag}
             deleteLine={deleteLine}
+            setPriority={setPriority}
             addLine={addLine}
           />
         </div>
         <div class="w-200 flex-col">
-          <div class="flex pb-2 justify-between">
-            <div class="flex gap-2">
-              <Button
-                icon={<Save />}
-                text="Save"
-                disabled={!view().canUndo}
-                onClick={save}
-                style="flat"
-              />
-              <Button
-                icon={<LogOut />}
-                text="Exit"
-                onClick={exit}
-                style="flat"
-              />
-            </div>
-            <div class="flex gap-2">
-              <Button
-                disabled={!view().canRedo}
-                icon={<Redo />}
-                onClick={redo}
-                style="flat"
-              />
-              <Button
-                disabled={!view().canUndo}
-                icon={<Undo />}
-                onClick={undo}
-                style="flat"
-              />
-            </div>
-          </div>
           <div class="h-200">
             <Board
               chess={view().position}
@@ -186,6 +214,16 @@ export function Editor(props: EditorProps) {
           }
         </div>
       </div>
+      <Show when={settingsDialag()} keyed>
+        <EditorDialog
+          view={view()}
+          onSubmit={(color) => {
+            setTrainingColor(color);
+            setSettingsDialag(false);
+          }}
+          onClose={() => setSettingsDialag(false)}
+        />
+      </Show>
       <Show when={confirmExitDialog()} keyed>
         <Dialog
           onSubmit={onExitSubmit}

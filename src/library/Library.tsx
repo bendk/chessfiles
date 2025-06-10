@@ -1,4 +1,11 @@
-import { createSignal, Index, Show, Switch, Match } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  Index,
+  Show,
+  Switch,
+  Match,
+} from "solid-js";
 import { Toast, Toaster, createToaster } from "@ark-ui/solid";
 import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
@@ -13,8 +20,9 @@ import { Editor } from "../editor";
 import { CreateFileDialog } from "./CreateFileDialog";
 import { BooksList } from "./BooksList";
 
-interface LibraryBrowserProps {
+export interface LibraryProps {
   storage: LibraryStorage;
+  setNavbarShown: (shown: boolean) => void;
 }
 
 export interface Book {
@@ -22,9 +30,13 @@ export interface Book {
   rootNode: RootNode;
 }
 
-export function LibraryBrowser(props: LibraryBrowserProps) {
+export function Library(props: LibraryProps) {
   const [dialog, setDialog] = createSignal("");
   const [currentBook, setCurrentBook] = createSignal<Book>();
+
+  createEffect(() => {
+    props.setNavbarShown(currentBook() === undefined);
+  });
 
   const toaster = createToaster({
     placement: "bottom-end",
@@ -157,6 +169,7 @@ export function LibraryBrowser(props: LibraryBrowserProps) {
         <Match when={currentBook()} keyed>
           {(book) => (
             <Editor
+              filename={book.filename}
               rootNode={book.rootNode}
               onSave={onSaveBook}
               onExit={onExitBook}

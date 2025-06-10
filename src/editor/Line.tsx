@@ -1,7 +1,10 @@
+import ArrowUp from "lucide-solid/icons/arrow-up";
+import ArrowDown from "lucide-solid/icons/arrow-down";
 import Book from "lucide-solid/icons/book";
 import SquareMore from "lucide-solid/icons/message-square-more";
 import { For } from "solid-js";
 import type { Move } from "~/lib/chess";
+import { Priority } from "~/lib/node";
 import type { EditorView, EditorNode } from "~/lib/editor";
 
 interface NodeProps {
@@ -46,8 +49,13 @@ function Node(props: NodeProps) {
               }
             >
               {move.san}
-              {move.nagText}{" "}
-              {move.hasComment ? <SquareMore size={14} /> : null}{" "}
+              {move.priority == Priority.TrainFirst ? (
+                <ArrowUp size={14} />
+              ) : null}
+              {move.priority == Priority.TrainLast ? (
+                <ArrowDown size={14} />
+              ) : null}
+              {move.nagText} {move.hasComment ? <SquareMore size={14} /> : null}
             </button>
           );
         })

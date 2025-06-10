@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 
 import type { PgnGame, Shape } from "./chess";
 import { Nag, parseSan, parseSquare, pgnToString } from "./chess";
-import type { RootNode } from "./node";
+import { Priority, type RootNode } from "./node";
 import { buildNode } from "./node.test";
 import type { EditorMove, EditorNode } from "./editor";
 import { Editor } from "./editor";
@@ -30,6 +30,7 @@ interface EditorNodeSpec {
   comment?: string;
   shapes?: Shape[];
   nags?: Nag[];
+  priority?: Priority;
   padding: number;
 }
 
@@ -40,6 +41,7 @@ interface EditorStateSpec {
     comment?: string;
     nags?: Nag[];
     shapes?: Shape[];
+    priority?: Priority;
   };
 }
 
@@ -52,10 +54,15 @@ function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
     const moves: EditorMove[] = node.moves.map((move) => {
       let san,
         nagText = "",
-        hasComment = false;
+        hasComment = false,
+        priority = Priority.Default;
       for (const part of move.split(" ")) {
         if (part == "*") {
           hasComment = true;
+        } else if (part == "+") {
+          priority = Priority.TrainFirst;
+        } else if (part == "-") {
+          priority = Priority.TrainLast;
         } else if (part.match(/^[A-Za-z]/)) {
           san = part;
         } else {
@@ -70,6 +77,7 @@ function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
         san,
         nagText,
         hasComment,
+        priority,
       };
     });
     const move = moves[node.currentMove];
@@ -80,6 +88,7 @@ function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
       comment: undefined,
       shapes: undefined,
       nags: undefined,
+      priority: Priority.Default,
       movesToNode: [...movesToNode],
       ...node,
       moves,
@@ -92,6 +101,7 @@ function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
     comment: "",
     nags: [],
     shapes: [],
+    priority: Priority.Default,
     ...(stateSpec.currentNode ?? {}),
   });
 }
@@ -898,6 +908,47 @@ test("shapes", () => {
   });
 });
 
+test("priority", () => {
+  const editor = new Editor(testRootNode());
+  setMovesSan(editor, ["e4"]);
+  editor.setPriority(Priority.TrainLast);
+  checkEditorState(editor, {
+    line: [
+      {
+        moves: ["e4 -"],
+        currentMove: 0,
+        priority: Priority.TrainLast,
+        selected: true,
+        padding: 0,
+      },
+      {
+        moves: ["e5", "e6"],
+        currentMove: 0,
+        padding: 0,
+      },
+      {
+        moves: ["Nf3 *"],
+        currentMove: 0,
+        comment: "Hello",
+        padding: 0,
+      },
+      {
+        moves: ["Nc6", "Nf6"],
+        currentMove: 0,
+        padding: 0,
+      },
+      {
+        moves: ["Bc4"],
+        currentMove: 0,
+        padding: 0,
+      },
+    ],
+    currentNode: {
+      priority: Priority.TrainLast,
+    },
+  });
+});
+
 test("reorder moves", () => {
   const editor = new Editor(testRootNode());
   setMovesSan(editor, ["e4", "e6"]);
@@ -929,6 +980,17 @@ test("reorder moves", () => {
       },
     ],
   });
+});
+
+test("setTrainingColor", () => {
+  const editor = new Editor(testRootNode());
+  expect(editor.view.color).toBe(undefined);
+  editor.setTrainingColor("white");
+  expect(editor.view.color).toEqual("white");
+  editor.undo();
+  expect(editor.view.color).toBe(undefined);
+  editor.redo();
+  expect(editor.view.color).toEqual("white");
 });
 
 test("undo/redo", () => {
@@ -1007,6 +1069,7 @@ test("undo/redo", () => {
 test("noop actions", () => {
   const editor = new Editor(
     buildNode({
+      color: "white",
       e4: {
         comment: "Hi",
         nags: [Nag.BlunderMove],
@@ -1037,5 +1100,8 @@ test("noop actions", () => {
 
   setMovesSan(editor, ["d4", "d5"]);
   editor.deleteLine();
+  expect(editor.view.canUndo).toBeFalsy();
+
+  editor.setTrainingColor("white");
   expect(editor.view.canUndo).toBeFalsy();
 });

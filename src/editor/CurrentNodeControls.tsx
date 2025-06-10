@@ -1,9 +1,11 @@
+import ArrowUpDown from "lucide-solid/icons/arrow-up-down";
 import SquarePlus from "lucide-solid/icons/square-plus";
 import Tags from "lucide-solid/icons/tags";
 import Trash from "lucide-solid/icons/trash-2";
 import { Nag, nagText } from "~/lib/chess";
+import { Priority } from "~/lib/node";
 import type { EditorCurrentNode } from "~/lib/editor";
-import { Index, Show } from "solid-js";
+import { Show } from "solid-js";
 import { Button } from "../Button";
 import { Menu } from "../Menu";
 
@@ -13,6 +15,7 @@ export interface CurrentNodeControlsProps {
   setDraftComment: (comment: string) => void;
   commitDraftComment: () => void;
   toggleNag: (nag: Nag) => void;
+  setPriority: (priority: Priority) => void;
   deleteLine: () => void;
   addLine: () => void;
 }
@@ -71,15 +74,30 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               ]}
               onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
             />
-            <div>
-              <Index each={props.currentNode.nags}>
-                {(nag) => (
-                  <span class="text-lg px-2 bg-slate-300 dark:bg-slate-700 rounded-sm mr-2">
-                    {nagText(nag())}
-                  </span>
-                )}
-              </Index>
-            </div>
+            <Menu
+              top
+              elt={<Button icon=<ArrowUpDown /> style="flat" />}
+              items={[
+                {
+                  text: "Priority: First",
+                  value: Priority.TrainFirst.toString(),
+                  selected: props.currentNode.priority == Priority.TrainFirst,
+                },
+                {
+                  text: "Priority: Default",
+                  value: Priority.Default.toString(),
+                  selected: props.currentNode.priority == Priority.Default,
+                },
+                {
+                  text: "Priority: Last",
+                  value: Priority.TrainLast.toString(),
+                  selected: props.currentNode.priority == Priority.TrainLast,
+                },
+              ]}
+              onSelect={(priority) =>
+                props.setPriority(Number.parseInt(priority))
+              }
+            />
           </div>
           <Button icon={<Trash />} onClick={props.deleteLine} style="flat" />
         </div>

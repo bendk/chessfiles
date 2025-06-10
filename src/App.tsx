@@ -1,7 +1,7 @@
-import { createSignal, createEffect, Switch, Match } from "solid-js";
+import { createSignal, createEffect, Match, Show, Switch } from "solid-js";
 import { completeLogin } from "~/lib/auth";
 import { Library, LibraryStorage } from "./library";
-import { Navbar } from "./Navbar";
+import { StandardNavbar } from "./StandardNavbar";
 import { Settings } from "./Settings";
 import { Training } from "./Training";
 
@@ -24,6 +24,7 @@ function App() {
   }
 
   const [theme, setTheme] = createSignal(themeFromLocalStorage());
+  const [navbarShown, setNavbarShown] = createSignal(true);
   const [page, setPage] = createSignal("library");
   const storage = new LibraryStorage();
 
@@ -38,17 +39,17 @@ function App() {
 
   return (
     <div class="flex flex-col bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 h-screen outline-hidden">
-      <div class="text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300">
-        <Navbar
+      <Show when={navbarShown()}>
+        <StandardNavbar
           page={page()}
           setPage={setPage}
           theme={theme()}
           setTheme={setTheme}
         />
-      </div>
+      </Show>
       <Switch>
         <Match when={page() == "library"}>
-          <Library storage={storage} />
+          <Library storage={storage} setNavbarShown={setNavbarShown} />
         </Match>
         <Match when={page() == "training"}>
           <Training />

@@ -1,4 +1,4 @@
-import type { Move, Nag, Shape, Chess } from "./chess";
+import type { Color, Move, Nag, Shape, Chess } from "./chess";
 import {
   makeSan,
   moveEquals,
@@ -8,6 +8,7 @@ import {
   POSITION_NAGS,
 } from "./chess";
 import type { RootNode, Node } from "./node";
+import { Priority } from "./node";
 import { ChildNode } from "./node";
 
 // Editor view
@@ -17,6 +18,7 @@ import { ChildNode } from "./node";
 export interface EditorView {
   readonly line: readonly EditorNode[];
   readonly ply: number;
+  readonly color: Color | undefined;
   readonly rootComment: string | undefined;
   readonly currentNode: EditorCurrentNode;
   readonly position: Chess;
@@ -34,6 +36,7 @@ export interface EditorNode {
   readonly comment: string | undefined;
   readonly shapes: readonly Shape[] | undefined;
   readonly nags: readonly Nag[] | undefined;
+  readonly priority: Priority;
   // Moves to get to this node from the root node.
   readonly movesToNode: readonly Move[];
   // Amount of "padding" needed to layout this node
@@ -44,6 +47,7 @@ export interface EditorMove {
   move: Move;
   san: string;
   nagText: string;
+  priority: Priority;
   hasComment: boolean;
 }
 
@@ -52,6 +56,7 @@ export interface EditorCurrentNode {
   readonly comment: string;
   readonly nags: readonly Nag[];
   readonly shapes: readonly Shape[];
+  readonly priority: Priority;
 }
 
 /**
@@ -85,6 +90,7 @@ export class Editor {
         comment: editorNode.comment ?? "",
         nags: editorNode.nags ?? [],
         shapes: editorNode.shapes ?? [],
+        priority: editorNode.priority,
       };
     } else {
       currentNode = {
@@ -92,6 +98,7 @@ export class Editor {
         comment: this.rootNode.comment ?? "",
         nags: [],
         shapes: [],
+        priority: Priority.Default,
       };
     }
 
@@ -99,6 +106,7 @@ export class Editor {
       line: [...this.cursor.line],
       ply: this.cursor.ply,
       currentNode,
+      color: this.rootNode.color,
       rootComment: this.rootNode.comment,
       position: this.cursor.position(),
       canUndo: this.undoStack.length > 0,
@@ -254,6 +262,17 @@ export class Editor {
     this.performOp(new SetShapes(newShapes));
   }
 
+  setPriority(priority: Priority) {
+    const currentNode = this.cursor.node();
+    if (
+      this.cursor.currentNodeIsDraft() ||
+      !(currentNode instanceof ChildNode)
+    ) {
+      return;
+    }
+    this.performOp(new SetPriority(priority));
+  }
+
   reorderMoves(moves: readonly Move[]) {
     const editorNode = this.cursor.editorNode();
     if (editorNode === undefined) {
@@ -264,6 +283,16 @@ export class Editor {
       return;
     }
     this.performOp(new ReorderMoves(moves));
+  }
+
+  setTrainingColor(color: Color | undefined) {
+    if (
+      (this.rootNode.color === undefined && color === undefined) ||
+      this.rootNode.color == color
+    ) {
+      return;
+    }
+    this.performOp(new SetTrainingColor(color));
   }
 
   undo() {
@@ -450,6 +479,7 @@ class Cursor {
       comment: childNode.comment,
       shapes: childNode.shapes,
       nags: childNode.nags,
+      priority: childNode.priority,
       movesToNode: this.movesToNextNode(),
       padding: lastNode ? lastNode.padding + lastNode.currentMove : 0,
     });
@@ -485,6 +515,7 @@ class Cursor {
       comment: childNode.comment,
       shapes: childNode.shapes,
       nags: childNode.nags,
+      priority: childNode.priority,
       movesToNode: editorNode.movesToNode,
       padding: editorNode.padding,
     }));
@@ -502,6 +533,7 @@ class Cursor {
       move: child.move,
       san: makeSan(position, child.move),
       nagText: nagTextParts.join(""),
+      priority: child.priority,
       hasComment,
     };
   }
@@ -611,6 +643,23 @@ class SetShapes extends EditorOp {
   }
 }
 
+class SetPriority extends EditorOp {
+  constructor(private priority: Priority) {
+    super();
+  }
+
+  execute(cursor: Cursor): EditorOp {
+    const node = cursor.node();
+    if (!(node instanceof ChildNode)) {
+      throw Error(`SetPriority: invalid node type: ${node}`);
+    }
+    const oldPriority = node.priority;
+    node.priority = this.priority;
+    cursor.refreshEditorNode();
+    return new SetPriority(oldPriority);
+  }
+}
+
 class ReorderMoves extends EditorOp {
   constructor(private readonly order: readonly Move[]) {
     super();
@@ -626,5 +675,17 @@ class ReorderMoves extends EditorOp {
     cursor.refreshEditorNode();
     cursor.refreshPadding();
     return new ReorderMoves(currentOrder);
+  }
+}
+
+class SetTrainingColor extends EditorOp {
+  constructor(private readonly color: Color | undefined) {
+    super();
+  }
+
+  execute(cursor: Cursor): EditorOp {
+    const oldColor = cursor.rootNode.color;
+    cursor.rootNode.color = this.color;
+    return new SetTrainingColor(oldColor);
   }
 }

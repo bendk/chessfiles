@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 interface ButtonProps {
   class?: string;
   text?: string;
+  title?: string;
   icon?: JSX.Element;
   disabled?: boolean;
   selected?: boolean;
@@ -25,6 +26,7 @@ export function Button(props: ButtonProps) {
   return (
     <button
       class={`flex gap-1 items-center justify-center border-1 rounded-md px-3 py-1 text-lg font-medium ${borderStyle()}`}
+      title={props.title}
       classList={{
         [props.class as string]: !!props.class,
         "text-zinc-300": !enabled(),
