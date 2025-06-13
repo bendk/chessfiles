@@ -2,6 +2,7 @@ import { describe, test, expect } from "vitest";
 import type {
   CurrentLineEntry,
   TrainingBoardFeedback,
+  TrainingSettings,
   TrainingState,
 } from "./training";
 import { Training } from "./training";
@@ -11,11 +12,10 @@ import type { RootNode } from "./node";
 import { Priority } from "./node";
 import { buildNode } from "./node.test";
 
-function ruyLopezRootNode(): RootNode {
+function openingRootNode(): RootNode {
   return buildNode({
-    initialMoves: ["e4", "e5", "Nf3", "Nc6", "Bb5"],
-    color: "white",
-    Nf6: {
+    color: "black",
+    e4: {
       shapes: [
         {
           from: 0,
@@ -23,10 +23,10 @@ function ruyLopezRootNode(): RootNode {
           color: "blue",
         },
       ],
-      "O-O": {
-        Nxe4: {
-          d4: {
-            comment: "White temporarily sacrifices a pawn",
+      e5: {
+        Nf3: {
+          Nc6: {
+            comment: "test comment",
             shapes: [
               {
                 from: 0,
@@ -97,6 +97,10 @@ function frenchDefenseRootNode() {
     },
   });
 }
+
+const testSettings: TrainingSettings = {
+  skipAfter: Number.MAX_SAFE_INTEGER,
+};
 
 interface CheckTrainingSpec {
   state: TrainingState;
@@ -171,14 +175,14 @@ function tryMoveSanAndPlay(
 describe("Training", () => {
   test("moving through a single position", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
-      [ruyLopezRootNode()],
+      [openingRootNode()],
       false,
     );
 
     const position = Chess.default();
-    playSan(position, "e4", "e5", "Nf3", "Nc6", "Bb5");
     checkTraining(training, {
       state: { type: "advance-after-delay" },
       position,
@@ -188,7 +192,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nf6");
+    playSan(position, "e4");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -204,7 +208,7 @@ describe("Training", () => {
       ],
     });
 
-    tryMoveSanAndPlay(training, position, "O-O");
+    tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
       state: { type: "advance-after-delay" },
       position,
@@ -214,7 +218,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -223,27 +227,27 @@ describe("Training", () => {
       linesTrained: 0,
     });
 
-    tryMoveSanAndPlay(training, position, "d4");
+    tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
       position,
       state: {
         type: "show-line-summary",
         line: buildLine(
-          ruyLopezRootNode().initialPosition,
+          Chess.default(),
           {
-            move: "Nf6",
+            move: "e4",
             score: null,
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "correct",
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: null,
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: "correct",
           },
         ),
@@ -251,7 +255,7 @@ describe("Training", () => {
       correct: 2,
       incorrect: 0,
       linesTrained: 1,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -273,6 +277,7 @@ describe("Training", () => {
 
   test("moving through a multiple positions", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
       [endgameRootNode(), endgameRootNode2()],
@@ -418,18 +423,19 @@ describe("Training", () => {
   test("resuming a session", () => {
     // Start a training session and play some moves
     let training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
-      [ruyLopezRootNode()],
+      [openingRootNode()],
       false,
     );
 
-    let position = ruyLopezRootNode().initialPosition;
+    let position = Chess.default();
     training.advance();
-    playSan(position, "Nf6");
-    tryMoveSanAndPlay(training, position, "O-O");
+    playSan(position, "e4");
+    tryMoveSanAndPlay(training, position, "e5");
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -441,8 +447,8 @@ describe("Training", () => {
     // Restart the session, the session should move back to the start of the line and play the
     // moves forward
     const data = training.export();
-    training = Training.import(data);
-    position = ruyLopezRootNode().initialPosition;
+    training = Training.import(data, testSettings);
+    position = Chess.default();
     checkTraining(training, {
       state: { type: "advance-after-delay" },
       position,
@@ -454,7 +460,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nf6");
+    playSan(position, "e4");
     checkTraining(training, {
       state: { type: "advance-after-delay" },
       position,
@@ -473,7 +479,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "O-O");
+    playSan(position, "e5");
     checkTraining(training, {
       state: { type: "advance-after-delay" },
       position,
@@ -485,7 +491,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -496,32 +502,32 @@ describe("Training", () => {
       activityIncorrect: 0,
     });
 
-    tryMoveSanAndPlay(training, position, "d4");
+    tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
       state: {
         type: "show-line-summary",
         line: buildLine(
-          ruyLopezRootNode().initialPosition,
+          Chess.default(),
           {
-            move: "Nf6",
+            move: "e4",
             score: null,
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "correct",
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: null,
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: "correct",
           },
         ),
       },
       position,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -539,16 +545,17 @@ describe("Training", () => {
 
   test("wrong moves", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
-      [ruyLopezRootNode()],
+      [openingRootNode()],
       false,
     );
 
-    const position = ruyLopezRootNode().initialPosition;
+    const position = Chess.default();
     training.advance();
-    playSan(position, "Nf6");
-    let move = tryMoveSan(training, position, "d4");
+    playSan(position, "e4");
+    let move = tryMoveSan(training, position, "d5");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -567,7 +574,7 @@ describe("Training", () => {
         move,
       },
     });
-    move = tryMoveSan(training, position, "Nc3");
+    move = tryMoveSan(training, position, "d6");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -590,7 +597,7 @@ describe("Training", () => {
 
     // Guessing the correct move should move to the show-correct-move step, without changing
     // the counts
-    move = tryMoveSanAndPlay(training, position, "O-O");
+    move = tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
@@ -604,7 +611,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -615,7 +622,7 @@ describe("Training", () => {
 
     // We're at the very last move.  If the user guesses incorrect, then we should
     // show the correct move screen, then continue to show-line-summary.
-    move = tryMoveSan(training, position, "Re1");
+    move = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -627,14 +634,14 @@ describe("Training", () => {
         move,
       },
     });
-    move = tryMoveSanAndPlay(training, position, "d4");
+    move = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
       correct: 0,
       incorrect: 2,
       linesTrained: 0,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -653,24 +660,24 @@ describe("Training", () => {
       state: {
         type: "show-line-summary",
         line: buildLine(
-          ruyLopezRootNode().initialPosition,
+          Chess.default(),
           {
-            move: "Nf6",
+            move: "e4",
             score: null,
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "incorrect",
-            incorrectTries: ["d4", "Nc3"],
+            incorrectTries: ["d5", "d6"],
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: null,
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: "incorrect",
-            incorrectTries: ["Re1"],
+            incorrectTries: ["Nf6"],
           },
         ),
       },
@@ -678,7 +685,7 @@ describe("Training", () => {
       correct: 0,
       incorrect: 2,
       linesTrained: 1,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -690,10 +697,16 @@ describe("Training", () => {
   });
 
   test("playing both sides", () => {
-    const rootNode = ruyLopezRootNode();
+    const rootNode = openingRootNode();
     // If color is `undefined` then the user needs to choose moves for both sides
     rootNode.color = undefined;
-    const training = new Training("training-1", "book.pgn", [rootNode], false);
+    const training = new Training(
+      testSettings,
+      "training-1",
+      "book.pgn",
+      [rootNode],
+      false,
+    );
 
     const position = rootNode.initialPosition.clone();
     checkTraining(training, {
@@ -704,7 +717,7 @@ describe("Training", () => {
       linesTrained: 0,
     });
 
-    tryMoveSanAndPlay(training, position, "Nf6");
+    tryMoveSanAndPlay(training, position, "e4");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -720,7 +733,7 @@ describe("Training", () => {
       ],
     });
 
-    let move = tryMoveSanAndPlay(training, position, "O-O");
+    let move = tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -730,7 +743,7 @@ describe("Training", () => {
     });
 
     // Test wrong moves
-    move = tryMoveSan(training, position, "d6");
+    move = tryMoveSan(training, position, "Nc3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -743,7 +756,7 @@ describe("Training", () => {
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "Nxe4");
+    move = tryMoveSanAndPlay(training, position, "Nf3");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
@@ -765,7 +778,7 @@ describe("Training", () => {
       linesTrained: 0,
     });
 
-    move = tryMoveSan(training, position, "Re1");
+    move = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -778,14 +791,14 @@ describe("Training", () => {
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "d4");
+    move = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
       correct: 2,
       incorrect: 2,
       linesTrained: 0,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -806,22 +819,22 @@ describe("Training", () => {
         line: buildLine(
           rootNode.initialPosition,
           {
-            move: "Nf6",
+            move: "e4",
             score: "correct",
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "correct",
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: "incorrect",
-            incorrectTries: ["d6"],
+            incorrectTries: ["Nc3"],
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: "incorrect",
-            incorrectTries: ["Re1"],
+            incorrectTries: ["Nf6"],
           },
         ),
       },
@@ -829,7 +842,7 @@ describe("Training", () => {
       correct: 2,
       incorrect: 2,
       linesTrained: 1,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -842,16 +855,17 @@ describe("Training", () => {
 
   test("wrong move adjustments", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
-      [ruyLopezRootNode()],
+      [openingRootNode()],
       false,
     );
 
-    const position = ruyLopezRootNode().initialPosition;
+    const position = Chess.default();
     training.advance();
-    playSan(position, "Nf6");
-    let move = tryMoveSan(training, position, "d4");
+    playSan(position, "e4");
+    let move = tryMoveSan(training, position, "d5");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -870,7 +884,7 @@ describe("Training", () => {
         move,
       },
     });
-    move = tryMoveSanAndPlay(training, position, "O-O");
+    move = tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
@@ -897,7 +911,7 @@ describe("Training", () => {
     });
 
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -906,7 +920,7 @@ describe("Training", () => {
       linesTrained: 0,
     });
 
-    move = tryMoveSan(training, position, "Re1");
+    move = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -919,14 +933,14 @@ describe("Training", () => {
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "d4");
+    move = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
       state: { type: "show-correct-move" },
       position,
       correct: 1,
       incorrect: 1,
       linesTrained: 0,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -947,7 +961,7 @@ describe("Training", () => {
       correct: 1,
       incorrect: 0,
       linesTrained: 0,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -966,24 +980,24 @@ describe("Training", () => {
       state: {
         type: "show-line-summary",
         line: buildLine(
-          ruyLopezRootNode().initialPosition,
+          Chess.default(),
           {
-            move: "Nf6",
+            move: "e4",
             score: null,
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "correct",
-            incorrectTries: ["d4"],
+            incorrectTries: ["d5"],
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: null,
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: null,
-            incorrectTries: ["Re1"],
+            incorrectTries: ["Nf6"],
           },
         ),
       },
@@ -991,7 +1005,7 @@ describe("Training", () => {
       correct: 1,
       incorrect: 0,
       linesTrained: 1,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -1004,18 +1018,19 @@ describe("Training", () => {
 
   test("skipping moves", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
-      [ruyLopezRootNode()],
+      [openingRootNode()],
       false,
     );
 
-    const position = ruyLopezRootNode().initialPosition;
+    const position = Chess.default();
     training.advance();
-    playSan(position, "Nf6");
+    playSan(position, "e4");
 
     // Test advance from the `choose-move` state.
-    let move = parseSan(position, "O-O");
+    let move = parseSan(position, "e5");
     position.play(move);
     training.advance();
     checkTraining(training, {
@@ -1031,7 +1046,7 @@ describe("Training", () => {
     });
     // Let's try that again
     training.advance();
-    playSan(position, "Nxe4");
+    playSan(position, "Nf3");
     checkTraining(training, {
       state: { type: "choose-move" },
       position,
@@ -1039,9 +1054,8 @@ describe("Training", () => {
       incorrect: 1,
       linesTrained: 0,
     });
-
     training.advance();
-    move = parseSan(position, "d4");
+    move = parseSan(position, "Nc6");
     position.play(move);
     checkTraining(training, {
       state: { type: "show-correct-move" },
@@ -1049,7 +1063,7 @@ describe("Training", () => {
       correct: 0,
       incorrect: 2,
       linesTrained: 0,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -1068,21 +1082,21 @@ describe("Training", () => {
       state: {
         type: "show-line-summary",
         line: buildLine(
-          ruyLopezRootNode().initialPosition,
+          Chess.default(),
           {
-            move: "Nf6",
+            move: "e4",
             score: null,
           },
           {
-            move: "O-O",
+            move: "e5",
             score: "incorrect",
           },
           {
-            move: "Nxe4",
+            move: "Nf3",
             score: null,
           },
           {
-            move: "d4",
+            move: "Nc6",
             score: "incorrect",
           },
         ),
@@ -1091,7 +1105,7 @@ describe("Training", () => {
       correct: 0,
       incorrect: 2,
       linesTrained: 1,
-      comment: "White temporarily sacrifices a pawn",
+      comment: "test comment",
       shapes: [
         {
           from: 0,
@@ -1101,15 +1115,10 @@ describe("Training", () => {
       ],
     });
   });
-  //
-  // function checkMoves(state: TrainingReducer.State, expectedMoves: Move[]) {
-  //     expect(
-  //         state.training.currentBook?.currentLine.moves.map((m) => m.move),
-  //     ).toEqual(expectedMoves);
-  // }
-  //
+
   test("trainingSession ordering by priority", () => {
     const training = new Training(
+      testSettings,
       "training-1",
       "book.pgn",
       [frenchDefenseRootNode()],
@@ -1239,5 +1248,118 @@ describe("Training", () => {
       incorrect: 0,
       linesTrained: 4,
     });
+  });
+
+  test("skip after", () => {
+    const rootNode = buildNode({
+      color: "white",
+      e4: {
+        e5: {
+          Nf3: {},
+        },
+        c5: {
+          Nf3: {
+            d6: {
+              d4: {},
+            },
+            Nc6: {
+              Bb5: {},
+            },
+            e6: {
+              b3: {},
+            },
+          },
+        },
+      },
+    });
+    const settings = {
+      ...testSettings,
+      skipAfter: 2,
+    };
+    const training = new Training(
+      settings,
+      "training-1",
+      "book.pgn",
+      [rootNode],
+      false,
+    );
+    let position = Chess.default();
+    // First time through, all moves need to be guessed
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "e4");
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "e5");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "Nf3");
+    expect(training.state.type).toEqual("show-line-summary");
+    training.finishLine();
+
+    // Second time through, we still need to guess all moves
+    position = Chess.default();
+    expect(training.state.type).toEqual("choose-move");
+    tryMoveSanAndPlay(training, position, "e4");
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "c5");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "Nf3");
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "d6");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "d4");
+    expect(training.state.type).toEqual("show-line-summary");
+    training.finishLine();
+
+    // 3rd time through, we don't need to guess `e4` again.
+    position = Chess.default();
+    expect(training.state.type).toEqual("advance-after-delay");
+    playSan(position, "e4");
+    training.advance();
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "c5");
+    expect(training.state.type).toEqual("choose-move");
+
+    // Oops, we guessed wrong on this move
+    tryMoveSan(training, position, "Nc3");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "Nf3");
+    expect(training.state.type).toEqual("show-correct-move");
+    training.advance();
+    playSan(position, "Nc6");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "Bb5");
+    expect(training.state.type).toEqual("show-line-summary");
+    training.finishLine();
+
+    // 4th time through, no need to guess e4
+    position = Chess.default();
+    expect(training.state.type).toEqual("advance-after-delay");
+    playSan(position, "e4");
+    training.advance();
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "c5");
+
+    // But we do need to guess Nf3, since we got it wrong the last time around.
+    expect(training.state.type).toEqual("choose-move");
+    tryMoveSanAndPlay(training, position, "Nf3");
+    expect(training.state.type).toEqual("advance-after-delay");
+    training.advance();
+    playSan(position, "e6");
+    expect(training.state.type).toEqual("choose-move");
+
+    tryMoveSanAndPlay(training, position, "b3");
+    expect(training.state.type).toEqual("show-line-summary");
+    training.finishLine();
+    expect(training.state.type).toEqual("show-training-summary");
   });
 });

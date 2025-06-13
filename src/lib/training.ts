@@ -1,7 +1,7 @@
 import type { ChildNode, Node } from "./node";
 import { Priority, RootNode } from "./node";
 import type { Move, Shape } from "./chess";
-import { Chess } from "./chess";
+import { makeFen, Chess } from "./chess";
 
 /**
  * Training session
@@ -9,6 +9,7 @@ import { Chess } from "./chess";
  */
 export class Training {
   meta: TrainingMeta;
+  settings: TrainingSettings;
   state: TrainingState;
   board: TrainingBoard;
   activity: TrainingActivity;
@@ -20,8 +21,12 @@ export class Training {
   private shuffle: boolean;
   // Are we replying the current line because we imported an in-progress session?/
   private currentLineReplayCount = -1;
+  // Maps positions seen to the number of correct moves in a row.  If this exceeds
+  // settings.skipAfter, then we won't ask the user to guess the move again
+  private correctStreakMap: Map<string, number> = new Map();
 
   constructor(
+    settings: TrainingSettings,
     filename: string,
     bookPath: string,
     rootNodes: RootNode[],
@@ -43,6 +48,7 @@ export class Training {
     }
     [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
     this.currentNode = this.currentRootNode;
+    this.settings = { ...settings };
     this.currentLine = [];
     this.draftEntry = {
       score: null,
@@ -51,7 +57,7 @@ export class Training {
     this.shuffle = shuffle;
     this.activity = newActivity(filename);
     this.board = newBoard(this.currentRootNode);
-    this.state = stateForNewNode(this.currentRootNode);
+    this.state = initialState(this.currentRootNode);
   }
 
   restart() {
@@ -104,8 +110,12 @@ export class Training {
       [this.currentRootNode, ...this.rootNodesToGo] = this.rootNodesToGo;
     }
     this.board = newBoard(this.currentRootNode);
-    this.state = stateForNewNode(this.currentRootNode);
     this.currentNode = this.currentRootNode;
+    if (this.currentNode === undefined) {
+      this.state = { type: "show-training-summary" };
+    } else {
+      this.updateStateForCurrentNode();
+    }
   }
 
   updateLastScore(score: "correct" | "incorrect" | null) {
@@ -136,6 +146,9 @@ export class Training {
 
   private advanceToChild(child: ChildNode) {
     assertIsDefined(this.currentRootNode);
+    if (this.currentLineReplayCount < 0) {
+      this.updateStreak();
+    }
     this.board.position.play(child.move);
     this.board.comment = child.comment ?? "";
     this.board.shapes = child.shapes ?? [];
@@ -185,7 +198,7 @@ export class Training {
         type: "show-line-summary",
         line: [...this.currentLine],
       };
-    } else if (this.isUsersMove()) {
+    } else if (this.isUsersMove() && !this.shouldSkipUserMove()) {
       this.state = {
         type: "choose-move",
       };
@@ -202,6 +215,22 @@ export class Training {
       this.currentRootNode.color === undefined ||
       this.currentRootNode.color == this.board.position.turn
     );
+  }
+
+  private updateStreak() {
+    const fen = makeFen(this.board.position.toSetup());
+    if (this.draftEntry.score == "correct") {
+      const current = this.correctStreakMap.get(fen) ?? 0;
+      this.correctStreakMap.set(fen, current + 1);
+    } else if (this.draftEntry.score == "incorrect") {
+      this.correctStreakMap.set(fen, 0);
+    }
+  }
+
+  private shouldSkipUserMove() {
+    const fen = makeFen(this.board.position.toSetup());
+    const count = this.correctStreakMap.get(fen) ?? 0;
+    return count >= this.settings.skipAfter;
   }
 
   private updateCurrentScore(move: Move | null, correct: boolean) {
@@ -264,14 +293,19 @@ export class Training {
     });
   }
 
-  static import(data: string): Training {
+  static import(data: string, settings: TrainingSettings): Training {
     const parsed = JSON.parse(data);
     let rootNode = undefined;
     if (parsed.currentRootNode) {
       rootNode = RootNode.fromPgnString(parsed.currentRootNode, 0);
     }
 
-    const training = new Training(parsed.filename, parsed.bookPath, []);
+    const training = new Training(
+      settings,
+      parsed.filename,
+      parsed.bookPath,
+      [],
+    );
     training.meta = parsed.meta;
     training.currentLine = parsed.currentLine;
     training.board = newBoard(rootNode);
@@ -283,13 +317,13 @@ export class Training {
       training.currentLineReplayCount = training.currentLine.length - 1;
       training.state = { type: "advance-after-delay" };
     } else {
-      training.state = stateForNewNode(training.currentRootNode);
+      training.state = initialState(training.currentRootNode);
     }
     return training;
   }
 }
 
-function stateForNewNode(rootNode: RootNode | undefined): TrainingState {
+function initialState(rootNode: RootNode | undefined): TrainingState {
   if (rootNode === undefined) {
     return { type: "show-training-summary" };
   }
@@ -301,6 +335,15 @@ function stateForNewNode(rootNode: RootNode | undefined): TrainingState {
   } else {
     return { type: "advance-after-delay" };
   }
+}
+
+/**
+ * Settings for training sessions
+ */
+export interface TrainingSettings {
+  /// Skip the choose-move state after for positions that have been seen this many times
+  /// `0` indicates we should always go to choose-move
+  skipAfter: number;
 }
 
 /**
@@ -344,7 +387,7 @@ export interface TrainingStateMoveAfterDelay {
 }
 
 /**
- * Let the user try to choose the correct move then call `chooseMove` with the choice.
+ * Let the user try to choose the correct move then call `tryMove` with the choice.
  *
  * `wrongMove` is non-null if the user has already chosen an incorrect move for this position.
  */
