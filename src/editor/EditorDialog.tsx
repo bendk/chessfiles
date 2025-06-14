@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { Dialog } from "~/Dialog";
+import { SimpleDialog } from "~/Dialog";
 import type { EditorView } from "~/lib/editor";
 import type { Color } from "~/lib/chess";
 import * as RadioGroup from "~/RadioGroup";
@@ -33,9 +33,9 @@ export function EditorDialog(props: EditorDialogProps) {
   }
 
   return (
-    <Dialog
+    <SimpleDialog
       title="Book Settings"
-      submitText="Close"
+      submitText="Update"
       onSubmit={onSubmit}
       onClose={props.onClose}
     >
@@ -45,6 +45,6 @@ export function EditorDialog(props: EditorDialogProps) {
         <RadioGroup.Item text="Black" value="black" small />
         <RadioGroup.Item text="Both" value="both" small />
       </RadioGroup.Root>
-    </Dialog>
+    </SimpleDialog>
   );
 }

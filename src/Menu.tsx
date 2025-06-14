@@ -1,11 +1,12 @@
 import { Menu as ArkMenu } from "@ark-ui/solid";
 import type { JSXElement } from "solid-js";
-import { Index, Show } from "solid-js";
+import { Index, Match, Show, Switch } from "solid-js";
 
 export interface MenuItem {
   icon?: JSXElement;
   text?: string;
   value: string;
+  disabled?: boolean;
   selected?: boolean;
   cssClass?: string;
 }
@@ -59,23 +60,35 @@ export function Menu(props: MenuProps) {
         >
           <Index each={props.items}>
             {(item) => (
-              <Show when={item()} keyed>
-                {(item) => (
-                  <ArkMenu.Item
-                    value={item.value}
-                    class={`flex items-center text-lg gap-2 cursor-pointer hover:bg-sky-400 hover:text-white dark:hover:bg-sky-700 px-4 py-2 ${item.cssClass ?? ""}`}
-                    classList={{
-                      "dark:bg-slate-700": item.selected,
-                      "bg-slate-500": item.selected,
-                      "dark:text-white": item.selected,
-                      "text-zinc-100": item.selected,
-                    }}
-                  >
-                    {item.icon}
-                    {item.text}
-                  </ArkMenu.Item>
-                )}
-              </Show>
+              <Switch>
+                <Match when={item()} keyed>
+                  {(item) => (
+                    <ArkMenu.Item
+                      value={item.value}
+                      disabled={item.disabled}
+                      class={`flex items-center cursor-pointer text-lg gap-2 px-4 py-2 ${item.cssClass ?? ""}`}
+                      classList={{
+                        "dark:bg-slate-700": item.selected,
+                        "bg-slate-500": item.selected,
+                        "text-zinc-100":
+                          item.selected && item.disabled !== true,
+                        "text-zinc-500": item.disabled === true,
+                        "dark:text-white":
+                          item.selected && item.disabled !== true,
+                        "hover:bg-sky-400": item.disabled !== true,
+                        "hover:text-white": item.disabled !== true,
+                        "dark:hover:bg-sky-700": item.disabled !== true,
+                      }}
+                    >
+                      {item.icon}
+                      {item.text}
+                    </ArkMenu.Item>
+                  )}
+                </Match>
+                <Match when={item() === undefined}>
+                  <div class="h-px bg-zinc-500"></div>
+                </Match>
+              </Switch>
             )}
           </Index>
         </ArkMenu.Content>

@@ -3,6 +3,7 @@ import ArrowBigRight from "lucide-solid/icons/arrow-right";
 import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
+import MenuIcon from "lucide-solid/icons/menu";
 import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
 import type { Color, Move, Nag, Shape } from "~/lib/chess";
@@ -14,10 +15,11 @@ import { createSignal, Show } from "solid-js";
 import { Board } from "./Board";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { Button } from "../Button";
-import { Dialog } from "~/Dialog";
+import { SimpleDialog } from "~/Dialog";
 import { Line } from "./Line";
 import { EditorDialog } from "./EditorDialog";
 import { Navbar } from "~/Navbar";
+import { Menu } from "~/Menu";
 
 interface EditorProps {
   rootNode: RootNode;
@@ -29,7 +31,7 @@ interface EditorProps {
 
 export function Editor(props: EditorProps) {
   const editor = new EditorBackend(props.rootNode);
-  const [settingsDialag, setSettingsDialag] = createSignal(false);
+  const [settingsDialag, setSettingsDialog] = createSignal(false);
   const [view, setView] = createSignal(editor.view);
   const [draftComment, setDraftComment] = createSignal<string>();
   const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
@@ -106,19 +108,21 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
-  async function save() {
-    const data = pgnToString(editor.rootNode.export());
-    if (await props.onSave(data)) {
-      editor.clearUndo();
-      setView(editor.view);
-    }
-  }
-
-  function exit() {
-    if (editor.view.canUndo) {
-      setConfirmExitDialog(true);
-    } else {
-      props.onExit();
+  async function onMenuSelect(value: string) {
+    if (value == "save") {
+      const data = pgnToString(editor.rootNode.export());
+      if (await props.onSave(data)) {
+        editor.clearUndo();
+        setView(editor.view);
+      }
+    } else if (value == "settings") {
+      setSettingsDialog(true);
+    } else if (value == "exit") {
+      if (editor.view.canUndo) {
+        setConfirmExitDialog(true);
+      } else {
+        props.onExit();
+      }
     }
   }
 
@@ -132,25 +136,28 @@ export function Editor(props: EditorProps) {
       <Navbar class="flex items-center justify-between gap-4">
         <div class="flex-col gap-2">
           <div class="flex gap-2">
-            <Button
-              icon={<Save />}
-              title="Save"
-              disabled={!view().canUndo}
-              onClick={save}
-              style="flat"
-            />
-            <Button
-              icon={<Settings />}
-              title="Settings"
-              onClick={() => setSettingsDialag(true)}
-              style="flat"
-            />
-            <Button
-              icon={<LogOut />}
-              title="Exit"
-              onClick={exit}
-              style="flat"
-            />
+            <Menu
+              onSelect={(value) => onMenuSelect(value)}
+              elt=<MenuIcon />
+              items={[
+                {
+                  text: "Save",
+                  icon: <Save />,
+                  value: "save",
+                  disabled: !view().canUndo,
+                },
+                {
+                  text: "Settings",
+                  icon: <Settings />,
+                  value: "settings",
+                },
+                {
+                  text: "Exit",
+                  icon: <LogOut />,
+                  value: "exit",
+                },
+              ]}
+            ></Menu>
           </div>
         </div>
         <div class="text-lg truncate text-ellipsis">{props.filename} </div>
@@ -219,21 +226,20 @@ export function Editor(props: EditorProps) {
           view={view()}
           onSubmit={(color) => {
             setTrainingColor(color);
-            setSettingsDialag(false);
+            setSettingsDialog(false);
           }}
-          onClose={() => setSettingsDialag(false)}
+          onClose={() => setSettingsDialog(false)}
         />
       </Show>
       <Show when={confirmExitDialog()} keyed>
-        <Dialog
+        <SimpleDialog
           onSubmit={onExitSubmit}
           onClose={() => setConfirmExitDialog(false)}
           title="Confirm exit"
           submitText="Exit"
-          withCancel
         >
           <div>There are unsaved changes, are you sure you want to exit?</div>
-        </Dialog>
+        </SimpleDialog>
       </Show>
     </div>
   );

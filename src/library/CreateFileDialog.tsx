@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { Field } from "@ark-ui/solid";
 import { FileExistsError } from "~/lib/storage";
-import { Dialog } from "~/Dialog";
+import { SimpleDialog } from "~/Dialog";
 
 interface CreateFileDialogProps {
   title: string;
@@ -43,7 +43,7 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
     setName("");
   }
   return (
-    <Dialog
+    <SimpleDialog
       disabled={disabled()}
       onSubmit={onCreate}
       loading={loading()}
@@ -59,6 +59,6 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
         />
         <Field.ErrorText class="text-rose-500">{error()}</Field.ErrorText>
       </Field.Root>
-    </Dialog>
+    </SimpleDialog>
   );
 }

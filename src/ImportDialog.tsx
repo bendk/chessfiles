@@ -1,4 +1,4 @@
-import { createMemo, createSignal, Index, Match, Show, Switch } from "solid-js";
+import { createSignal, Index, Match, Show, Switch } from "solid-js";
 import * as settings from "~/lib/settings";
 import type { LibraryStorage } from "~/library";
 import {
@@ -142,17 +142,6 @@ export function ImportDialog(props: ImportDialogProps) {
     setError,
   );
 
-  const submitText = createMemo(() => {
-    const currentStatus = status();
-    if (currentStatus == "configuring") {
-      return "Import";
-    } else if (currentStatus == "importing") {
-      return undefined;
-    } else {
-      return "Close";
-    }
-  });
-
   function title(): string {
     const currentStatus = status();
     if (currentStatus == "done") {
@@ -168,11 +157,7 @@ export function ImportDialog(props: ImportDialogProps) {
     }
   }
 
-  async function onSubmit() {
-    if (status() == "done") {
-      props.onClose();
-      return;
-    }
+  async function onImport() {
     const sourceVal = source();
     assertIsStorage(sourceVal);
     importer.import(createStorage(sourceVal));
@@ -181,29 +166,37 @@ export function ImportDialog(props: ImportDialogProps) {
   return (
     <Dialog
       title={title()}
-      onClose={props.onClose}
-      submitText={submitText()}
-      onSubmit={onSubmit}
       disabled={source() == undefined}
-      withCancel={status() == "configuring"}
-      withClose={status() == "configuring"}
       height={500}
+      onClose={props.onClose}
     >
       <Switch>
         <Match when={status() == "configuring"}>
-          <RadioGroup.Root onValueChange={(value) => setSource(value)}>
-            <RadioGroup.Label text="From" />
-            <RadioGroup.Item
-              text="Browser"
-              value="browser"
-              disabled={settings.storage() == "browser"}
-            />
-            <RadioGroup.Item
-              text="Dropbox"
-              value="dropbox"
-              disabled={settings.storage() == "dropbox"}
-            />
-          </RadioGroup.Root>
+          <div class="flex flex-col h-full">
+            <div class="grow">
+              <RadioGroup.Root onValueChange={(value) => setSource(value)}>
+                <RadioGroup.Label text="From" />
+                <RadioGroup.Item
+                  text="Browser"
+                  value="browser"
+                  disabled={settings.storage() == "browser"}
+                />
+                <RadioGroup.Item
+                  text="Dropbox"
+                  value="dropbox"
+                  disabled={settings.storage() == "dropbox"}
+                />
+              </RadioGroup.Root>
+            </div>
+            <div class="pt-8 flex justify-between">
+              <Button
+                text="Import"
+                onClick={onImport}
+                disabled={source() === undefined}
+              />
+              <Button text="Cancel" onClick={props.onClose} />
+            </div>
+          </div>
         </Match>
         <Match when={status() != "configuring"}>
           <div class="flex flex-col h-full">
@@ -236,6 +229,16 @@ export function ImportDialog(props: ImportDialogProps) {
             <Show when={progress() != null}>
               <Progress value={progress()} />
             </Show>
+            <Switch>
+              <Match when={status() != "done"}>
+                <div class="h-8"></div>
+              </Match>
+              <Match when={status() == "done"}>
+                <div class="flex justify-between">
+                  <Button text="Close" onClick={props.onClose} />
+                </div>
+              </Match>
+            </Switch>
           </div>
         </Match>
       </Switch>
