@@ -1,10 +1,12 @@
 export {
+  filename,
   joinPath,
   splitPath,
   normalizePath,
   pathComponents,
   type PathComponent,
   FileExistsError,
+  TrainingExistsError,
   type DirEntry,
 } from "./base";
 import type { Storage } from "~/lib/settings";

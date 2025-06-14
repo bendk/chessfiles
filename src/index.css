@@ -6,3 +6,5 @@
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --animate-spin: spin 2s linear infinite;
 }
+
+@source inline("col-span-2 col-span-3 col-span-4");

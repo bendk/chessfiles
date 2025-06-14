@@ -8,6 +8,7 @@ import type {
 import { Training } from "./training";
 import type { Move, Shape } from "./chess";
 import { makeFen, parseSan, playSan, Chess } from "./chess";
+import { Book } from "./node";
 import type { RootNode } from "./node";
 import { Priority } from "./node";
 import { buildNode } from "./node.test";
@@ -98,6 +99,13 @@ function frenchDefenseRootNode() {
   });
 }
 
+function createTraining(
+  rootNodes: RootNode[],
+  settings = testSettings,
+): Training {
+  return Training.create(settings, "/test book.pgn", new Book(rootNodes));
+}
+
 const testSettings: TrainingSettings = {
   skipAfter: Number.MAX_SAFE_INTEGER,
   shuffle: false,
@@ -175,9 +183,7 @@ function tryMoveSanAndPlay(
 
 describe("Training", () => {
   test("moving through a single position", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      openingRootNode(),
-    ]);
+    const training = createTraining([openingRootNode()]);
 
     const position = Chess.default();
     checkTraining(training, {
@@ -273,10 +279,7 @@ describe("Training", () => {
   });
 
   test("moving through a multiple positions", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      endgameRootNode(),
-      endgameRootNode2(),
-    ]);
+    const training = createTraining([endgameRootNode(), endgameRootNode2()]);
     let position = endgameRootNode().initialPosition;
     checkTraining(training, {
       state: { type: "advance-after-delay" },
@@ -416,10 +419,7 @@ describe("Training", () => {
 
   test("resuming a session", () => {
     // Start a training session and play some moves
-    let training = Training.create(testSettings, "test-book-id", [
-      openingRootNode(),
-    ]);
-
+    let training = createTraining([openingRootNode()]);
     let position = Chess.default();
     training.advance();
     playSan(position, "e4");
@@ -534,10 +534,7 @@ describe("Training", () => {
   });
 
   test("wrong moves", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      openingRootNode(),
-    ]);
-
+    const training = createTraining([openingRootNode()]);
     const position = Chess.default();
     training.advance();
     playSan(position, "e4");
@@ -686,7 +683,7 @@ describe("Training", () => {
     const rootNode = openingRootNode();
     // If color is `undefined` then the user needs to choose moves for both sides
     rootNode.color = undefined;
-    const training = Training.create(testSettings, "test-book-id", [rootNode]);
+    const training = createTraining([rootNode]);
 
     const position = rootNode.initialPosition.clone();
     checkTraining(training, {
@@ -834,10 +831,7 @@ describe("Training", () => {
   });
 
   test("wrong move adjustments", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      openingRootNode(),
-    ]);
-
+    const training = createTraining([openingRootNode()]);
     const position = Chess.default();
     training.advance();
     playSan(position, "e4");
@@ -993,10 +987,7 @@ describe("Training", () => {
   });
 
   test("skipping moves", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      openingRootNode(),
-    ]);
-
+    const training = createTraining([openingRootNode()]);
     const position = Chess.default();
     training.advance();
     playSan(position, "e4");
@@ -1089,10 +1080,7 @@ describe("Training", () => {
   });
 
   test("trainingSession ordering by priority", () => {
-    const training = Training.create(testSettings, "test-book-id", [
-      frenchDefenseRootNode(),
-    ]);
-
+    const training = createTraining([frenchDefenseRootNode()]);
     // Train the high-priority lines first.  (For the unit tests,
     // high-priority lines will be ordered by the order of their keys.
     // In a real session, they will be randomly ordered).
@@ -1244,7 +1232,7 @@ describe("Training", () => {
       ...testSettings,
       skipAfter: 2,
     };
-    const training = Training.create(settings, "test-book-id", [rootNode]);
+    const training = createTraining([rootNode], settings);
     let position = Chess.default();
     // First time through, all moves need to be guessed
     expect(training.state.type).toEqual("choose-move");

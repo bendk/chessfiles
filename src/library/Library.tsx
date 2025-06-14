@@ -13,25 +13,27 @@ import Loader from "lucide-solid/icons/loader-2";
 import X from "lucide-solid/icons/x";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
-import { RootNode } from "~/lib/node";
+import { Book, RootNode } from "~/lib/node";
 import { Button } from "~/Button";
 import { Editor } from "../editor";
 import { CreateFileDialog } from "./CreateFileDialog";
 import { BooksList } from "./BooksList";
+import { Chooser } from "./Chooser";
 
 export interface LibraryProps {
   storage: AppStorage;
   setNavbarShown: (shown: boolean) => void;
 }
 
-export interface Book {
+export interface CurrentBook {
   filename: string;
-  rootNode: RootNode;
+  book: Book;
 }
 
 export function Library(props: LibraryProps) {
   const [dialog, setDialog] = createSignal("");
-  const [currentBook, setCurrentBook] = createSignal<Book>();
+  const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
+  const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
 
   createEffect(() => {
     props.setNavbarShown(currentBook() === undefined);
@@ -48,16 +50,16 @@ export function Library(props: LibraryProps) {
     }
     setCurrentBook({
       filename,
-      rootNode: RootNode.fromInitialPosition(),
+      book: new Book([RootNode.fromInitialPosition()]),
     });
     setDialog("");
   }
 
-  async function onSaveBook(content: string): Promise<boolean> {
+  async function onSaveBook(): Promise<boolean> {
     const book = currentBook();
     if (book) {
       try {
-        await props.storage.writeFile(book.filename, content);
+        await props.storage.writeFile(book.filename, book.book.export());
         props.storage.refetchFiles();
         toaster.create({
           title: "Book saved",
@@ -96,37 +98,6 @@ export function Library(props: LibraryProps) {
     setDialog("");
   }
 
-  async function moveFile(sourceFilename: string, destFilename: string) {
-    const fullPath = joinPath(destFilename, sourceFilename);
-    const toast = toaster.create({
-      title: "Moving",
-      description: `${sourceFilename} -> ${destFilename}`,
-      type: "info",
-    });
-    if (await props.storage.exists(joinPath(destFilename, sourceFilename))) {
-      toaster.create({
-        title: "Move failed",
-        description: `${fullPath} already exists`,
-        type: "error",
-      });
-      return;
-    }
-    try {
-      await props.storage.move(sourceFilename, destFilename);
-      toaster.update(toast, {
-        title: "Move successful",
-        description: `${sourceFilename} -> ${destFilename}`,
-        type: "success",
-      });
-    } catch (e) {
-      toaster.update(toast, {
-        title: "Move failed",
-        description: `${e}`,
-        type: "error",
-      });
-    }
-  }
-
   async function onFileMenuAction(entry: DirEntry, action: string) {
     if (action == "open") {
       if (entry.type == "dir") {
@@ -135,7 +106,7 @@ export function Library(props: LibraryProps) {
         const book = await props.storage.readBook(entry.filename);
         setCurrentBook({
           filename: entry.filename,
-          rootNode: book.rootNodes[0],
+          book,
         });
       }
     } else if (action == "delete") {
@@ -159,17 +130,72 @@ export function Library(props: LibraryProps) {
           type: "error",
         });
       }
+    } else if (action == "move") {
+      setDialog("move");
+      setMoveSource([entry]);
     }
+  }
+
+  function closeMoveDialog() {
+    setDialog("");
+    setMoveSource([]);
+  }
+
+  async function completeMoveDialog(destDir: string) {
+    const sources = moveSource();
+
+    closeMoveDialog();
+    let sourceName;
+    if (sources.length == 0 || destDir == props.storage.dir()) {
+      return;
+    } else if (sources.length == 1) {
+      sourceName = sources[0].filename;
+    } else {
+      sourceName = `${sources.length} files`;
+    }
+
+    const toast = toaster.create({
+      title: "Moving",
+      description: `${sourceName} -> ${destDir}`,
+      type: "info",
+    });
+
+    for (const source of sources) {
+      const destPath = joinPath(destDir, source.filename);
+      try {
+        await props.storage.move(source.filename, destPath);
+      } catch (e) {
+        let description;
+        if (e instanceof FileExistsError) {
+          description = `${destPath} already exists`;
+        } else {
+          console.log(e);
+          description = "";
+        }
+        toaster.update(toast, {
+          title: "Move failed",
+          description,
+          type: "error",
+        });
+        return;
+      }
+    }
+
+    toaster.update(toast, {
+      title: "Move successful",
+      description: `${sourceName} -> ${destDir}`,
+      type: "success",
+    });
   }
 
   return (
     <>
       <Switch>
         <Match when={currentBook()} keyed>
-          {(book) => (
+          {(currentBook) => (
             <Editor
-              filename={book.filename}
-              rootNode={book.rootNode}
+              filename={currentBook.filename}
+              rootNode={currentBook.book.rootNodes[0]}
               onSave={onSaveBook}
               onExit={onExitBook}
             />
@@ -228,11 +254,10 @@ export function Library(props: LibraryProps) {
                 </div>
               </Match>
               <Match when={props.storage.files.state == "ready"}>
-                <div class="min-h-0 overflow-y-auto">
+                <div class="min-h-0 overflow-y-auto grow">
                   <BooksList
                     files={props.storage.files()!}
                     onFileAction={onFileMenuAction}
-                    onFileDrag={moveFile}
                   />
                 </div>
               </Match>
@@ -250,22 +275,33 @@ export function Library(props: LibraryProps) {
               onClick={() => setDialog("create-folder")}
             />
           </div>
-          <Show when={dialog() == "create-book"} keyed>
-            <CreateFileDialog
-              title="Create New Book"
-              submitText="Create Book"
-              onClose={() => setDialog("")}
-              onCreate={onCreateBook}
-            />
-          </Show>
-          <Show when={dialog() == "create-folder"} keyed>
-            <CreateFileDialog
-              title="Create New Folder"
-              submitText="Create Folder"
-              onClose={() => setDialog("")}
-              onCreate={onCreateFolder}
-            />
-          </Show>
+        </Match>
+      </Switch>
+      <Switch>
+        <Match when={dialog() == "create-book"} keyed>
+          <CreateFileDialog
+            title="Create New Book"
+            submitText="Create Book"
+            onClose={() => setDialog("")}
+            onCreate={onCreateBook}
+          />
+        </Match>
+        <Match when={dialog() == "create-folder"} keyed>
+          <CreateFileDialog
+            title="Create New Folder"
+            submitText="Create Folder"
+            onClose={() => setDialog("")}
+            onCreate={onCreateFolder}
+          />
+        </Match>
+        <Match when={dialog() == "move"}>
+          <Chooser
+            title="Moving files"
+            onSelect={completeMoveDialog}
+            onClose={closeMoveDialog}
+            dirMode
+            selectDirText="Move here"
+          />
         </Match>
       </Switch>
       <Toaster toaster={toaster}>

@@ -10,6 +10,7 @@ export abstract class ChessfilesStorage {
 }
 
 export class FileExistsError extends Error {}
+export class TrainingExistsError extends Error {}
 
 export interface DirEntry {
   filename: string;
@@ -17,6 +18,9 @@ export interface DirEntry {
 }
 
 export function joinPath(dir: string, filename: string): string {
+  if (filename.startsWith("/")) {
+    return filename;
+  }
   if (dir.endsWith("/")) {
     return dir + filename;
   } else {
@@ -33,6 +37,10 @@ export function splitPath(path: string): [string, string] {
     normalizePath(path.slice(0, lastSlash + 1)),
     normalizePath(path.slice(lastSlash + 1)),
   ];
+}
+
+export function filename(path: string): string {
+  return splitPath(path)[1];
 }
 
 export function normalizePath(path: string): string {

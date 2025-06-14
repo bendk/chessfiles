@@ -42,7 +42,7 @@ export function Menu(props: MenuProps) {
         <ArkMenu.Trigger
           class="cursor-pointer"
           classList={{
-            "not-group-hover:hidden": props.hover,
+            "not-group-hover:invisible": props.hover,
           }}
         >
           {props.elt}

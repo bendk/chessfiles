@@ -53,7 +53,7 @@ function App() {
           <Library storage={storage} setNavbarShown={setNavbarShown} />
         </Match>
         <Match when={page() == "training"}>
-          <Training />
+          <Training storage={storage} />
         </Match>
         <Match when={page() == "settings"}>
           <Settings storage={storage} />

@@ -7,7 +7,6 @@ import MenuIcon from "lucide-solid/icons/menu";
 import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
 import type { Color, Move, Nag, Shape } from "~/lib/chess";
-import { pgnToString } from "~/lib/chess";
 import type { Priority } from "~/lib/node";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
@@ -24,7 +23,7 @@ import { Menu } from "~/Menu";
 interface EditorProps {
   rootNode: RootNode;
   filename: string;
-  onSave: (content: string) => Promise<boolean>;
+  onSave: () => Promise<boolean>;
   onExit: () => void;
   fen?: string;
 }
@@ -110,8 +109,7 @@ export function Editor(props: EditorProps) {
 
   async function onMenuSelect(value: string) {
     if (value == "save") {
-      const data = pgnToString(editor.rootNode.export());
-      if (await props.onSave(data)) {
+      if (await props.onSave()) {
         editor.clearUndo();
         setView(editor.view);
       }

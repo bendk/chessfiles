@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
   Chess,
   INITIAL_FEN,
-  makeFen,
   makeSanAndPlay,
   moveEquals,
   newPgnChildNode,
@@ -260,7 +259,6 @@ export class RootNode extends Node {
       child.export(this.initialPosition.clone()),
     );
     const headers = new Map([...this.headers]);
-    headers.set("FEN", makeFen(this.initialPosition.toSetup()));
     return newPgnGame(headers, children, this.comment);
   }
 }

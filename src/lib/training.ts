@@ -4,6 +4,7 @@ import { newTrainingActivity } from "./activity";
 import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, Chess } from "./chess";
+import { filename } from "~/lib/storage";
 
 /**
  * Training session
@@ -48,24 +49,27 @@ export class Training {
     this.state = initialState(this.currentRootNode);
   }
 
-  // TODO: input Book
   static create(
     settings: TrainingSettings,
-    bookId: string,
-    rootNodes: RootNode[],
+    bookPath: string,
+    book: Book,
   ): Training {
+    const bookFilename = filename(bookPath);
+    const name = bookFilename.split(".")[0];
     const meta = {
-      bookId,
+      name,
+      bookId: book.id(),
       settings,
       correctCount: 0,
       incorrectCount: 0,
       linesTrained: 0,
-      totalLines: rootNodes.reduce(
+      totalLines: book.rootNodes.reduce(
         (count, node) => count + node.lineCount(),
         0,
       ),
+      lastTrained: Date.now(),
     };
-    return new Training(settings, meta, rootNodes);
+    return new Training(settings, meta, book.rootNodes);
   }
 
   restart() {
@@ -356,10 +360,12 @@ export function defaultTrainingSettings(): TrainingSettings {
  */
 export interface TrainingMeta {
   bookId: string;
+  name: string;
   correctCount: number;
   incorrectCount: number;
   linesTrained: number;
   totalLines: number;
+  lastTrained: number;
 }
 
 /**
@@ -550,4 +556,31 @@ function assertIsDefined<T>(val: T): asserts val is NonNullable<T> {
   if (val === undefined || val === null) {
     throw new Error(`Expected 'val' to be defined, but received ${val}`);
   }
+}
+
+export function trainingTimeAgo(meta: TrainingMeta, currentTimestamp: number) {
+  if (meta.lastTrained === undefined) {
+    return "never";
+  }
+  // Do some basic checking that the meta doesn't have a future timestamp because it was
+  // stored by a client with a weird clock
+  const seconds = Math.max((currentTimestamp - meta.lastTrained) / 1000, 0);
+  const table: [number, string, string][] = [
+    [604800, "week", "weeks"],
+    [86400, "day", "days"],
+    [3600, "hour", "hours"],
+    [60, "minute", "minutes"],
+  ];
+
+  for (const [amount, singular, plural] of table) {
+    if (seconds >= amount) {
+      const count = Math.round(seconds / amount);
+      if (count === 1) {
+        return `${count} ${singular} ago`;
+      } else {
+        return `${count} ${plural} ago`;
+      }
+    }
+  }
+  return "now";
 }

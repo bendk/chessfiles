@@ -5,6 +5,7 @@ import type { Activity } from "~/lib/activity";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training, defaultTrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
+import { FileExistsError, TrainingExistsError } from "./base";
 
 import type { Resource } from "solid-js";
 import {
@@ -79,54 +80,57 @@ export class AppStorage {
     this.setDirPath(path);
   }
 
-  async readFile(filename: string): Promise<string> {
-    const path = joinPath(this.dir(), filename);
+  async readFile(path: string): Promise<string> {
+    path = joinPath(this.dir(), path);
     const storage = this.storage();
     return await storage.readFile(path);
   }
 
-  async writeFile(filename: string, content: string) {
-    const path = joinPath(this.dir(), filename);
+  async writeFile(path: string, content: string) {
+    path = joinPath(this.dir(), path);
     const storage = this.storage();
-    if (await this.exists(filename)) {
+    if (await this.exists(path)) {
       await storage.writeFile(path, content);
     } else {
       await storage.createFile(path, content);
     }
   }
 
-  async readBook(filename: string): Promise<Book> {
-    return Book.import(await this.readFile(filename));
+  async readBook(path: string): Promise<Book> {
+    return Book.import(await this.readFile(path));
   }
 
-  async writeBook(filename: string, book: Book): Promise<void> {
-    await this.writeFile(filename, book.export());
+  async writeBook(path: string, book: Book): Promise<void> {
+    await this.writeFile(path, book.export());
   }
 
-  async exists(filename: string): Promise<boolean> {
-    return await this.storage().exists(joinPath(this.dir(), filename));
+  async exists(path: string): Promise<boolean> {
+    return await this.storage().exists(joinPath(this.dir(), path));
   }
 
-  async createDir(filename: string) {
-    const path = joinPath(this.dir(), filename);
+  async createDir(path: string) {
+    path = joinPath(this.dir(), path);
     await this.storage().createDir(path);
   }
 
-  async remove(filename: string) {
-    const path = joinPath(this.dir(), filename);
+  async remove(path: string) {
+    path = joinPath(this.dir(), path);
     await this.storage().remove(path);
+  }
+
+  absPath(path: string): string {
+    return joinPath(this.dir(), path);
   }
 
   async move(
     sourceFilename: string,
-    destFilename: string,
+    destPath: string,
     refetch: boolean = true,
   ) {
     const sourcePath = joinPath(this.dir(), sourceFilename);
-    const destPath = joinPath(
-      joinPath(this.dir(), destFilename),
-      sourceFilename,
-    );
+    if (await this.storage().exists(destPath)) {
+      throw FileExistsError;
+    }
     await this.storage().move(sourcePath, destPath);
     if (refetch) {
       this.refetchFiles();
@@ -167,12 +171,19 @@ export class AppStorage {
     const book = await this.readBook(bookPath);
     const settings = await this.readTrainingSettings();
 
-    const training = Training.create(settings, book.id(), book.rootNodes);
-    this.updateMeta((meta) => ({
+    const training = Training.create(settings, bookPath, book);
+    const meta = await this.getMeta();
+    for (const trainingMeta of meta.trainingMeta) {
+      if (trainingMeta.bookId == book.id()) {
+        throw new TrainingExistsError();
+      }
+    }
+
+    await this.updateMeta((meta) => ({
       ...meta,
       trainingMeta: [...meta.trainingMeta, training.meta],
     }));
-    this.saveTraining(training);
+    await this.saveTraining(training);
     return training;
   }
 
