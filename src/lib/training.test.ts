@@ -100,6 +100,7 @@ function frenchDefenseRootNode() {
 
 const testSettings: TrainingSettings = {
   skipAfter: Number.MAX_SAFE_INTEGER,
+  shuffle: false,
 };
 
 interface CheckTrainingSpec {
@@ -179,7 +180,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [openingRootNode()],
-      false,
     );
 
     const position = Chess.default();
@@ -281,7 +281,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [endgameRootNode(), endgameRootNode2()],
-      false,
     );
     let position = endgameRootNode().initialPosition;
     checkTraining(training, {
@@ -427,7 +426,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [openingRootNode()],
-      false,
     );
 
     let position = Chess.default();
@@ -447,7 +445,7 @@ describe("Training", () => {
     // Restart the session, the session should move back to the start of the line and play the
     // moves forward
     const data = training.export();
-    training = Training.import(data, testSettings);
+    training = Training.import(data);
     position = Chess.default();
     checkTraining(training, {
       state: { type: "advance-after-delay" },
@@ -549,7 +547,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [openingRootNode()],
-      false,
     );
 
     const position = Chess.default();
@@ -705,7 +702,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [rootNode],
-      false,
     );
 
     const position = rootNode.initialPosition.clone();
@@ -859,7 +855,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [openingRootNode()],
-      false,
     );
 
     const position = Chess.default();
@@ -1022,7 +1017,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [openingRootNode()],
-      false,
     );
 
     const position = Chess.default();
@@ -1122,7 +1116,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [frenchDefenseRootNode()],
-      false,
     );
 
     // Train the high-priority lines first.  (For the unit tests,
@@ -1281,7 +1274,6 @@ describe("Training", () => {
       "training-1",
       "book.pgn",
       [rootNode],
-      false,
     );
     let position = Chess.default();
     // First time through, all moves need to be guessed

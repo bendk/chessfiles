@@ -18,7 +18,6 @@ export class Training {
   private currentLine: CurrentLineEntry[];
   private draftEntry: DraftHistoryEntry;
   private currentNode: Node | undefined;
-  private shuffle: boolean;
   // Are we replying the current line because we imported an in-progress session?/
   private currentLineReplayCount = -1;
   // Maps positions seen to the number of correct moves in a row.  If this exceeds
@@ -30,7 +29,6 @@ export class Training {
     filename: string,
     bookPath: string,
     rootNodes: RootNode[],
-    shuffle: boolean = true,
   ) {
     this.meta = {
       filename,
@@ -43,7 +41,7 @@ export class Training {
         0,
       ),
     };
-    if (shuffle) {
+    if (settings.shuffle) {
       shuffleArray(rootNodes);
     }
     [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
@@ -54,7 +52,6 @@ export class Training {
       score: null,
       incorrectTries: [],
     };
-    this.shuffle = shuffle;
     this.activity = newActivity(filename);
     this.board = newBoard(this.currentRootNode);
     this.state = initialState(this.currentRootNode);
@@ -73,7 +70,7 @@ export class Training {
       if (this.isUsersMove() || this.currentNode.isEmpty()) {
         this.updateStateForCurrentNode();
       } else {
-        const child = pickChildNode(this.currentNode, this.shuffle);
+        const child = pickChildNode(this.currentNode, this.settings.shuffle);
         this.advanceToChild(child);
       }
       return;
@@ -84,7 +81,7 @@ export class Training {
     } else if (this.state.type != "advance-after-delay") {
       throw Error(`advance(): invalid state ${this.state.type}`);
     }
-    const child = pickChildNode(this.currentNode, this.shuffle);
+    const child = pickChildNode(this.currentNode, this.settings.shuffle);
     this.advanceToChild(child);
   }
 
@@ -293,7 +290,7 @@ export class Training {
     });
   }
 
-  static import(data: string, settings: TrainingSettings): Training {
+  static import(data: string): Training {
     const parsed = JSON.parse(data);
     let rootNode = undefined;
     if (parsed.currentRootNode) {
@@ -301,7 +298,7 @@ export class Training {
     }
 
     const training = new Training(
-      settings,
+      parsed.settings,
       parsed.filename,
       parsed.bookPath,
       [],
@@ -344,6 +341,8 @@ export interface TrainingSettings {
   /// Skip the choose-move state after for positions that have been seen this many times
   /// `0` indicates we should always go to choose-move
   skipAfter: number;
+  /// Should we shuffle the lines??
+  shuffle: boolean;
 }
 
 /**
