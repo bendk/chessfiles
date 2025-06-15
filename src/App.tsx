@@ -1,6 +1,7 @@
 import { createSignal, createEffect, Match, Show, Switch } from "solid-js";
 import { completeLogin } from "~/lib/auth";
-import { Library, LibraryStorage } from "./library";
+import { AppStorage } from "./lib/storage";
+import { Library } from "./library";
 import { StandardNavbar } from "./StandardNavbar";
 import { Settings } from "./Settings";
 import { Training } from "./Training";
@@ -26,7 +27,7 @@ function App() {
   const [theme, setTheme] = createSignal(themeFromLocalStorage());
   const [navbarShown, setNavbarShown] = createSignal(true);
   const [page, setPage] = createSignal("library");
-  const storage = new LibraryStorage();
+  const storage = new AppStorage();
 
   if (window.location.hash.startsWith("#settings")) {
     setPage("settings");

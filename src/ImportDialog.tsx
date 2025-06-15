@@ -1,6 +1,6 @@
 import { createSignal, Index, Match, Show, Switch } from "solid-js";
 import * as settings from "~/lib/settings";
-import type { LibraryStorage } from "~/library";
+import type { AppStorage } from "~/lib/storage";
 import {
   assertIsStorage,
   createStorage,
@@ -121,7 +121,7 @@ class Importer {
 }
 
 export interface ImportDialogProps {
-  storage: LibraryStorage;
+  storage: AppStorage;
   onClose: () => void;
 }
 

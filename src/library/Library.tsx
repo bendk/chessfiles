@@ -11,8 +11,7 @@ import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
 import Loader from "lucide-solid/icons/loader-2";
 import X from "lucide-solid/icons/x";
-import type { DirEntry } from "~/lib/storage";
-import type { LibraryStorage } from "./storage";
+import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
 import { RootNode } from "~/lib/node";
 import { Button } from "~/Button";
@@ -21,7 +20,7 @@ import { CreateFileDialog } from "./CreateFileDialog";
 import { BooksList } from "./BooksList";
 
 export interface LibraryProps {
-  storage: LibraryStorage;
+  storage: AppStorage;
   setNavbarShown: (shown: boolean) => void;
 }
 
@@ -133,10 +132,10 @@ export function Library(props: LibraryProps) {
       if (entry.type == "dir") {
         props.storage.setDir(entry.filename);
       } else if (entry.type == "file") {
-        const data = await props.storage.readFile(entry.filename);
+        const book = await props.storage.readBook(entry.filename);
         setCurrentBook({
           filename: entry.filename,
-          rootNode: RootNode.fromPgnString(data, 0),
+          rootNode: book.rootNodes[0],
         });
       }
     } else if (action == "delete") {

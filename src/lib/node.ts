@@ -1,4 +1,5 @@
 import type { Color, Move, Nag, PgnChildNode, PgnGame, Shape } from "./chess";
+import { v4 as uuidv4 } from "uuid";
 import {
   Chess,
   INITIAL_FEN,
@@ -22,6 +23,40 @@ export enum Priority {
   Default = 0,
   TrainFirst = 1,
   TrainLast = -1,
+}
+
+export class Book {
+  constructor(public rootNodes: RootNode[]) {}
+
+  static import(pgn: string): Book {
+    const games = parsePgn(pgn);
+    return new Book(games.map(RootNode.import));
+  }
+
+  export(): string {
+    this.ensureBookIdSet();
+    return this.rootNodes
+      .map((node) => pgnToString(node.export()))
+      .join("\n\n");
+  }
+
+  id(): string {
+    this.ensureBookIdSet();
+    return this.rootNodes[0].bookId!;
+  }
+
+  private ensureBookIdSet() {
+    if (this.rootNodes.length == 0) {
+      throw Error("No nodes in book");
+    }
+    if (this.rootNodes[0].bookId !== undefined) {
+      return;
+    }
+    const id = uuidv4();
+    for (const rootNode of this.rootNodes) {
+      rootNode.bookId = id;
+    }
+  }
 }
 
 /**
@@ -181,17 +216,20 @@ export class RootNode extends Node {
     );
   }
 
-  static fromPgnString(pgn: string, index: number): RootNode {
-    const games = parsePgn(pgn);
-    return RootNode.import(games[index]);
-  }
-
   toPgnString(): string {
     return pgnToString(this.export());
   }
 
+  get bookId(): string | undefined {
+    return this.headers.get("ChessfilesId");
+  }
+
+  set bookId(id: string) {
+    this.headers.set("ChessfilesId", id);
+  }
+
   get color(): Color | undefined {
-    const value = this.headers.get("TrainingColor");
+    const value = this.headers.get("ChessfilesColor");
     if (value != "white" && value != "black") {
       return undefined;
     }
@@ -200,13 +238,11 @@ export class RootNode extends Node {
 
   set color(color: Color | undefined) {
     if (color === undefined) {
-      this.headers.delete("TrainingColor");
+      this.headers.delete("ChessfilesColor");
       return;
     }
-    this.headers.set("TrainingColor", color);
+    this.headers.set("ChessfilesColor", color);
   }
-
-  // TODO initialMoves
 
   static import(game: PgnGame): RootNode {
     const position = pgnStartingPosition(game);

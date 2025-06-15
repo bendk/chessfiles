@@ -1,5 +1,7 @@
-import type { ChildNode, Node } from "./node";
-import { Priority, RootNode } from "./node";
+import type { ChildNode, Node, RootNode } from "./node";
+import type { TrainingActivity } from "./activity";
+import { newTrainingActivity } from "./activity";
+import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, Chess } from "./chess";
 
@@ -9,10 +11,10 @@ import { makeFen, Chess } from "./chess";
  */
 export class Training {
   meta: TrainingMeta;
-  settings: TrainingSettings;
   state: TrainingState;
   board: TrainingBoard;
   activity: TrainingActivity;
+  settings: TrainingSettings;
   private currentRootNode: RootNode | undefined;
   private rootNodesToGo: RootNode[];
   private currentLine: CurrentLineEntry[];
@@ -26,13 +28,35 @@ export class Training {
 
   constructor(
     settings: TrainingSettings,
-    filename: string,
-    bookPath: string,
+    meta: TrainingMeta,
     rootNodes: RootNode[],
   ) {
-    this.meta = {
-      filename,
-      bookPath,
+    this.meta = meta;
+    this.settings = settings;
+    if (settings.shuffle) {
+      shuffleArray(rootNodes);
+    }
+    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
+    this.currentNode = this.currentRootNode;
+    this.currentLine = [];
+    this.draftEntry = {
+      score: null,
+      incorrectTries: [],
+    };
+    this.activity = newTrainingActivity(meta.bookId);
+    this.board = newBoard(this.currentRootNode);
+    this.state = initialState(this.currentRootNode);
+  }
+
+  // TODO: input Book
+  static create(
+    settings: TrainingSettings,
+    bookId: string,
+    rootNodes: RootNode[],
+  ): Training {
+    const meta = {
+      bookId,
+      settings,
       correctCount: 0,
       incorrectCount: 0,
       linesTrained: 0,
@@ -41,20 +65,7 @@ export class Training {
         0,
       ),
     };
-    if (settings.shuffle) {
-      shuffleArray(rootNodes);
-    }
-    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
-    this.currentNode = this.currentRootNode;
-    this.settings = { ...settings };
-    this.currentLine = [];
-    this.draftEntry = {
-      score: null,
-      incorrectTries: [],
-    };
-    this.activity = newActivity(filename);
-    this.board = newBoard(this.currentRootNode);
-    this.state = initialState(this.currentRootNode);
+    return new Training(settings, meta, rootNodes);
   }
 
   restart() {
@@ -282,39 +293,25 @@ export class Training {
 
   export(): string {
     return JSON.stringify({
-      ...this,
-      currentRootNode: this.currentRootNode?.toPgnString(),
-      rootNodesToGo: this.rootNodesToGo.map((node) => node.toPgnString()),
-      activity: undefined,
-      // TODO: export board
+      meta: this.meta,
+      currentLine: this.currentLine,
+      rootNodesPgn: [
+        this.currentRootNode?.toPgnString(),
+        ...this.rootNodesToGo.map((node) => node.toPgnString()),
+      ],
     });
   }
 
-  static import(data: string): Training {
-    const parsed = JSON.parse(data);
-    let rootNode = undefined;
-    if (parsed.currentRootNode) {
-      rootNode = RootNode.fromPgnString(parsed.currentRootNode, 0);
-    }
-
-    const training = new Training(
-      parsed.settings,
-      parsed.filename,
-      parsed.bookPath,
-      [],
+  static import(data: string, settings: TrainingSettings): Training {
+    const { meta, currentLine, rootNodesPgn } = JSON.parse(data);
+    const rootNodes = rootNodesPgn.map(
+      (pgn: string) => Book.import(pgn).rootNodes[0],
     );
-    training.meta = parsed.meta;
-    training.currentLine = parsed.currentLine;
-    training.board = newBoard(rootNode);
-    training.currentNode = training.currentRootNode = rootNode;
-    training.rootNodesToGo = parsed.rootNodesToGo.map((pgn: string) =>
-      RootNode.fromPgnString(pgn, 0),
-    );
+    const training = new Training(settings, meta, rootNodes);
+    training.currentLine = currentLine;
     if (training.currentLine.length > 0) {
       training.currentLineReplayCount = training.currentLine.length - 1;
       training.state = { type: "advance-after-delay" };
-    } else {
-      training.state = initialState(training.currentRootNode);
     }
     return training;
   }
@@ -345,35 +342,24 @@ export interface TrainingSettings {
   shuffle: boolean;
 }
 
+export function defaultTrainingSettings(): TrainingSettings {
+  return {
+    skipAfter: 2,
+    shuffle: true,
+  };
+}
+
 /**
  * Metadata about a training session
  *
  * These are stored together in the `ChessFiles.index` file.
  */
 export interface TrainingMeta {
-  filename: string;
-  bookPath: string;
+  bookId: string;
   correctCount: number;
   incorrectCount: number;
   linesTrained: number;
   totalLines: number;
-}
-
-// Activity record from a single training session
-export interface TrainingActivity {
-  timestamp: number;
-  filename: string;
-  correctCount: number;
-  incorrectCount: number;
-}
-
-function newActivity(filename: string): TrainingActivity {
-  return {
-    timestamp: Date.now(),
-    filename,
-    correctCount: 0,
-    incorrectCount: 0,
-  };
 }
 
 /**

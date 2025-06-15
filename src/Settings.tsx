@@ -1,5 +1,5 @@
 import { createSignal, Show } from "solid-js";
-import type { LibraryStorage } from "~/library";
+import type { AppStorage } from "~/lib/storage";
 import * as settings from "~/lib/settings";
 import * as dropbox from "~/lib/auth/dropbox";
 import { Button } from "./Button";
@@ -16,7 +16,7 @@ function removeHash() {
 }
 
 export interface StorageProps {
-  storage: LibraryStorage;
+  storage: AppStorage;
 }
 
 export function Settings(props: StorageProps) {

@@ -175,12 +175,9 @@ function tryMoveSanAndPlay(
 
 describe("Training", () => {
   test("moving through a single position", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [openingRootNode()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      openingRootNode(),
+    ]);
 
     const position = Chess.default();
     checkTraining(training, {
@@ -276,12 +273,10 @@ describe("Training", () => {
   });
 
   test("moving through a multiple positions", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [endgameRootNode(), endgameRootNode2()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      endgameRootNode(),
+      endgameRootNode2(),
+    ]);
     let position = endgameRootNode().initialPosition;
     checkTraining(training, {
       state: { type: "advance-after-delay" },
@@ -421,12 +416,9 @@ describe("Training", () => {
 
   test("resuming a session", () => {
     // Start a training session and play some moves
-    let training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [openingRootNode()],
-    );
+    let training = Training.create(testSettings, "test-book-id", [
+      openingRootNode(),
+    ]);
 
     let position = Chess.default();
     training.advance();
@@ -445,7 +437,7 @@ describe("Training", () => {
     // Restart the session, the session should move back to the start of the line and play the
     // moves forward
     const data = training.export();
-    training = Training.import(data);
+    training = Training.import(data, testSettings);
     position = Chess.default();
     checkTraining(training, {
       state: { type: "advance-after-delay" },
@@ -542,12 +534,9 @@ describe("Training", () => {
   });
 
   test("wrong moves", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [openingRootNode()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      openingRootNode(),
+    ]);
 
     const position = Chess.default();
     training.advance();
@@ -697,12 +686,7 @@ describe("Training", () => {
     const rootNode = openingRootNode();
     // If color is `undefined` then the user needs to choose moves for both sides
     rootNode.color = undefined;
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [rootNode],
-    );
+    const training = Training.create(testSettings, "test-book-id", [rootNode]);
 
     const position = rootNode.initialPosition.clone();
     checkTraining(training, {
@@ -850,12 +834,9 @@ describe("Training", () => {
   });
 
   test("wrong move adjustments", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [openingRootNode()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      openingRootNode(),
+    ]);
 
     const position = Chess.default();
     training.advance();
@@ -1012,12 +993,9 @@ describe("Training", () => {
   });
 
   test("skipping moves", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [openingRootNode()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      openingRootNode(),
+    ]);
 
     const position = Chess.default();
     training.advance();
@@ -1111,12 +1089,9 @@ describe("Training", () => {
   });
 
   test("trainingSession ordering by priority", () => {
-    const training = new Training(
-      testSettings,
-      "training-1",
-      "book.pgn",
-      [frenchDefenseRootNode()],
-    );
+    const training = Training.create(testSettings, "test-book-id", [
+      frenchDefenseRootNode(),
+    ]);
 
     // Train the high-priority lines first.  (For the unit tests,
     // high-priority lines will be ordered by the order of their keys.
@@ -1269,12 +1244,7 @@ describe("Training", () => {
       ...testSettings,
       skipAfter: 2,
     };
-    const training = new Training(
-      settings,
-      "training-1",
-      "book.pgn",
-      [rootNode],
-    );
+    const training = Training.create(settings, "test-book-id", [rootNode]);
     let position = Chess.default();
     // First time through, all moves need to be guessed
     expect(training.state.type).toEqual("choose-move");
