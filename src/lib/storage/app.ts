@@ -7,7 +7,12 @@ import { Training, defaultTrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
 
 import type { Resource } from "solid-js";
-import { createMemo, createSignal, createResource } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  createResource,
+} from "solid-js";
 
 /**
  * Storage metadata
@@ -42,6 +47,12 @@ export class AppStorage {
     this.storage = createMemo<ChessfilesStorage>(() =>
       createStorage(settings.storage()),
     );
+    createEffect(() => {
+      // Reset these when `this.storage` changes
+      this.storage();
+      this.cachedMeta = undefined;
+      this.checkedTrainingDirExists = false;
+    });
 
     [this.dir, this.setDirPath] = createSignal("/");
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
