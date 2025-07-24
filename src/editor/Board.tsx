@@ -63,11 +63,11 @@ function PromotionSelector(props: PromotionSelectorProps) {
 interface BoardProps {
   chess: Chess;
   onMove: (move: Move) => void;
-  shapes: readonly Shape[];
+  shapes?: readonly Shape[];
   enableShapes?: boolean;
   toggleShape?: (shape: Shape) => void;
-  onMoveBackwards: () => void;
-  onMoveForwards: () => void;
+  onMoveBackwards?: () => void;
+  onMoveForwards?: () => void;
 }
 
 interface PendingPromotionState {
@@ -134,7 +134,7 @@ export function Board(props: BoardProps) {
   }
 
   function syncShapes() {
-    if (!board) {
+    if (!board || props.shapes === undefined) {
       return;
     }
     const shapes: DrawShape[] = props.shapes.map((shape) => {
@@ -268,9 +268,9 @@ export function Board(props: BoardProps) {
           }
         }}
         onWheel={(evt) => {
-          if (evt.deltaY < 0) {
+          if (evt.deltaY < 0 && props.onMoveForwards) {
             props.onMoveForwards();
-          } else {
+          } else if (evt.deltaY > 0 && props.onMoveBackwards) {
             props.onMoveBackwards();
           }
         }}

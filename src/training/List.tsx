@@ -15,11 +15,12 @@ import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
 import { TrainingExistsError } from "~/lib/storage";
 
-export interface TrainingProps {
+export interface TrainingListProps {
   storage: AppStorage;
+  openTraining: (meta: TrainingMeta) => void;
 }
 
-export function Training(props: TrainingProps) {
+export function TrainingList(props: TrainingListProps) {
   const [dialog, setDialog] = createSignal(false);
   const [dialogError, setDialogError] = createSignal<string | undefined>();
 
@@ -45,7 +46,11 @@ export function Training(props: TrainingProps) {
   }
 
   function onMenuAction(meta: TrainingMeta, action: string) {
-    console.log("action", meta, action);
+    if (action == "open") {
+      props.openTraining(meta);
+    } else {
+      console.log("action", meta, action);
+    }
   }
 
   function closeDialog() {
@@ -110,7 +115,7 @@ export function Training(props: TrainingProps) {
         </div>
         <div class="flex gap-8">
           <Button
-            text="Start Training"
+            text="New Training Session"
             icon=<Plus />
             onClick={() => setDialog(true)}
           />

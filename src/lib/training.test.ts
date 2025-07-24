@@ -197,7 +197,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "e4");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 0,
       incorrect: 0,
@@ -223,7 +223,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
@@ -292,7 +292,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Kb1");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 0,
       incorrect: 0,
@@ -334,7 +334,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Kb2");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
@@ -376,7 +376,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Kg8");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 2,
       incorrect: 0,
@@ -427,7 +427,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
@@ -483,7 +483,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
@@ -538,9 +538,12 @@ describe("Training", () => {
     const position = Chess.default();
     training.advance();
     playSan(position, "e4");
-    let move = tryMoveSan(training, position, "d5");
+    let wrongMove = tryMoveSan(training, position, "d5");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["d5"],
+      },
       position,
       correct: 0,
       incorrect: 1,
@@ -554,12 +557,15 @@ describe("Training", () => {
       ],
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
-    move = tryMoveSan(training, position, "d6");
+    const wrongMove2 = tryMoveSan(training, position, "d6");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["d5", "d6"],
+      },
       position,
       // A second wrong move shouldn't change the count
       correct: 0,
@@ -574,29 +580,59 @@ describe("Training", () => {
       ],
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove2,
+      },
+    });
+    tryMoveSan(training, position, "d5");
+    checkTraining(training, {
+      state: {
+        type: "choose-move",
+        wrongMoves: [
+          // Choosing the same wrong move again, shouldn't add a new element to the list
+          "d5",
+          "d6",
+        ],
+      },
+      position,
+      correct: 0,
+      incorrect: 1,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+      feedback: {
+        type: "incorrect",
+        move: wrongMove,
       },
     });
 
     // Guessing the correct move should move to the show-correct-move step, without changing
     // the counts
-    move = tryMoveSanAndPlay(training, position, "e5");
+    let correctMove = tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "e5",
+        wrongMoves: ["d5", "d6"],
+      },
       position,
       correct: 0,
       incorrect: 1,
       linesTrained: 0,
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 0,
       incorrect: 1,
@@ -605,21 +641,28 @@ describe("Training", () => {
 
     // We're at the very last move.  If the user guesses incorrect, then we should
     // show the correct move screen, then continue to show-line-summary.
-    move = tryMoveSan(training, position, "Nf6");
+    wrongMove = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 0,
       incorrect: 2,
       linesTrained: 0,
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
-    move = tryMoveSanAndPlay(training, position, "Nc6");
+    correctMove = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nc6",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 0,
       incorrect: 2,
@@ -634,7 +677,7 @@ describe("Training", () => {
       ],
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
@@ -687,7 +730,7 @@ describe("Training", () => {
 
     const position = rootNode.initialPosition.clone();
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 0,
       incorrect: 0,
@@ -696,7 +739,7 @@ describe("Training", () => {
 
     tryMoveSanAndPlay(training, position, "e4");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
@@ -710,9 +753,9 @@ describe("Training", () => {
       ],
     });
 
-    let move = tryMoveSanAndPlay(training, position, "e5");
+    tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 2,
       incorrect: 0,
@@ -720,57 +763,71 @@ describe("Training", () => {
     });
 
     // Test wrong moves
-    move = tryMoveSan(training, position, "Nc3");
+    let wrongMove = tryMoveSan(training, position, "Nc3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["Nc3"],
+      },
       position,
       correct: 2,
       incorrect: 1,
       linesTrained: 0,
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "Nf3");
+    let correctMove = tryMoveSanAndPlay(training, position, "Nf3");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nf3",
+        wrongMoves: ["Nc3"],
+      },
       position,
       correct: 2,
       incorrect: 1,
       linesTrained: 0,
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
     training.advance();
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 2,
       incorrect: 1,
       linesTrained: 0,
     });
 
-    move = tryMoveSan(training, position, "Nf6");
+    wrongMove = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 2,
       incorrect: 2,
       linesTrained: 0,
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "Nc6");
+    correctMove = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nc6",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 2,
       incorrect: 2,
@@ -785,7 +842,7 @@ describe("Training", () => {
       ],
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
@@ -835,9 +892,12 @@ describe("Training", () => {
     const position = Chess.default();
     training.advance();
     playSan(position, "e4");
-    let move = tryMoveSan(training, position, "d5");
+    let wrongMove = tryMoveSan(training, position, "d5");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["d5"],
+      },
       position,
       correct: 0,
       incorrect: 1,
@@ -851,61 +911,76 @@ describe("Training", () => {
       ],
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
-    move = tryMoveSanAndPlay(training, position, "e5");
+    let correctMove = tryMoveSanAndPlay(training, position, "e5");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "e5",
+        wrongMoves: ["d5"],
+      },
       position,
       correct: 0,
       incorrect: 1,
       linesTrained: 0,
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
     training.updateLastScore("correct");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "e5",
+        wrongMoves: ["d5"],
+      },
       position,
       correct: 1,
       incorrect: 0,
       linesTrained: 0,
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 1,
       incorrect: 0,
       linesTrained: 0,
     });
 
-    move = tryMoveSan(training, position, "Nf6");
+    wrongMove = tryMoveSan(training, position, "Nf6");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: {
+        type: "choose-move",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 1,
       incorrect: 1,
       linesTrained: 0,
       feedback: {
         type: "incorrect",
-        move,
+        move: wrongMove,
       },
     });
 
-    move = tryMoveSanAndPlay(training, position, "Nc6");
+    correctMove = tryMoveSanAndPlay(training, position, "Nc6");
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nc6",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 1,
       incorrect: 1,
@@ -920,13 +995,17 @@ describe("Training", () => {
       ],
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
     training.updateLastScore(null);
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nc6",
+        wrongMoves: ["Nf6"],
+      },
       position,
       correct: 1,
       incorrect: 0,
@@ -941,7 +1020,7 @@ describe("Training", () => {
       ],
       feedback: {
         type: "correct",
-        move,
+        move: correctMove,
       },
     });
 
@@ -997,7 +1076,11 @@ describe("Training", () => {
     position.play(move);
     training.advance();
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "e5",
+        wrongMoves: [],
+      },
       position,
       correct: 0,
       incorrect: 1,
@@ -1011,7 +1094,7 @@ describe("Training", () => {
     training.advance();
     playSan(position, "Nf3");
     checkTraining(training, {
-      state: { type: "choose-move" },
+      state: { type: "choose-move", wrongMoves: [] },
       position,
       correct: 0,
       incorrect: 1,
@@ -1021,7 +1104,11 @@ describe("Training", () => {
     move = parseSan(position, "Nc6");
     position.play(move);
     checkTraining(training, {
-      state: { type: "show-correct-move" },
+      state: {
+        type: "show-correct-move",
+        correctMove: "Nc6",
+        wrongMoves: [],
+      },
       position,
       correct: 0,
       incorrect: 2,

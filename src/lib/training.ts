@@ -3,7 +3,7 @@ import type { TrainingActivity } from "./activity";
 import { newTrainingActivity } from "./activity";
 import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
-import { makeFen, Chess } from "./chess";
+import { makeFen, makeSan, Chess } from "./chess";
 import { filename } from "~/lib/storage";
 
 /**
@@ -161,6 +161,8 @@ export class Training {
     if (this.currentLineReplayCount < 0) {
       this.updateStreak();
     }
+    const moveSan = makeSan(this.board.position, child.move);
+
     this.board.position.play(child.move);
     this.board.comment = child.comment ?? "";
     this.board.shapes = child.shapes ?? [];
@@ -192,6 +194,9 @@ export class Training {
     if (wasIncorrect) {
       this.state = {
         type: "show-correct-move",
+        correctMove: moveSan,
+        wrongMoves:
+          this.state.type == "choose-move" ? this.state.wrongMoves : [],
       };
       this.board.feedback = {
         type: "correct",
@@ -213,6 +218,7 @@ export class Training {
     } else if (this.isUsersMove() && !this.shouldSkipUserMove()) {
       this.state = {
         type: "choose-move",
+        wrongMoves: [],
       };
     } else {
       this.state = {
@@ -246,8 +252,18 @@ export class Training {
   }
 
   private updateCurrentScore(move: Move | null, correct: boolean) {
+    if (this.state.type != "choose-move") {
+      throw Error(`updateCurrentScore: invalid state (${this.state.type})`);
+    }
     if (!correct && move !== null) {
-      this.draftEntry.incorrectTries.push(move);
+      const moveSan = makeSan(this.board.position, move);
+      const wrongMoves = this.state.wrongMoves ?? [];
+
+      if (wrongMoves.indexOf(moveSan) == -1) {
+        this.draftEntry.incorrectTries.push(move);
+        wrongMoves.push(moveSan);
+        this.state.wrongMoves = wrongMoves;
+      }
     }
 
     if (this.draftEntry.score === null) {
@@ -329,7 +345,7 @@ function initialState(rootNode: RootNode | undefined): TrainingState {
     rootNode.color === undefined ||
     rootNode.color == rootNode.initialPosition.turn
   ) {
-    return { type: "choose-move" };
+    return { type: "choose-move", wrongMoves: [] };
   } else {
     return { type: "advance-after-delay" };
   }
@@ -380,10 +396,11 @@ export interface TrainingStateMoveAfterDelay {
 /**
  * Let the user try to choose the correct move then call `tryMove` with the choice.
  *
- * `wrongMove` is non-null if the user has already chosen an incorrect move for this position.
+ * `wrongMoves` will be set if the user has already chosen an incorrect move for this position.
  */
 export interface TrainingStateChooseMove {
   type: "choose-move";
+  wrongMoves: string[];
 }
 
 /**
@@ -394,6 +411,8 @@ export interface TrainingStateChooseMove {
  */
 export interface TrainingStateShowCorrectMove {
   type: "show-correct-move";
+  correctMove: string;
+  wrongMoves: string[];
 }
 
 /**
@@ -412,7 +431,7 @@ export interface TrainingStateShowLineSummary {
  * This is the final step for a training.  After this, either delete the training or reset it by
  * calling `newTraining` and saving that data.
  */
-export interface ShowTrainingSummary {
+export interface TrainingStateShowSummary {
   type: "show-training-summary";
 }
 
@@ -421,7 +440,7 @@ export type TrainingState =
   | TrainingStateChooseMove
   | TrainingStateShowCorrectMove
   | TrainingStateShowLineSummary
-  | ShowTrainingSummary;
+  | TrainingStateShowSummary;
 
 /**
  * Represents the board that's displayed

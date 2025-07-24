@@ -4,7 +4,7 @@ import { AppStorage } from "./lib/storage";
 import { Library } from "./library";
 import { StandardNavbar } from "./StandardNavbar";
 import { Settings } from "./Settings";
-import { Training } from "./Training";
+import { Training } from "./training/Training";
 
 function themeFromLocalStorage(): string {
   const storedValue = localStorage.getItem("theme");
@@ -53,7 +53,7 @@ function App() {
           <Library storage={storage} setNavbarShown={setNavbarShown} />
         </Match>
         <Match when={page() == "training"}>
-          <Training storage={storage} />
+          <Training storage={storage} setNavbarShown={setNavbarShown} />
         </Match>
         <Match when={page() == "settings"}>
           <Settings storage={storage} />
