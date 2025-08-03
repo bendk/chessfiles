@@ -1,8 +1,16 @@
 import Plus from "lucide-solid/icons/plus";
 import Loader from "lucide-solid/icons/loader-2";
-import { Match, Show, Switch, createResource, createSignal } from "solid-js";
+import {
+  Match,
+  Show,
+  Switch,
+  createResource,
+  createSignal,
+  useContext,
+} from "solid-js";
 import type { MenuItem } from "~/components";
 import {
+  AppContext,
   Button,
   Chooser,
   Progress,
@@ -21,6 +29,7 @@ export interface TrainingListProps {
 }
 
 export function TrainingList(props: TrainingListProps) {
+  const context = useContext(AppContext);
   const [dialog, setDialog] = createSignal(false);
   const [dialogError, setDialogError] = createSignal<string | undefined>();
 
@@ -45,9 +54,14 @@ export function TrainingList(props: TrainingListProps) {
     ];
   }
 
-  function onMenuAction(meta: TrainingMeta, action: string) {
+  async function onMenuAction(meta: TrainingMeta, action: string) {
     if (action == "open") {
       props.openTraining(meta);
+    } else if (action == "delete") {
+      context.perform("deleting training", async () => {
+        await props.storage.removeTraining(meta);
+        await refetchTrainingMetas();
+      });
     } else {
       console.log("action", meta, action);
     }
@@ -126,19 +140,20 @@ export function TrainingList(props: TrainingListProps) {
           title="Select book to train"
           error={dialogError()}
           onSelect={async (path) => {
-            try {
-              await props.storage.createTraining(path);
-            } catch (e) {
-              if (e instanceof TrainingExistsError) {
-                setDialogError("Training already in progress for that book");
-              } else {
-                console.log(e);
-                setDialogError("Error creating training");
+            context.perform("creating training", async () => {
+              try {
+                await props.storage.createTraining(path);
+              } catch (e) {
+                if (e instanceof TrainingExistsError) {
+                  setDialogError("Training already in progress for that book");
+                  return;
+                }
+                closeDialog();
+                throw e;
               }
-              return;
-            }
-            refetchTrainingMetas();
-            closeDialog();
+              await refetchTrainingMetas();
+              closeDialog();
+            });
           }}
           onClose={closeDialog}
         />

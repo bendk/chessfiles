@@ -1,6 +1,7 @@
 import { Menu as ArkMenu } from "@ark-ui/solid";
 import type { JSXElement } from "solid-js";
-import { Index, Match, Show, Switch } from "solid-js";
+import { createMemo, splitProps, Index, Match, Show, Switch } from "solid-js";
+import { buttonClass } from "./Button";
 
 export interface MenuItem {
   icon?: JSXElement;
@@ -15,10 +16,13 @@ export interface MenuProps {
   items: (MenuItem | undefined)[];
   elt: JSXElement;
   context?: boolean;
+  class?: string;
+  disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSelect: (value: string) => void;
   hover?: boolean;
   top?: boolean;
+  sameWidth?: boolean;
   style?: "nags";
 }
 
@@ -29,7 +33,10 @@ export function Menu(props: MenuProps) {
         props.onOpenChange ? props.onOpenChange(details.open) : undefined
       }
       onSelect={(item) => props.onSelect(item.value)}
-      positioning={{ placement: props.top ? "top" : "bottom" }}
+      positioning={{
+        placement: props.top ? "top" : "bottom",
+        sameWidth: props.sameWidth,
+      }}
     >
       <Show
         when={props.context !== true}
@@ -40,7 +47,8 @@ export function Menu(props: MenuProps) {
         }
       >
         <ArkMenu.Trigger
-          class="cursor-pointer"
+          disabled={props.disabled}
+          class={`cursor-pointer ${props.class ?? ""}`}
           classList={{
             "not-group-hover:invisible": props.hover,
           }}
@@ -52,10 +60,7 @@ export function Menu(props: MenuProps) {
         <ArkMenu.Content
           class="text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col z-200"
           classList={{
-            grid: props.style == "nags",
-            "grid-cols-2": props.style == "nags",
-            "grid-rows-8": props.style == "nags",
-            "grid-flow-col": props.style == "nags",
+            "grid grid-col-2 grid-rows-8 grid-flow-col": props.style == "nags",
           }}
         >
           <Index each={props.items}>
@@ -76,7 +81,7 @@ export function Menu(props: MenuProps) {
                         "dark:text-white":
                           item.selected && item.disabled !== true,
                         "hover:bg-sky-400": item.disabled !== true,
-                        "hover:text-white": item.disabled !== true,
+                        "hov2er:text-white": item.disabled !== true,
                         "dark:hover:bg-sky-700": item.disabled !== true,
                       }}
                     >
@@ -94,5 +99,63 @@ export function Menu(props: MenuProps) {
         </ArkMenu.Content>
       </ArkMenu.Positioner>
     </ArkMenu.Root>
+  );
+}
+
+export interface MenuButtonProps {
+  items: (MenuItem | undefined)[];
+  class?: string;
+  text?: string;
+  title?: string;
+  icon?: JSXElement;
+  disabled?: boolean;
+  selected?: boolean;
+  style?: "normal" | "full" | "flat" | "nags";
+  onOpenChange?: (open: boolean) => void;
+  onSelect: (value: string) => void;
+  sameWidth?: boolean;
+  top?: boolean;
+}
+
+export function MenuButton(props: MenuButtonProps) {
+  const [menuProps] = splitProps(props, [
+    "items",
+    "onOpenChange",
+    "disabled",
+    "onSelect",
+    "top",
+  ]);
+  const elt = createMemo(() => {
+    let buttonStyle: "flat" | "normal";
+    if (props.style == "flat" || props.style == "nags") {
+      buttonStyle = "flat";
+    } else {
+      buttonStyle = "normal";
+    }
+
+    return (
+      <div
+        class={buttonClass(
+          buttonStyle,
+          props.disabled ?? false,
+          props.selected ?? false,
+        )}
+        classList={{
+          "w-full": props.style == "full",
+        }}
+      >
+        {props.icon} {props.text}
+      </div>
+    );
+  });
+
+  return (
+    <Menu
+      elt={elt()}
+      class={props.style == "full" ? "w-full" : undefined}
+      style={props.style == "nags" ? "nags" : undefined}
+      sameWidth={props.sameWidth}
+      {...menuProps}
+    />
   );
 }

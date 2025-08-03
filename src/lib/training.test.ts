@@ -235,6 +235,7 @@ describe("Training", () => {
       position,
       state: {
         type: "show-line-summary",
+        initialPosition: Chess.default(),
         line: buildLine(
           Chess.default(),
           {
@@ -303,6 +304,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: endgameRootNode().initialPosition,
         line: buildLine(
           endgameRootNode().initialPosition,
           {
@@ -345,6 +347,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: endgameRootNode().initialPosition,
         line: buildLine(
           endgameRootNode().initialPosition,
           {
@@ -387,6 +390,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: endgameRootNode2().initialPosition,
         line: buildLine(
           endgameRootNode2().initialPosition,
           {
@@ -496,6 +500,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: Chess.default(),
         line: buildLine(
           Chess.default(),
           {
@@ -616,6 +621,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "e5",
         wrongMoves: ["d5", "d6"],
       },
@@ -660,6 +666,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "Nc6",
         wrongMoves: ["Nf6"],
       },
@@ -685,6 +692,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: Chess.default(),
         line: buildLine(
           Chess.default(),
           {
@@ -783,6 +791,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "Nf3",
         wrongMoves: ["Nc3"],
       },
@@ -825,6 +834,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "Nc6",
         wrongMoves: ["Nf6"],
       },
@@ -850,6 +860,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: rootNode.initialPosition,
         line: buildLine(
           rootNode.initialPosition,
           {
@@ -918,6 +929,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "e5",
         wrongMoves: ["d5"],
       },
@@ -935,6 +947,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "correct",
         correctMove: "e5",
         wrongMoves: ["d5"],
       },
@@ -978,6 +991,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "Nc6",
         wrongMoves: ["Nf6"],
       },
@@ -1003,6 +1017,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: null,
         correctMove: "Nc6",
         wrongMoves: ["Nf6"],
       },
@@ -1028,6 +1043,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: Chess.default(),
         line: buildLine(
           Chess.default(),
           {
@@ -1078,6 +1094,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "e5",
         wrongMoves: [],
       },
@@ -1106,6 +1123,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: "Nc6",
         wrongMoves: [],
       },
@@ -1131,6 +1149,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-line-summary",
+        initialPosition: Chess.default(),
         line: buildLine(
           Chess.default(),
           {
@@ -1182,6 +1201,7 @@ describe("Training", () => {
       position,
       state: {
         type: "show-line-summary",
+        initialPosition: frenchDefenseRootNode().initialPosition,
         line: buildLine(
           frenchDefenseRootNode().initialPosition,
           {
@@ -1215,6 +1235,7 @@ describe("Training", () => {
       position,
       state: {
         type: "show-line-summary",
+        initialPosition: frenchDefenseRootNode().initialPosition,
         line: buildLine(
           frenchDefenseRootNode().initialPosition,
           {
@@ -1240,6 +1261,7 @@ describe("Training", () => {
       position,
       state: {
         type: "show-line-summary",
+        initialPosition: frenchDefenseRootNode().initialPosition,
         line: buildLine(
           frenchDefenseRootNode().initialPosition,
           {
@@ -1267,6 +1289,7 @@ describe("Training", () => {
       position,
       state: {
         type: "show-line-summary",
+        initialPosition: frenchDefenseRootNode().initialPosition,
         line: buildLine(
           frenchDefenseRootNode().initialPosition,
           {

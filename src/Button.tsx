@@ -1,4 +1,7 @@
+import { createMemo } from "solid-js";
 import type { JSX } from "solid-js";
+
+export type ButtonStyle = "normal" | "primary" | "flat";
 
 interface ButtonProps {
   class?: string;
@@ -7,41 +10,29 @@ interface ButtonProps {
   icon?: JSX.Element;
   disabled?: boolean;
   selected?: boolean;
-  style?: "normal" | "primary" | "flat";
+  style?: ButtonStyle;
   onClick?: () => void;
 }
 
 export function Button(props: ButtonProps) {
-  const enabled = () => props.disabled !== true;
-  const borderStyle = () => {
-    if (props.style == "primary" && enabled()) {
-      return "border-zinc-500 dark:border-zinc-300";
-    } else if (props.style == "flat") {
-      return "border-transparent hover:border-zinc-400 hover:dark:border-zinc-500";
+  const cls = createMemo(() => {
+    const cls = buttonClass(
+      props.style ?? "normal",
+      props.disabled ?? false,
+      props.selected ?? false,
+    );
+    if (props.class !== undefined) {
+      return `${cls} ${props.class}`;
     } else {
-      return "border-zinc-400 dark:border-zinc-500";
+      return cls;
     }
-  };
-
+  });
   return (
     <button
-      class={`flex gap-1 items-center justify-center border-1 rounded-md px-3 py-1 text-lg font-medium ${borderStyle()}`}
+      class={cls()}
       title={props.title}
-      classList={{
-        [props.class as string]: !!props.class,
-        "text-zinc-300": !enabled(),
-        "dark:text-zinc-500": !enabled(),
-        "cursor-pointer": enabled(),
-        "dark:bg-sky-900": props.selected,
-        "bg-slate-500": props.selected,
-        "text-white": props.selected,
-        "hover:text-white": enabled(),
-        "hover:bg-sky-400": enabled(),
-        "hover:border-sky-500": enabled(),
-        "dark:hover:bg-sky-800": enabled(),
-      }}
       onClick={() => {
-        if (enabled() && props.onClick) {
+        if (props.disabled !== true && props.onClick) {
           props.onClick();
         }
       }}
@@ -49,4 +40,35 @@ export function Button(props: ButtonProps) {
       {props.icon} {props.text}
     </button>
   );
+}
+
+export function buttonClass(
+  style: ButtonStyle,
+  disabled: boolean,
+  selected: boolean,
+): string {
+  let cls =
+    "flex gap-1 items-center justify-center border-1 rounded-md px-3 py-1 text-lg font-medium";
+
+  if (style == "primary" && !disabled) {
+    cls += " border-zinc-500 dark:border-zinc-300";
+  } else if (style == "flat") {
+    cls +=
+      " border-transparent hover:border-zinc-400 hover:dark:border-zinc-500";
+  } else {
+    cls += " border-zinc-400 dark:border-zinc-500";
+  }
+
+  if (disabled) {
+    cls += " text-zinc-300 dark:text-zinc-500 ";
+  } else {
+    cls +=
+      " cursor-pointer hover:text-white hover:bg-sky-400 hover:border-sky-500 dark:hover:bg-sky-800";
+  }
+
+  if (selected) {
+    cls += " dark:bg-sky-900 bg-slate-500 text-white";
+  }
+
+  return cls;
 }

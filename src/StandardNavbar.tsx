@@ -1,14 +1,14 @@
+import LoaderIcon from "lucide-solid/icons/loader-2";
 import IconMoon from "lucide-solid/icons/moon";
 import IconSun from "lucide-solid/icons/sun";
 import IconBook from "lucide-solid/icons/book";
 import IconSettings from "lucide-solid/icons/settings";
 import IconTodo from "lucide-solid/icons/list-todo";
 import type { JSX } from "solid-js";
-import { Match, Show, Switch, splitProps } from "solid-js";
-import { Menu } from "./Menu";
-import { Navbar } from "./Navbar";
+import { Match, Show, Switch, splitProps, useContext } from "solid-js";
+import { AppContext, Menu, Navbar } from "./components";
 
-interface StandardNavbarButtonProps {
+interface NavbarLinkProps {
   text?: string;
   name: string;
   page: string;
@@ -16,7 +16,7 @@ interface StandardNavbarButtonProps {
   icon?: JSX.Element;
 }
 
-function NavbarLink(props: StandardNavbarButtonProps) {
+function NavbarLink(props: NavbarLinkProps) {
   const current = () => props.page === props.name;
   return (
     <a
@@ -44,6 +44,8 @@ interface NavbarProps {
 
 export function StandardNavbar(props: NavbarProps) {
   const [buttonProps] = splitProps(props, ["page", "setPage"]);
+  const context = useContext(AppContext);
+
   return (
     <Navbar class="flex items-center justify-between py-4 px-10">
       <div class="flex gap-2 items-center">
@@ -59,6 +61,11 @@ export function StandardNavbar(props: NavbarProps) {
           icon={<IconTodo size={16} />}
           {...buttonProps}
         />
+      </div>
+      <div>
+        <Show when={context.loading() && !context.dialogShown()}>
+          <LoaderIcon class="animate-spin duration-1000" size={32} />
+        </Show>
       </div>
       <div class="flex items-center gap-2">
         <Menu

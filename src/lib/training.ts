@@ -6,6 +6,8 @@ import type { Move, Shape } from "./chess";
 import { makeFen, makeSan, Chess } from "./chess";
 import { filename } from "~/lib/storage";
 
+export type Score = "correct" | "incorrect";
+
 /**
  * Training session
  *
@@ -130,7 +132,7 @@ export class Training {
     }
   }
 
-  updateLastScore(score: "correct" | "incorrect" | null) {
+  updateLastScore(score: Score | null) {
     if (this.state.type != "show-correct-move") {
       throw Error(`updateLastScore: invalid state (${this.state.type})`);
     }
@@ -152,8 +154,8 @@ export class Training {
       this.meta.incorrectCount++;
       this.activity.incorrectCount++;
     }
+    this.state.score = score;
     entry.score = score;
-    // TODO: increment score
   }
 
   private advanceToChild(child: ChildNode) {
@@ -194,6 +196,7 @@ export class Training {
     if (wasIncorrect) {
       this.state = {
         type: "show-correct-move",
+        score: "incorrect",
         correctMove: moveSan,
         wrongMoves:
           this.state.type == "choose-move" ? this.state.wrongMoves : [],
@@ -213,6 +216,7 @@ export class Training {
       this.meta.linesTrained++;
       this.state = {
         type: "show-line-summary",
+        initialPosition: this.currentRootNode.initialPosition.clone(),
         line: [...this.currentLine],
       };
     } else if (this.isUsersMove() && !this.shouldSkipUserMove()) {
@@ -292,14 +296,14 @@ export class Training {
     assertIsDefined(this.currentRootNode);
     let lastBranch: [Node, Move] | null = null;
 
-    let node: Node = this.currentRootNode;
+    let node: Node | undefined = this.currentRootNode;
     for (const entry of this.currentLine) {
+      assertIsDefined(node);
       const move = entry.move;
       if (node.children.length > 1) {
         lastBranch = [node, move];
       }
       const child = node.getChild(move);
-      assertIsDefined(child);
       node = child;
     }
 
@@ -411,6 +415,7 @@ export interface TrainingStateChooseMove {
  */
 export interface TrainingStateShowCorrectMove {
   type: "show-correct-move";
+  score: Score | null;
   correctMove: string;
   wrongMoves: string[];
 }
@@ -422,6 +427,7 @@ export interface TrainingStateShowCorrectMove {
  */
 export interface TrainingStateShowLineSummary {
   type: "show-line-summary";
+  initialPosition: Chess;
   line: readonly CurrentLineEntry[];
 }
 
@@ -470,7 +476,7 @@ function newBoard(rootNode: RootNode | undefined): TrainingBoard {
 }
 
 export interface TrainingBoardFeedback {
-  type: "correct" | "incorrect";
+  type: Score;
   move: Move;
 }
 
@@ -479,7 +485,7 @@ export interface TrainingBoardFeedback {
  */
 export interface CurrentLineEntry {
   move: Move;
-  score: "correct" | "incorrect" | null;
+  score: Score | null;
   incorrectTries: Move[];
 }
 

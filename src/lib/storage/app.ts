@@ -207,16 +207,21 @@ export class AppStorage {
     await this.saveTraining(training);
     await this.updateMeta((meta) => ({
       ...meta,
-      trainingMeta: [...meta.trainingMeta, training.meta],
+      trainingMeta: [
+        ...meta.trainingMeta.filter(
+          (meta) => meta.bookId != training.meta.bookId,
+        ),
+        training.meta,
+      ],
     }));
   }
 
   async removeTraining(meta: TrainingMeta): Promise<void> {
     await this.remove(await this.trainingPath(meta));
-    await this.updateMeta((meta) => ({
-      ...meta,
-      trainingMeta: meta.trainingMeta.filter(
-        (meta) => meta.bookId != meta.bookId,
+    await this.updateMeta((storageMeta) => ({
+      ...storageMeta,
+      trainingMeta: storageMeta.trainingMeta.filter(
+        (m) => m.bookId != meta.bookId,
       ),
     }));
   }

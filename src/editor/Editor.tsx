@@ -10,7 +10,7 @@ import type { Priority } from "~/lib/node";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
 import { createMemo, createSignal, Show } from "solid-js";
-import { Button, SimpleDialog, Menu } from "~/components";
+import { Button, SimpleDialog, MenuButton } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { Board } from "./Board";
 import { Line } from "./Line";
@@ -163,14 +163,10 @@ export function Editor(props: EditorProps) {
               style="flat"
             />
           </div>
-          <Menu
-            elt={
-              <Button
-                text={`Side: ${trainingColorText()}`}
-                icon={<Settings />}
-                style="flat"
-              />
-            }
+          <MenuButton
+            text={`Side: ${trainingColorText()}`}
+            icon={<Settings />}
+            style="flat"
             items={[
               {
                 text: "White",

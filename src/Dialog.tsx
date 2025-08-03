@@ -1,9 +1,9 @@
 import type { JSXElement } from "solid-js";
-import { Show } from "solid-js";
+import { Show, onCleanup, useContext } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Dialog as ArkDialog } from "@ark-ui/solid";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
-import { Button } from "./Button";
+import { AppContext, Button } from "./components";
 
 interface DialogProps {
   title: string;
@@ -14,6 +14,11 @@ interface DialogProps {
 }
 
 export function Dialog(props: DialogProps) {
+  const context = useContext(AppContext);
+  context.setDialogShown(true);
+
+  onCleanup(() => context.setDialogShown(false));
+
   return (
     <ArkDialog.Root open={true} onOpenChange={props.onClose}>
       <Portal>
@@ -27,8 +32,11 @@ export function Dialog(props: DialogProps) {
                 : undefined
             }
           >
-            <ArkDialog.Title class="bg-amber-400 dark:bg-slate-700 px-4 py-2 text-2xl">
+            <ArkDialog.Title class="flex items-center gap-2 bg-amber-400 dark:bg-slate-700 px-4 py-2 text-2xl">
               {props.title}
+              <Show when={context.loading()}>
+                <LoaderCircle class="animate-spin" />
+              </Show>
             </ArkDialog.Title>
             <ArkDialog.Description class="px-4 py-4 grow">
               {props.children}

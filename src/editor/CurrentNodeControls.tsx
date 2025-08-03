@@ -7,7 +7,7 @@ import { Priority } from "~/lib/node";
 import type { EditorCurrentNode } from "~/lib/editor";
 import { Show } from "solid-js";
 import { Button } from "../Button";
-import { Menu } from "../Menu";
+import { MenuButton } from "../Menu";
 
 export interface CurrentNodeControlsProps {
   isRoot: boolean;
@@ -51,10 +51,10 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
       <Show when={!props.isRoot}>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <Menu
+            <MenuButton
               top
               style="nags"
-              elt={<Button icon=<Tags /> style="flat" />}
+              icon=<Tags />
               items={[
                 item(Nag.BrilliantMove, "row-start-2"),
                 item(Nag.GoodMove),
@@ -74,9 +74,10 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               ]}
               onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
             />
-            <Menu
+            <MenuButton
               top
-              elt={<Button icon=<ArrowUpDown /> style="flat" />}
+              style="flat"
+              icon=<ArrowUpDown />
               items={[
                 {
                   text: "Priority: First",

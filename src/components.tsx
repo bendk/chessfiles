@@ -1,6 +1,7 @@
+export { AppContext } from "./App";
 export { Button } from "./Button";
 export { Dialog, SimpleDialog } from "./Dialog";
-export { Menu } from "./Menu";
+export { Menu, MenuButton } from "./Menu";
 export type { MenuItem } from "./Menu";
 export { Navbar } from "./Navbar";
 export { Progress } from "./Progress";
