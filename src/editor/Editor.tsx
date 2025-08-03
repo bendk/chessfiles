@@ -3,22 +3,18 @@ import ArrowBigRight from "lucide-solid/icons/arrow-right";
 import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
-import MenuIcon from "lucide-solid/icons/menu";
 import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
-import type { Color, Move, Nag, Shape } from "~/lib/chess";
+import type { Move, Nag, Shape } from "~/lib/chess";
 import type { Priority } from "~/lib/node";
 import type { RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
-import { createSignal, Show } from "solid-js";
-import { Board } from "./Board";
+import { createMemo, createSignal, Show } from "solid-js";
+import { Button, SimpleDialog, Menu } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
-import { Button } from "../Button";
-import { SimpleDialog } from "~/Dialog";
+import { Board } from "./Board";
 import { Line } from "./Line";
 import { EditorDialog } from "./EditorDialog";
-import { Navbar } from "~/Navbar";
-import { Menu } from "~/Menu";
 
 interface EditorProps {
   rootNode: RootNode;
@@ -92,8 +88,25 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
-  function setTrainingColor(color: Color | undefined) {
-    editor.setTrainingColor(color);
+  const trainingColorText = createMemo(() => {
+    const color = view().color;
+    if (color == "white") {
+      return "White";
+    } else if (color == "black") {
+      return "Black";
+    } else {
+      return "Both";
+    }
+  });
+
+  function setTrainingColor(color: string | undefined) {
+    if (color == "white") {
+      editor.setTrainingColor("white");
+    } else if (color == "black") {
+      editor.setTrainingColor("black");
+    } else {
+      editor.setTrainingColor(undefined);
+    }
     setView(editor.view);
   }
 
@@ -107,20 +120,18 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
-  async function onMenuSelect(value: string) {
-    if (value == "save") {
-      if (await props.onSave()) {
-        editor.clearUndo();
-        setView(editor.view);
-      }
-    } else if (value == "settings") {
-      setSettingsDialog(true);
-    } else if (value == "exit") {
-      if (editor.view.canUndo) {
-        setConfirmExitDialog(true);
-      } else {
-        props.onExit();
-      }
+  async function onSave() {
+    if (await props.onSave()) {
+      editor.clearUndo();
+      setView(editor.view);
+    }
+  }
+
+  function onExit() {
+    if (editor.view.canUndo) {
+      setConfirmExitDialog(true);
+    } else {
+      props.onExit();
     }
   }
 
@@ -131,51 +142,71 @@ export function Editor(props: EditorProps) {
 
   return (
     <div class="flex-col justify-center mx-auto">
-      <Navbar class="flex items-center justify-between gap-4">
-        <div class="flex-col gap-2">
-          <div class="flex gap-2">
-            <Menu
-              onSelect={(value) => onMenuSelect(value)}
-              elt=<MenuIcon />
-              items={[
-                {
-                  text: "Save",
-                  icon: <Save />,
-                  value: "save",
-                  disabled: !view().canUndo,
-                },
-                {
-                  text: "Settings",
-                  icon: <Settings />,
-                  value: "settings",
-                },
-                {
-                  text: "Exit",
-                  icon: <LogOut />,
-                  value: "exit",
-                },
-              ]}
-            ></Menu>
+      <div class="flex justify-between pt-4 pb-8 px-8">
+        <div class="text-3xl truncate text-ellipsis">
+          Editing: {props.filename}{" "}
+        </div>
+        <div class="flex gap-8">
+          <div class="flex">
+            <Button
+              disabled={!view().canRedo}
+              icon={<Redo />}
+              title="Redo"
+              onClick={redo}
+              style="flat"
+            />
+            <Button
+              disabled={!view().canUndo}
+              icon={<Undo />}
+              title="Undo"
+              onClick={undo}
+              style="flat"
+            />
+          </div>
+          <Menu
+            elt={
+              <Button
+                text={`Side: ${trainingColorText()}`}
+                icon={<Settings />}
+                style="flat"
+              />
+            }
+            items={[
+              {
+                text: "White",
+                value: "white",
+                selected: view().color == "white",
+              },
+              {
+                text: "Black",
+                value: "black",
+                selected: view().color == "black",
+              },
+              {
+                text: "Both",
+                value: "both",
+                selected: view().color === undefined,
+              },
+            ]}
+            onSelect={setTrainingColor}
+          />
+          <div class="flex">
+            <Button
+              text="Save"
+              icon={<Save />}
+              onClick={onSave}
+              disabled={!view().canUndo}
+              style="flat"
+            />
+            <Button
+              text="Exit"
+              icon={<LogOut />}
+              onClick={onExit}
+              style="flat"
+            />
           </div>
         </div>
-        <div class="text-lg truncate text-ellipsis">{props.filename} </div>
-        <div class="flex gap-2">
-          <Button
-            disabled={!view().canRedo}
-            icon={<Redo />}
-            title="Redo"
-            onClick={redo}
-            style="flat"
-          />
-          <Button
-            disabled={!view().canUndo}
-            icon={<Undo />}
-            title="Undo"
-            onClick={undo}
-            style="flat"
-          />
-        </div>
-      </Navbar>
+      </div>
       <div class="flex gap-4">
         <div class="w-100 flex flex-col-reverse h-200 gap-4">
           <CurrentNodeControls

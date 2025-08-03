@@ -149,7 +149,9 @@ function TrainingSessionInner(props: TrainingSessionInnerProps) {
   return (
     <div class="flex flex-col">
       <div class="flex justify-between pb-8">
-        <h1 class="text-3xl">Training: {props.training.meta.name}</h1>
+        <h1 class="text-3xl truncate text-ellipsis">
+          Training: {props.training.meta.name}
+        </h1>
         <Button text="Exit" onClick={props.onExit} />
       </div>
       <div class="flex justify-center">
