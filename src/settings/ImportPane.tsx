@@ -9,7 +9,6 @@ import {
 } from "~/lib/storage";
 import type { ChessfilesStorage, DirEntry } from "~/lib/storage";
 import { Button } from "~/Button";
-import { Dialog } from "~/Dialog";
 import { Progress } from "~/Progress";
 import * as RadioGroup from "~/RadioGroup";
 
@@ -120,12 +119,12 @@ class Importer {
   }
 }
 
-export interface ImportDialogProps {
+export interface ImportPaneProps {
   storage: AppStorage;
   onClose: () => void;
 }
 
-export function ImportDialog(props: ImportDialogProps) {
+export function ImportPane(props: ImportPaneProps) {
   const [source, setSource] = createSignal();
   const [status, setStatus] = createSignal<ImportStatus>("configuring");
   const [importLog, setImportLog] = createSignal<string[]>([]);
@@ -164,15 +163,14 @@ export function ImportDialog(props: ImportDialogProps) {
   }
 
   return (
-    <Dialog
-      title={title()}
-      disabled={source() == undefined}
-      height={500}
-      onClose={props.onClose}
-    >
+    <>
+      <div class="flex justify-between">
+        <h1 class="text-2xl">{title()}</h1>
+        <Button text="Exit" onClick={props.onClose} />
+      </div>
       <Switch>
         <Match when={status() == "configuring"}>
-          <div class="flex flex-col h-full">
+          <div class="flex flex-col">
             <div class="grow">
               <RadioGroup.Root onValueChange={(value) => setSource(value)}>
                 <RadioGroup.Label text="From" />
@@ -188,18 +186,17 @@ export function ImportDialog(props: ImportDialogProps) {
                 />
               </RadioGroup.Root>
             </div>
-            <div class="pt-8 flex justify-between">
+            <div class="pt-8 flex">
               <Button
                 text="Import"
                 onClick={onImport}
                 disabled={source() === undefined}
               />
-              <Button text="Cancel" onClick={props.onClose} />
             </div>
           </div>
         </Match>
         <Match when={status() != "configuring"}>
-          <div class="flex flex-col h-full">
+          <div class="flex flex-col">
             <ul class="h-40 overflow-auto">
               <Index each={importLog()}>{(log) => <li>{log()}</li>}</Index>
             </ul>
@@ -234,14 +231,14 @@ export function ImportDialog(props: ImportDialogProps) {
                 <div class="h-8"></div>
               </Match>
               <Match when={status() == "done"}>
-                <div class="flex justify-between">
-                  <Button text="Close" onClick={props.onClose} />
+                <div class="flex justify-between pt-8">
+                  <Button text="Finish" onClick={props.onClose} />
                 </div>
               </Match>
             </Switch>
           </div>
         </Match>
       </Switch>
-    </Dialog>
+    </>
   );
 }

@@ -1,23 +1,21 @@
-import LoaderIcon from "lucide-solid/icons/loader-2";
 import IconMoon from "lucide-solid/icons/moon";
 import IconSun from "lucide-solid/icons/sun";
 import IconBook from "lucide-solid/icons/book";
 import IconSettings from "lucide-solid/icons/settings";
 import IconTodo from "lucide-solid/icons/list-todo";
 import type { JSX } from "solid-js";
-import { Match, Show, Switch, splitProps, useContext } from "solid-js";
+import { Match, Show, Switch, useContext } from "solid-js";
 import { AppContext, Menu, Navbar } from "./components";
 
 interface NavbarLinkProps {
   text?: string;
   name: string;
-  page: string;
-  setPage: (name: string) => void;
   icon?: JSX.Element;
 }
 
 function NavbarLink(props: NavbarLinkProps) {
-  const current = () => props.page === props.name;
+  const context = useContext(AppContext);
+  const current = () => context.page() === props.name;
   return (
     <a
       class="flex gap-1 items-center mx-3 text-lg cursor-pointer font-medium"
@@ -27,7 +25,7 @@ function NavbarLink(props: NavbarLinkProps) {
         "px-2": props.text === undefined,
       }}
       aria-current={current() ? "page" : undefined}
-      onClick={() => props.setPage(props.name)}
+      onClick={() => context.setPage(props.name)}
     >
       <Show when={props.icon}>{props.icon}</Show>
       <Show when={props.text}>{props.text}</Show>
@@ -35,15 +33,7 @@ function NavbarLink(props: NavbarLinkProps) {
   );
 }
 
-interface NavbarProps {
-  theme: string;
-  setTheme: (theme: string) => void;
-  page: string;
-  setPage: (name: string) => void;
-}
-
-export function StandardNavbar(props: NavbarProps) {
-  const [buttonProps] = splitProps(props, ["page", "setPage"]);
+export function StandardNavbar() {
   const context = useContext(AppContext);
 
   return (
@@ -53,28 +43,21 @@ export function StandardNavbar(props: NavbarProps) {
           name="library"
           text="Library"
           icon={<IconBook size={16} />}
-          {...buttonProps}
         />
         <NavbarLink
           name="training"
           text="Training"
           icon={<IconTodo size={16} />}
-          {...buttonProps}
         />
-      </div>
-      <div>
-        <Show when={context.loading() && !context.dialogShown()}>
-          <LoaderIcon class="animate-spin duration-1000" size={32} />
-        </Show>
       </div>
       <div class="flex items-center gap-2">
         <Menu
           elt={
             <Switch>
-              <Match when={props.theme === "light"}>
+              <Match when={context.theme() === "light"}>
                 <IconSun size={16} />
               </Match>
-              <Match when={props.theme === "dark"}>
+              <Match when={context.theme() === "dark"}>
                 <IconMoon fill="currentColor" size={16} />
               </Match>
             </Switch>
@@ -84,22 +67,21 @@ export function StandardNavbar(props: NavbarProps) {
               value: "light",
               icon: <IconSun size={16} />,
               text: "Light",
-              selected: props.theme == "light",
+              selected: context.theme() == "light",
             },
             {
               value: "dark",
               icon: <IconMoon size={16} />,
               text: "Dark",
-              selected: props.theme == "dark",
+              selected: context.theme() == "dark",
             },
           ]}
-          onSelect={(value) => props.setTheme(value)}
+          onSelect={(value) => context.setTheme(value)}
         />
         <NavbarLink
           name="settings"
-          text={props.page == "settings" ? "Settings" : undefined}
+          text={context.page() == "settings" ? "Settings" : undefined}
           icon={<IconSettings size={16} />}
-          {...buttonProps}
         />
       </div>
     </Navbar>

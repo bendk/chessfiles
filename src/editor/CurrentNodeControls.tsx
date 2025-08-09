@@ -52,7 +52,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <MenuButton
-              top
+              placement="top-end"
               style="nags"
               icon=<Tags />
               items={[
@@ -75,7 +75,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
             />
             <MenuButton
-              top
+              placement="top-end"
               style="flat"
               icon=<ArrowUpDown />
               items={[

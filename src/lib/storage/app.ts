@@ -2,18 +2,13 @@ import type { ChessfilesStorage, DirEntry, PathComponent } from "~/lib/storage";
 import { createStorage, joinPath, pathComponents } from "~/lib/storage";
 import { Book } from "~/lib/node";
 import type { Activity } from "~/lib/activity";
+import { StatusTracker } from "~/lib/status";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training, defaultTrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
 import { FileExistsError, TrainingExistsError } from "./base";
 
-import type { Resource } from "solid-js";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  createResource,
-} from "solid-js";
+import { createEffect, createMemo, createSignal } from "solid-js";
 
 /**
  * Storage metadata
@@ -37,40 +32,57 @@ interface StorageMeta {
 export class AppStorage {
   dir: () => string;
   dirComponents: () => PathComponent[];
-  files: Resource<DirEntry[]>;
-  refetchFiles: () => void;
+  status: StatusTracker;
+  files: () => DirEntry[] | undefined;
+  private setFiles: (files: DirEntry[] | undefined) => void;
   private setDirPath: (dir: string) => void;
   storage: () => ChessfilesStorage;
   checkedTrainingDirExists = false;
   cachedMeta?: StorageMeta;
 
-  constructor() {
-    this.storage = createMemo<ChessfilesStorage>(() =>
-      createStorage(settings.storage()),
-    );
-    createEffect(() => {
-      // Reset these when `this.storage` changes
-      this.storage();
-      this.cachedMeta = undefined;
-      this.checkedTrainingDirExists = false;
-    });
-
+  constructor(storage?: () => ChessfilesStorage) {
+    this.storage =
+      storage ??
+      createMemo<ChessfilesStorage>(() => createStorage(settings.storage()));
+    this.status = new StatusTracker();
     [this.dir, this.setDirPath] = createSignal("/");
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
-    [this.files, { refetch: this.refetchFiles }] = createResource(
-      () => ({ storage: this.storage(), dir: this.dir() }),
-      async ({ storage, dir }) => {
-        const files = (await storage.listDir(dir)).filter(
-          (entry) => !this.isSpecialFile(dir, entry),
-        );
-        files.sort((a, b) => {
-          if (a.type == "dir" && b.type == "file") return -1;
-          if (a.type == "file" && b.type == "dir") return 1;
-          return a.filename.localeCompare(b.filename);
-        });
-        return files;
-      },
-    );
+    [this.files, this.setFiles] = createSignal(undefined);
+
+    createEffect(() => {
+      this.doRefetchFiles(this.dir(), this.storage());
+    });
+
+    createEffect(() => {
+      // Call `storage()` so that this runs when `this.storage` changes.
+      this.storage();
+      // ...and reset these properties
+      this.cachedMeta = undefined;
+      this.checkedTrainingDirExists = false;
+      this.setDir("/");
+    });
+  }
+
+  clone(): AppStorage {
+    return new AppStorage(this.storage);
+  }
+
+  refetchFiles() {
+    this.doRefetchFiles(this.dir(), this.storage());
+  }
+
+  private doRefetchFiles(dir: string, storage: ChessfilesStorage) {
+    this.status.perform("loading folder", async () => {
+      const files = (await storage.listDir(dir)).filter(
+        (entry) => !this.isSpecialFile(dir, entry),
+      );
+      files.sort((a, b) => {
+        if (a.type == "dir" && b.type == "file") return -1;
+        if (a.type == "file" && b.type == "dir") return 1;
+        return a.filename.localeCompare(b.filename);
+      });
+      this.setFiles(files);
+    });
   }
 
   setDir(path: string) {

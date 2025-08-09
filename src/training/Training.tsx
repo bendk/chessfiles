@@ -1,38 +1,46 @@
-import { Match, Switch, createEffect, createSignal } from "solid-js";
+import { Match, Switch, createSignal } from "solid-js";
 import type { AppStorage } from "~/lib/storage";
-import type { TrainingMeta } from "~/lib/training";
+import type { Training as TrainingObj } from "~/lib/training";
+import { Layout } from "~/components";
 import { TrainingList } from "./List";
 import { TrainingSession } from "./Session";
 
 export interface TrainingProps {
   storage: AppStorage;
-  setNavbarShown: (shown: boolean) => void;
 }
 
 export function Training(props: TrainingProps) {
   const [currentTraining, setCurrentTraining] =
-    createSignal<TrainingMeta | null>(null);
-  createEffect(() => {
-    props.setNavbarShown(currentTraining() === null);
-  });
+    createSignal<TrainingObj | null>(null);
+  const [chooserActive, setChooserActive] = createSignal(false);
 
   return (
-    <Switch>
-      <Match when={currentTraining() === null}>
-        <TrainingList
-          storage={props.storage}
-          openTraining={setCurrentTraining}
-        />
-      </Match>
-      <Match when={currentTraining()} keyed>
-        {(meta) => (
-          <TrainingSession
+    <Layout
+      navbar={currentTraining() === null && !chooserActive()}
+      status={props.storage.status}
+    >
+      <Switch>
+        <Match when={currentTraining() === null}>
+          <TrainingList
             storage={props.storage}
-            meta={meta}
-            onExit={() => setCurrentTraining(null)}
+            openTraining={async (meta) => {
+              props.storage.status.perform("loading training", async () => {
+                setCurrentTraining(await props.storage.loadTraining(meta));
+              });
+            }}
+            setChooserActive={setChooserActive}
           />
-        )}
-      </Match>
-    </Switch>
+        </Match>
+        <Match when={currentTraining()} keyed>
+          {(training) => (
+            <TrainingSession
+              storage={props.storage}
+              training={training}
+              onExit={() => setCurrentTraining(null)}
+            />
+          )}
+        </Match>
+      </Switch>
+    </Layout>
   );
 }

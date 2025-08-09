@@ -1,19 +1,20 @@
 import { createSignal } from "solid-js";
 import { Field } from "@ark-ui/solid";
+import type { AppStorage } from "~/lib/storage";
 import { FileExistsError } from "~/lib/storage";
-import { SimpleDialog } from "~/Dialog";
+import { Button } from "~/components";
 
-interface CreateFileDialogProps {
+interface CreateFileProps {
   title: string;
   submitText: string;
+  storage: AppStorage;
   onClose: () => void;
   onCreate: (name: string) => Promise<void>;
 }
 
-export function CreateFileDialog(props: CreateFileDialogProps) {
+export function CreateFile(props: CreateFileProps) {
   const [name, setName] = createSignal("");
   const [error, setError] = createSignal("");
-  const [loading, setLoading] = createSignal(false);
   function disabled() {
     // TODO: check for invalid chars, "..", ".", etc.
     return name() == "" || name().indexOf("/") != -1;
@@ -27,29 +28,27 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
     if (disabled()) {
       return;
     }
-    setLoading(true);
-    try {
-      await props.onCreate(name());
-    } catch (e) {
-      setLoading(false);
-      if (e instanceof FileExistsError) {
-        setError("File Already Exists");
-        return;
-      } else {
-        throw e;
+    props.storage.status.perform("creating book", async () => {
+      try {
+        await props.onCreate(name());
+      } catch (e) {
+        if (e instanceof FileExistsError) {
+          setError("File Already Exists");
+          return;
+        } else {
+          throw e;
+        }
       }
-    }
-    setLoading(false);
-    setName("");
+      setName("");
+    });
   }
   return (
-    <SimpleDialog
-      disabled={disabled()}
-      onSubmit={onCreate}
-      loading={loading()}
-      {...props}
-    >
-      <Field.Root class="flex flex-col gap-1" invalid={error() != ""}>
+    <div>
+      <div class="flex justify-between">
+        <h1 class="text-3xl truncate text-ellipsis">{props.title}</h1>
+        <Button text="Cancel" onClick={props.onClose} />
+      </div>
+      <Field.Root class="flex flex-col gap-1 pt-8" invalid={error() != ""}>
         <Field.Label>Name</Field.Label>
         <Field.Input
           value={name()}
@@ -59,6 +58,12 @@ export function CreateFileDialog(props: CreateFileDialogProps) {
         />
         <Field.ErrorText class="text-rose-500">{error()}</Field.ErrorText>
       </Field.Root>
-    </SimpleDialog>
+      <Button
+        class="mt-8"
+        disabled={disabled()}
+        text={props.submitText}
+        onClick={onCreate}
+      />
+    </div>
   );
 }

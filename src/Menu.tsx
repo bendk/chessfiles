@@ -21,7 +21,13 @@ export interface MenuProps {
   onOpenChange?: (open: boolean) => void;
   onSelect: (value: string) => void;
   hover?: boolean;
-  top?: boolean;
+  placement?:
+    | "top"
+    | "bottom"
+    | "top-start"
+    | "top-end"
+    | "bottom-start"
+    | "bottom-end";
   sameWidth?: boolean;
   style?: "nags";
 }
@@ -34,7 +40,7 @@ export function Menu(props: MenuProps) {
       }
       onSelect={(item) => props.onSelect(item.value)}
       positioning={{
-        placement: props.top ? "top" : "bottom",
+        placement: props.placement ?? "bottom",
         sameWidth: props.sameWidth,
       }}
     >
@@ -114,7 +120,13 @@ export interface MenuButtonProps {
   onOpenChange?: (open: boolean) => void;
   onSelect: (value: string) => void;
   sameWidth?: boolean;
-  top?: boolean;
+  placement?:
+    | "top"
+    | "bottom"
+    | "top-start"
+    | "top-end"
+    | "bottom-start"
+    | "bottom-end";
 }
 
 export function MenuButton(props: MenuButtonProps) {
@@ -123,7 +135,7 @@ export function MenuButton(props: MenuButtonProps) {
     "onOpenChange",
     "disabled",
     "onSelect",
-    "top",
+    "placement",
   ]);
   const elt = createMemo(() => {
     let buttonStyle: "flat" | "normal";

@@ -1,28 +1,18 @@
-import {
-  createEffect,
-  createSignal,
-  Index,
-  Show,
-  Switch,
-  Match,
-} from "solid-js";
+import { createSignal, Index, Show, Switch, Match } from "solid-js";
 import { Toast, Toaster, createToaster } from "@ark-ui/solid";
 import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
-import Loader from "lucide-solid/icons/loader-2";
 import X from "lucide-solid/icons/x";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
 import { Book, RootNode } from "~/lib/node";
-import { Button } from "~/Button";
+import { Button, Chooser, Layout } from "~/components";
 import { Editor } from "../editor";
-import { CreateFileDialog } from "./CreateFileDialog";
+import { CreateFile } from "./CreateFile";
 import { BooksList } from "./BooksList";
-import { Chooser } from "./Chooser";
 
 export interface LibraryProps {
   storage: AppStorage;
-  setNavbarShown: (shown: boolean) => void;
 }
 
 export interface CurrentBook {
@@ -31,13 +21,9 @@ export interface CurrentBook {
 }
 
 export function Library(props: LibraryProps) {
-  const [dialog, setDialog] = createSignal("");
+  const [mode, setMode] = createSignal("");
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
   const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
-
-  createEffect(() => {
-    props.setNavbarShown(currentBook() === undefined);
-  });
 
   const toaster = createToaster({
     placement: "bottom-end",
@@ -52,12 +38,16 @@ export function Library(props: LibraryProps) {
       filename,
       book: new Book([RootNode.fromInitialPosition()]),
     });
-    setDialog("");
+    setMode("");
   }
 
   async function onSaveBook(): Promise<boolean> {
     const book = currentBook();
-    if (book) {
+    if (!book) {
+      return false;
+    }
+    let success = false;
+    await props.storage.status.perform("saving book", async () => {
       try {
         await props.storage.writeFile(book.filename, book.book.export());
         props.storage.refetchFiles();
@@ -65,7 +55,7 @@ export function Library(props: LibraryProps) {
           title: "Book saved",
           type: "success",
         });
-        return true;
+        success = true;
       } catch (e) {
         toaster.create({
           title: "Book failed to save",
@@ -73,8 +63,8 @@ export function Library(props: LibraryProps) {
           type: "error",
         });
       }
-    }
-    return false;
+    });
+    return success;
   }
 
   async function onExitBook() {
@@ -95,7 +85,7 @@ export function Library(props: LibraryProps) {
         type: "error",
       });
     }
-    setDialog("");
+    setMode("");
   }
 
   async function onFileMenuAction(entry: DirEntry, action: string) {
@@ -111,7 +101,7 @@ export function Library(props: LibraryProps) {
       }
     } else if (action == "delete") {
       const toast = toaster.create({
-        title: "Deleting file",
+        title: entry.type == "file" ? "Deleting file" : "Deleting folder",
         description: `${entry.filename}`,
         type: "info",
       });
@@ -131,20 +121,20 @@ export function Library(props: LibraryProps) {
         });
       }
     } else if (action == "move") {
-      setDialog("move");
+      setMode("move");
       setMoveSource([entry]);
     }
   }
 
-  function closeMoveDialog() {
-    setDialog("");
+  function cloneMove() {
+    setMode("");
     setMoveSource([]);
   }
 
-  async function completeMoveDialog(destDir: string) {
+  async function completeMove(destDir: string) {
     const sources = moveSource();
 
-    closeMoveDialog();
+    cloneMove();
     let sourceName;
     if (sources.length == 0 || destDir == props.storage.dir()) {
       return;
@@ -156,7 +146,7 @@ export function Library(props: LibraryProps) {
 
     const toast = toaster.create({
       title: "Moving",
-      description: `${sourceName} -> ${destDir}`,
+      description: `${sourceName} -> Home${destDir}`,
       type: "info",
     });
 
@@ -189,8 +179,42 @@ export function Library(props: LibraryProps) {
   }
 
   return (
-    <>
+    <Layout
+      navbar={currentBook() === undefined && mode() == ""}
+      status={props.storage.status}
+    >
       <Switch>
+        <Match when={mode() == "create-book"} keyed>
+          <CreateFile
+            title="Create New Book"
+            storage={props.storage.clone()}
+            submitText="Create Book"
+            onClose={() => setMode("")}
+            onCreate={onCreateBook}
+          />
+        </Match>
+        <Match when={mode() == "create-folder"} keyed>
+          <CreateFile
+            title="Create New Folder"
+            storage={props.storage.clone()}
+            submitText="Create Folder"
+            onClose={() => setMode("")}
+            onCreate={onCreateFolder}
+          />
+        </Match>
+        <Match when={mode() == "move"}>
+          <Chooser
+            storage={props.storage.clone()}
+            title={`Moving: ${moveSource()
+              .map((e) => e.filename)
+              .join(", ")}`}
+            subtitle="Select destination folder"
+            onSelect={completeMove}
+            onClose={cloneMove}
+            dirMode
+            selectDirText="Move here"
+          />
+        </Match>
         <Match when={currentBook()} keyed>
           {(currentBook) => (
             <Editor
@@ -202,7 +226,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <div class="grow flex flex-col min-h-0 px-8 py-4">
+          <div class="grow flex flex-col">
             <div class="text-lg pb-4">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
@@ -231,79 +255,46 @@ export function Library(props: LibraryProps) {
                 )}
               </Index>
             </div>
-            <Switch>
-              <Match when={props.storage.files.loading}>
-                <Loader class="animate-spin duration-1000" size={32} />
-              </Match>
-              <Match when={props.storage.files.error}>
-                <div class="text-2xl flex gap-2">Error loading files</div>
-              </Match>
-              <Match
-                when={
-                  props.storage.files.state == "ready" &&
-                  props.storage.files().length == 0 &&
-                  props.storage.dir() == "/"
+            <Show when={props.storage.files()} keyed>
+              {(files) => {
+                if (files.length == 0 && props.storage.dir() == "/") {
+                  return (
+                    <div class="pt-4">
+                      <h2 class="text-3xl">Welcome to Chess Files</h2>
+                      <p class="text-lg pt-1">
+                        Use the "Create Book" button below to start building
+                        your library
+                      </p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div class="min-h-0 overflow-y-auto grow">
+                      <BooksList
+                        files={files}
+                        onFileAction={onFileMenuAction}
+                      />
+                    </div>
+                  );
                 }
-              >
-                <div class="pt-4">
-                  <h2 class="text-3xl">Welcome to Chess Files</h2>
-                  <p class="text-lg pt-1">
-                    Use the "Create Book" button below to start building your
-                    library
-                  </p>
-                </div>
-              </Match>
-              <Match when={props.storage.files.state == "ready"}>
-                <div class="min-h-0 overflow-y-auto grow">
-                  <BooksList
-                    files={props.storage.files()!}
-                    onFileAction={onFileMenuAction}
-                  />
-                </div>
-              </Match>
-            </Switch>
+              }}
+            </Show>
           </div>
-          <div class="flex py-4 px-4 gap-8">
+          <div class="flex pt-8 gap-8">
             <Button
               text="Create Book"
               icon={<BookPlus />}
-              onClick={() => setDialog("create-book")}
+              onClick={() => setMode("create-book")}
             />
             <Button
               text="Create Folder"
               icon={<FolderPlus />}
-              onClick={() => setDialog("create-folder")}
+              onClick={() => setMode("create-folder")}
             />
           </div>
         </Match>
       </Switch>
-      <Switch>
-        <Match when={dialog() == "create-book"} keyed>
-          <CreateFileDialog
-            title="Create New Book"
-            submitText="Create Book"
-            onClose={() => setDialog("")}
-            onCreate={onCreateBook}
-          />
-        </Match>
-        <Match when={dialog() == "create-folder"} keyed>
-          <CreateFileDialog
-            title="Create New Folder"
-            submitText="Create Folder"
-            onClose={() => setDialog("")}
-            onCreate={onCreateFolder}
-          />
-        </Match>
-        <Match when={dialog() == "move"}>
-          <Chooser
-            title="Moving files"
-            onSelect={completeMoveDialog}
-            onClose={closeMoveDialog}
-            dirMode
-            selectDirText="Move here"
-          />
-        </Match>
-      </Switch>
+
       <Toaster toaster={toaster}>
         {(toast) => (
           <Toast.Root
@@ -324,6 +315,6 @@ export function Library(props: LibraryProps) {
           </Toast.Root>
         )}
       </Toaster>
-    </>
+    </Layout>
   );
 }

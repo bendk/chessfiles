@@ -1,67 +1,19 @@
 import Pencil from "lucide-solid/icons/pencil";
-import {
-  Index,
-  Match,
-  Show,
-  Switch,
-  createEffect,
-  createMemo,
-  createSignal,
-  createResource,
-  useContext,
-} from "solid-js";
+import { Index, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Board } from "~/editor/Board";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
 import type { AppStorage } from "~/lib/storage";
 import type { Training } from "~/lib/training";
-import type { TrainingMeta } from "~/lib/training";
-import { AppContext, Button, Loader, MenuButton } from "~/components";
+import { Button, MenuButton } from "~/components";
 
 export interface TrainingSessionProps {
-  storage: AppStorage;
-  meta: TrainingMeta;
-  onExit: () => void;
-}
-
-export function TrainingSession(props: TrainingSessionProps) {
-  const [training] = createResource(() =>
-    props.storage.loadTraining(props.meta),
-  );
-
-  return (
-    <div class="grow flex flex-col min-h-0 px-8 pt-4 pb-8">
-      <Switch>
-        <Match when={training.loading}>
-          <Loader />
-        </Match>
-        <Match when={training.error}>
-          <div class="text-2xl flex gap-2">Error loading training session</div>
-        </Match>
-        <Match when={training()} keyed>
-          {(training) => {
-            return (
-              <TrainingSessionInner
-                storage={props.storage}
-                training={training}
-                onExit={props.onExit}
-              />
-            );
-          }}
-        </Match>
-      </Switch>
-    </div>
-  );
-}
-
-export interface TrainingSessionInnerProps {
   storage: AppStorage;
   training: Training;
   onExit: () => void;
 }
 
-function TrainingSessionInner(props: TrainingSessionInnerProps) {
-  const context = useContext(AppContext);
+export function TrainingSession(props: TrainingSessionProps) {
   const [state, setState] = createSignal(props.training.state, {
     equals: false,
   });
@@ -73,7 +25,7 @@ function TrainingSessionInner(props: TrainingSessionInnerProps) {
   });
 
   async function onExit() {
-    context.perform("saving training", async () => {
+    props.storage.status.perform("saving training", async () => {
       await props.storage.updateTraining(props.training);
       props.onExit();
     });
@@ -138,7 +90,7 @@ function TrainingSessionInner(props: TrainingSessionInnerProps) {
         style="full"
         text="adjust score"
         sameWidth
-        top
+        placement="top"
         icon={<Pencil size={16} />}
         items={items}
         onSelect={updateLastScore}
@@ -263,11 +215,6 @@ function TrainingSessionInner(props: TrainingSessionInnerProps) {
         <h1 class="text-3xl truncate text-ellipsis">
           Training: {props.training.meta.name}
         </h1>
-        <div>
-          <Show when={context.loading()}>
-            <Loader />
-          </Show>
-        </div>
         <Button text="Exit" onClick={onExit} />
       </div>
       <div class="flex justify-center">

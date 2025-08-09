@@ -6,15 +6,13 @@ import Save from "lucide-solid/icons/save";
 import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
 import type { Move, Nag, Shape } from "~/lib/chess";
-import type { Priority } from "~/lib/node";
-import type { RootNode } from "~/lib/node";
+import type { Priority, RootNode } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
 import { createMemo, createSignal, Show } from "solid-js";
-import { Button, SimpleDialog, MenuButton } from "~/components";
+import { Button, Dialog, MenuButton } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { Board } from "./Board";
 import { Line } from "./Line";
-import { EditorDialog } from "./EditorDialog";
 
 interface EditorProps {
   rootNode: RootNode;
@@ -26,8 +24,8 @@ interface EditorProps {
 
 export function Editor(props: EditorProps) {
   const editor = new EditorBackend(props.rootNode);
-  const [settingsDialag, setSettingsDialog] = createSignal(false);
   const [view, setView] = createSignal(editor.view);
+  const [saving, setSaving] = createSignal(false);
   const [draftComment, setDraftComment] = createSignal<string>();
   const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
 
@@ -121,9 +119,14 @@ export function Editor(props: EditorProps) {
   }
 
   async function onSave() {
-    if (await props.onSave()) {
-      editor.clearUndo();
-      setView(editor.view);
+    setSaving(true);
+    try {
+      if (await props.onSave()) {
+        editor.clearUndo();
+        setView(editor.view);
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -197,6 +200,7 @@ export function Editor(props: EditorProps) {
             <Button
               text="Exit"
               icon={<LogOut />}
+              disabled={saving()}
               onClick={onExit}
               style="flat"
             />
@@ -204,7 +208,7 @@ export function Editor(props: EditorProps) {
         </div>
       </div>
       <div class="flex gap-4">
-        <div class="w-100 flex flex-col-reverse h-200 gap-4">
+        <div class="w-80 flex flex-col-reverse h-200 gap-4">
           <CurrentNodeControls
             isRoot={view().ply == 0}
             currentNode={view().currentNode}
@@ -246,25 +250,15 @@ export function Editor(props: EditorProps) {
           }
         </div>
       </div>
-      <Show when={settingsDialag()} keyed>
-        <EditorDialog
-          view={view()}
-          onSubmit={(color) => {
-            setTrainingColor(color);
-            setSettingsDialog(false);
-          }}
-          onClose={() => setSettingsDialog(false)}
-        />
-      </Show>
       <Show when={confirmExitDialog()} keyed>
-        <SimpleDialog
+        <Dialog
           onSubmit={onExitSubmit}
           onClose={() => setConfirmExitDialog(false)}
           title="Confirm exit"
           submitText="Exit"
         >
           <div>There are unsaved changes, are you sure you want to exit?</div>
-        </SimpleDialog>
+        </Dialog>
       </Show>
     </div>
   );

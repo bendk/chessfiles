@@ -1,6 +1,7 @@
 export { AppContext } from "./App";
 export { Button } from "./Button";
-export { Dialog, SimpleDialog } from "./Dialog";
+export { Dialog } from "./Dialog";
+export { Layout } from "./Layout";
 export { Menu, MenuButton } from "./Menu";
 export type { MenuItem } from "./Menu";
 export { Navbar } from "./Navbar";
@@ -8,6 +9,7 @@ export { Progress } from "./Progress";
 export * as RadioGroup from "./RadioGroup";
 export { StandardNavbar } from "./StandardNavbar";
 export { Table, TableCell, TableMenuCell } from "./Table";
+export { StatusTracker } from "./lib/status";
 export { Chooser } from "./library/Chooser";
 
 import LoaderIcon from "lucide-solid/icons/loader-2";
