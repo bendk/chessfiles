@@ -62,6 +62,7 @@ function PromotionSelector(props: PromotionSelectorProps) {
 
 interface BoardProps {
   chess: Chess;
+  lastMove?: Move;
   onMove: (move: Move) => void;
   shapes?: readonly Shape[];
   enableShapes?: boolean;
@@ -123,6 +124,9 @@ export function Board(props: BoardProps) {
     }
     board.set({
       fen: makeFen(props.chess.toSetup()),
+      lastMove: props.lastMove
+        ? [makeSquare(props.lastMove.from), makeSquare(props.lastMove.to)]
+        : undefined,
       movable: {
         dests: chessgroundDests(props.chess),
       },

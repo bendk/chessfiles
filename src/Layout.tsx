@@ -19,17 +19,17 @@ export function Layout(props: LayoutProps) {
       <div class="min-h-0 pt-4 px-10 overflow-y-auto grow">
         {props.children}
       </div>
-      <div class="flex items-center h-10 py-2 px-2">
+      <div class="flex items-center h-10 py-6 px-2">
         <Show when={props.status} keyed>
           {(status) => (
             <>
-              <div class="w-10">
+              <div class="w-2">
                 <Show when={status.loading()}>
-                  <LoaderCircle class="animate-spin duration-1000" size={32} />
+                  <LoaderCircle class="animate-spin duration-1000" size={18} />
                 </Show>
               </div>
               <span
-                class="pl-5"
+                class="pl-5 text-lg"
                 classList={{
                   "text-red-500": status.error(),
                 }}

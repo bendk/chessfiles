@@ -3,7 +3,9 @@ import { Index, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Board } from "~/editor/Board";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
+import { StatusError } from "~/lib/status";
 import type { AppStorage } from "~/lib/storage";
+import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
 import { Button, MenuButton } from "~/components";
 
@@ -20,7 +22,7 @@ export function TrainingSession(props: TrainingSessionProps) {
   const [activity, setActivity] = createSignal(props.training.activity, {
     equals: false,
   });
-  const [position, setPosition] = createSignal(props.training.board.position, {
+  const [board, setBoard] = createSignal(props.training.board, {
     equals: false,
   });
 
@@ -41,8 +43,7 @@ export function TrainingSession(props: TrainingSessionProps) {
   function update() {
     setState({ ...props.training.state });
     setActivity({ ...props.training.activity });
-    setPosition(props.training.board.position);
-    console.log(props.training.state);
+    setBoard(props.training.board);
   }
 
   function onMove(move: Move) {
@@ -58,6 +59,24 @@ export function TrainingSession(props: TrainingSessionProps) {
   function finishLine() {
     props.training.finishLine();
     update();
+  }
+
+  function restartTraining() {
+    props.storage.status.perform("restarting training", async () => {
+      try {
+        props.training = await props.storage.restartTraining(
+          props.training.meta,
+        );
+      } catch (e) {
+        if (e instanceof FileNotFoundError) {
+          throw new StatusError(
+            "Book not found while restarting training.  Was it moved?",
+          );
+        }
+        throw e;
+      }
+      update();
+    });
   }
 
   const adjustScoreButton = createMemo(() => {
@@ -113,7 +132,7 @@ export function TrainingSession(props: TrainingSessionProps) {
       case "choose-move": {
         return (
           <>
-            <h2 class="text-2xl">Choose a move for {position().turn}</h2>
+            <h2 class="text-2xl">Choose a move for {board().position.turn}</h2>
             <Show when={s.wrongMoves.length > 0}>
               <h2>
                 Incorrect tries:
@@ -201,8 +220,12 @@ export function TrainingSession(props: TrainingSessionProps) {
         return (
           <>
             <h2 class="text-2xl">Training complete</h2>
-            <Button class="mt-1 w-full" text="Restart" onClick={finishLine} />
-            <Button class="mt-1 w-full" text="Close" onClick={finishLine} />
+            <Button
+              class="mt-1 w-full"
+              text="Restart"
+              onClick={restartTraining}
+            />
+            <Button class="mt-1 w-full" text="Exit" onClick={onExit} />
           </>
         );
       }
@@ -220,7 +243,12 @@ export function TrainingSession(props: TrainingSessionProps) {
       <div class="flex justify-center">
         <div class="flex gap-8">
           <div class="w-180 h-180">
-            <Board chess={position()} onMove={onMove} enableShapes={false} />
+            <Board
+              chess={board().position}
+              lastMove={board().lastMove}
+              onMove={onMove}
+              enableShapes={false}
+            />
           </div>
           <div class="flex flex-col w-80 justify-between">
             <div>{statePane()}</div>

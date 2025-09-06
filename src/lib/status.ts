@@ -1,6 +1,11 @@
 import { createSignal } from "solid-js";
 
 /**
+ * Exception that we'll display the error message directly in the status bar.
+ */
+export class StatusError extends Error {}
+
+/**
  * Utility class to track the status of async operations
  */
 export class StatusTracker {
@@ -26,7 +31,12 @@ export class StatusTracker {
     } catch (e) {
       console.log(e);
       this.setError(true);
-      this.setMessage(`Error ${description}`);
+      this.setLoading(false);
+      if (e instanceof StatusError) {
+        this.setMessage(e.toString());
+      } else {
+        this.setMessage(`Error ${description}`);
+      }
       return;
     }
     this.setMessage("");

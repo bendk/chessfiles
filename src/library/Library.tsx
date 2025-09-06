@@ -30,7 +30,11 @@ export function Library(props: LibraryProps) {
     gap: 24,
   });
 
-  async function onCreateBook(filename: string) {
+  async function onCreateBook(name: string) {
+    let filename = name;
+    if (!filename.endsWith(".pgn")) {
+      filename += ".pgn";
+    }
     if (await props.storage.exists(filename)) {
       throw new FileExistsError();
     }

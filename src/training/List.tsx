@@ -11,19 +11,21 @@ import type { MenuItem } from "~/components";
 import {
   Button,
   Chooser,
+  Dialog,
   Progress,
   Table,
   TableCell,
   TableMenuCell,
 } from "~/components";
+import { StatusError } from "~/lib/status";
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
-import { TrainingExistsError } from "~/lib/storage";
+import { FileNotFoundError, TrainingExistsError } from "~/lib/storage";
 
 export interface TrainingListProps {
   storage: AppStorage;
-  openTraining: (meta: TrainingMeta) => void;
+  openTraining: (meta: TrainingMeta) => Promise<void>;
   setChooserActive: (active: boolean) => void;
 }
 
@@ -31,17 +33,29 @@ export function TrainingList(props: TrainingListProps) {
   const [showChooser, setShowChooser] = createSignal(false);
   const [chooserError, setChooserError] = createSignal<string | undefined>();
 
+  const [finishedMetaDialog, setFinishedMetaDialog] =
+    createSignal<TrainingMeta | null>(null);
+  async function restartFininshedMeta() {
+    const meta = finishedMetaDialog();
+    if (meta === null) {
+      console.log("restartFininshedMeta with null meta");
+      return;
+    }
+    await onMenuAction(meta, "restart");
+  }
+
   const [trainingMetas, { refetch: refetchTrainingMetas }] = createResource(
     () => props.storage.listTraining(),
   );
 
   createEffect(() => props.setChooserActive(showChooser()));
 
-  function menu(): MenuItem[] {
+  function menu(meta: TrainingMeta): MenuItem[] {
     return [
       {
         value: "open",
         text: "Open",
+        disabled: meta.linesTrained >= meta.totalLines,
       },
       {
         value: "restart",
@@ -56,14 +70,32 @@ export function TrainingList(props: TrainingListProps) {
 
   async function onMenuAction(meta: TrainingMeta, action: string) {
     if (action == "open") {
-      props.openTraining(meta);
+      if (meta.linesTrained >= meta.totalLines) {
+        setFinishedMetaDialog(meta);
+        return;
+      }
+      props.storage.status.perform("opening training", async () => {
+        await props.openTraining(meta);
+      });
     } else if (action == "delete") {
       props.storage.status.perform("deleting training", async () => {
         await props.storage.removeTraining(meta);
         await refetchTrainingMetas();
       });
-    } else {
-      console.log("action", meta, action);
+    } else if (action == "restart") {
+      props.storage.status.perform("restarting training", async () => {
+        try {
+          await props.storage.restartTraining(meta);
+        } catch (e) {
+          if (e instanceof FileNotFoundError) {
+            throw new StatusError(
+              "Book not found while restarting training.  Was it moved?",
+            );
+          }
+          throw e;
+        }
+        await refetchTrainingMetas();
+      });
     }
   }
 
@@ -78,10 +110,10 @@ export function TrainingList(props: TrainingListProps) {
             storage={props.storage.clone()}
             error={chooserError()}
             onSelect={async (path) => {
-              console.log("onSelect");
               props.storage.status.perform("creating training", async () => {
+                let training;
                 try {
-                  await props.storage.createTraining(path);
+                  training = await props.storage.createTraining(path);
                 } catch (e) {
                   if (e instanceof TrainingExistsError) {
                     setChooserError(
@@ -92,7 +124,7 @@ export function TrainingList(props: TrainingListProps) {
                   setShowChooser(false);
                   throw e;
                 }
-                await refetchTrainingMetas();
+                await props.openTraining(training.meta);
                 setShowChooser(false);
               });
             }}
@@ -102,7 +134,17 @@ export function TrainingList(props: TrainingListProps) {
             }}
           />
         </Match>
-        <Match when={!showChooser()}>
+        <Match when={finishedMetaDialog()}>
+          <Dialog
+            onSubmit={restartFininshedMeta}
+            onClose={() => setFinishedMetaDialog(null)}
+            title="Training is finished"
+            submitText="Restart Training"
+          >
+            <div>You've already finished this training</div>
+          </Dialog>
+        </Match>
+        <Match when={true}>
           <div class="grow flex flex-col min-h-0 px-8 pt-4 pb-8">
             <div class="grow pt-4">
               <Switch>

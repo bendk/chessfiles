@@ -6,7 +6,11 @@ import { StatusTracker } from "~/lib/status";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training, defaultTrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
-import { FileExistsError, TrainingExistsError } from "./base";
+import {
+  FileExistsError,
+  FileNotFoundError,
+  TrainingExistsError,
+} from "./base";
 
 import { createEffect, createMemo, createSignal } from "solid-js";
 
@@ -236,6 +240,17 @@ export class AppStorage {
         (m) => m.bookId != meta.bookId,
       ),
     }));
+  }
+
+  async restartTraining(meta: TrainingMeta): Promise<Training> {
+    const training = await this.loadTraining(meta);
+    if (!(await this.exists(meta.bookPath))) {
+      throw new FileNotFoundError();
+    }
+    const book = await this.readBook(meta.bookPath);
+    training.restart(book);
+    await this.updateTraining(training);
+    return training;
   }
 
   private async trainingPath(meta: TrainingMeta): Promise<string> {

@@ -60,6 +60,7 @@ export class Training {
     const name = bookFilename.split(".")[0];
     const meta = {
       name,
+      bookPath,
       bookId: book.id(),
       settings,
       correctCount: 0,
@@ -74,10 +75,15 @@ export class Training {
     return new Training(settings, meta, book.rootNodes);
   }
 
-  restart() {
+  restart(book: Book) {
     this.meta.correctCount = 0;
     this.meta.incorrectCount = 0;
     this.meta.linesTrained = 0;
+    const rootNodes = book.rootNodes;
+    if (this.settings.shuffle) {
+      shuffleArray(rootNodes);
+    }
+    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
   }
 
   advance() {
@@ -166,6 +172,7 @@ export class Training {
     const moveSan = makeSan(this.board.position, child.move);
 
     this.board.position.play(child.move);
+    this.board.lastMove = child.move;
     this.board.comment = child.comment ?? "";
     this.board.shapes = child.shapes ?? [];
     this.board.feedback = null;
@@ -379,6 +386,7 @@ export function defaultTrainingSettings(): TrainingSettings {
  * These are stored together in the `ChessFiles.index` file.
  */
 export interface TrainingMeta {
+  bookPath: string;
   bookId: string;
   name: string;
   correctCount: number;
@@ -453,6 +461,7 @@ export type TrainingState =
  */
 export interface TrainingBoard {
   position: Chess;
+  lastMove?: Move;
   feedback: TrainingBoardFeedback | null;
   comment: string;
   shapes: readonly Shape[];

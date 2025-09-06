@@ -224,6 +224,7 @@ export function Editor(props: EditorProps) {
           <div class="h-200">
             <Board
               chess={view().position}
+              lastMove={view().lastMove}
               onMove={onMove}
               enableShapes={view().ply > 0 && !view().currentNode.isDraft}
               toggleShape={toggleShape}

@@ -22,6 +22,7 @@ export interface EditorView {
   readonly rootComment: string | undefined;
   readonly currentNode: EditorCurrentNode;
   readonly position: Chess;
+  readonly lastMove?: Move;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
 }
@@ -102,6 +103,8 @@ export class Editor {
       };
     }
 
+    const node = this.cursor.node();
+
     return {
       line: [...this.cursor.line],
       ply: this.cursor.ply,
@@ -109,6 +112,7 @@ export class Editor {
       color: this.rootNode.color,
       rootComment: this.rootNode.comment,
       position: this.cursor.position(),
+      lastMove: node instanceof ChildNode ? node.move : undefined,
       canUndo: this.undoStack.length > 0,
       canRedo: this.redoStack.length > 0,
     };

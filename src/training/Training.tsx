@@ -24,9 +24,7 @@ export function Training(props: TrainingProps) {
           <TrainingList
             storage={props.storage}
             openTraining={async (meta) => {
-              props.storage.status.perform("loading training", async () => {
-                setCurrentTraining(await props.storage.loadTraining(meta));
-              });
+              setCurrentTraining(await props.storage.loadTraining(meta));
             }}
             setChooserActive={setChooserActive}
           />

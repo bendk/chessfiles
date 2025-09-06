@@ -18,7 +18,10 @@ export interface ChooserProps {
 export function Chooser(props: ChooserProps) {
   const storage = props.storage ?? new AppStorage();
   const files = () => {
-    return storage.files()?.filter((e) => !(e.type != "dir" && props.dirMode));
+    return storage.files();
+    return storage
+      .files()
+      ?.filter((e) => !(e.type != "dir" && props.dirMode === true));
   };
 
   return (

@@ -6,6 +6,7 @@ export {
   pathComponents,
   type PathComponent,
   FileExistsError,
+  FileNotFoundError,
   TrainingExistsError,
   type DirEntry,
 } from "./base";
