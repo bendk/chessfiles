@@ -24,19 +24,42 @@ export enum Priority {
   TrainLast = -1,
 }
 
+export enum BookType {
+  Normal = 0,
+  Opening = 1,
+}
+
 export class Book {
-  constructor(public rootNodes: RootNode[]) {}
+  constructor(
+    public type: BookType,
+    public rootNodes: RootNode[],
+  ) {}
 
   static import(pgn: string): Book {
     const games = parsePgn(pgn);
-    return new Book(games.map(RootNode.import));
+    let type = BookType.Normal;
+    if (
+      games.length == 1 &&
+      games[0].headers.get("ChessfilesType") == "Opening"
+    ) {
+      type = BookType.Opening;
+    }
+    return new Book(type, games.map(RootNode.import));
   }
 
   export(): string {
     this.ensureBookIdSet();
-    return this.rootNodes
-      .map((node) => pgnToString(node.export()))
-      .join("\n\n");
+    const games = this.rootNodes.map((node) => node.export());
+    if (this.type == BookType.Opening && games.length == 1) {
+      // Opening book, set ChessfilesType to be "Opening"
+      games[0].headers.set("ChessfilesType", "Opening");
+    } else {
+      // Normal book, unset ChessfilesType if it's set.
+      for (const game of games) {
+        game.headers.delete("ChessfilesType");
+      }
+    }
+    return games.map(pgnToString).join("\n\n");
   }
 
   id(): string {

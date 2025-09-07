@@ -4,7 +4,7 @@ import type { AppStorage } from "~/lib/storage";
 import { FileExistsError } from "~/lib/storage";
 import { Button } from "~/components";
 
-interface CreateFileProps {
+interface CreateFolderProps {
   title: string;
   submitText: string;
   storage: AppStorage;
@@ -12,7 +12,7 @@ interface CreateFileProps {
   onCreate: (name: string) => Promise<void>;
 }
 
-export function CreateFile(props: CreateFileProps) {
+export function CreateFolder(props: CreateFolderProps) {
   const [name, setName] = createSignal("");
   const [error, setError] = createSignal("");
   function disabled() {

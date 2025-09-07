@@ -10,7 +10,7 @@ import type { Move, Shape } from "./chess";
 import { makeFen, parseSan, playSan, Chess } from "./chess";
 import { Book } from "./node";
 import type { RootNode } from "./node";
-import { Priority } from "./node";
+import { BookType, Priority } from "./node";
 import { buildNode } from "./node.test";
 
 function openingRootNode(): RootNode {
@@ -103,7 +103,11 @@ function createTraining(
   rootNodes: RootNode[],
   settings = testSettings,
 ): Training {
-  return Training.create(settings, "/test book.pgn", new Book(rootNodes));
+  return Training.create(
+    settings,
+    "/test book.pgn",
+    new Book(BookType.Normal, rootNodes),
+  );
 }
 
 const testSettings: TrainingSettings = {

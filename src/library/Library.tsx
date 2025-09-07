@@ -5,10 +5,11 @@ import FolderPlus from "lucide-solid/icons/folder-plus";
 import X from "lucide-solid/icons/x";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
-import { Book, RootNode } from "~/lib/node";
+import type { Book } from "~/lib/node";
 import { Button, Chooser, Layout } from "~/components";
 import { Editor } from "../editor";
-import { CreateFile } from "./CreateFile";
+import { CreateBook } from "./CreateBook";
+import { CreateFolder } from "./CreateFolder";
 import { BooksList } from "./BooksList";
 
 export interface LibraryProps {
@@ -30,7 +31,7 @@ export function Library(props: LibraryProps) {
     gap: 24,
   });
 
-  async function onCreateBook(name: string) {
+  async function onCreateBook(name: string, book: Book) {
     let filename = name;
     if (!filename.endsWith(".pgn")) {
       filename += ".pgn";
@@ -38,10 +39,7 @@ export function Library(props: LibraryProps) {
     if (await props.storage.exists(filename)) {
       throw new FileExistsError();
     }
-    setCurrentBook({
-      filename,
-      book: new Book([RootNode.fromInitialPosition()]),
-    });
+    setCurrentBook({ filename, book });
     setMode("");
   }
 
@@ -189,7 +187,7 @@ export function Library(props: LibraryProps) {
     >
       <Switch>
         <Match when={mode() == "create-book"} keyed>
-          <CreateFile
+          <CreateBook
             title="Create New Book"
             storage={props.storage.clone()}
             submitText="Create Book"
@@ -198,7 +196,7 @@ export function Library(props: LibraryProps) {
           />
         </Match>
         <Match when={mode() == "create-folder"} keyed>
-          <CreateFile
+          <CreateFolder
             title="Create New Folder"
             storage={props.storage.clone()}
             submitText="Create Folder"
