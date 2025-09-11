@@ -1,31 +1,10 @@
-import {
-  createContext,
-  createSignal,
-  createEffect,
-  Match,
-  Switch,
-} from "solid-js";
+import { createSignal, createEffect, Match, Show, Switch } from "solid-js";
 import { completeLogin } from "~/lib/auth";
 import { AppStorage } from "./lib/storage";
 import { Library } from "./library";
 import { Settings } from "./settings/Settings";
 import { Training } from "./training/Training";
-
-export class AppContextClass {
-  page: () => string;
-  setPage: (page: string) => void;
-  theme: () => string;
-  setTheme: (page: string) => void;
-
-  constructor() {
-    [this.page, this.setPage] = createSignal("library");
-    [this.theme, this.setTheme] = createSignal(themeFromLocalStorage());
-  }
-}
-
-// Slightly weird: we need to construct an AppContextClass here and for `AppContext.Provider.value`
-// or else typescript will complain.
-export const AppContext = createContext<AppContextClass>(new AppContextClass());
+import { Navbar, Status, StatusTracker } from "./components";
 
 function themeFromLocalStorage(): string {
   const storedValue = localStorage.getItem("theme");
@@ -45,35 +24,60 @@ function App() {
     return <></>;
   }
 
-  const context = new AppContextClass();
   const storage = new AppStorage();
+  const status = new StatusTracker();
+
+  const [page, setPage] = createSignal("library");
+  const [theme, setTheme] = createSignal(themeFromLocalStorage());
+  const [navbarShown, setNavbarShown] = createSignal(true);
 
   if (window.location.hash.startsWith("#settings")) {
-    context.setPage("settings");
+    setPage("settings");
   }
 
   createEffect(() => {
-    document.documentElement.classList.toggle(
-      "dark",
-      context.theme() == "dark",
-    );
-    localStorage.setItem("theme", context.theme());
+    document.documentElement.classList.toggle("dark", theme() == "dark");
+    localStorage.setItem("theme", theme());
   });
 
   return (
-    <AppContext.Provider value={context}>
-      <Switch>
-        <Match when={context.page() == "library"}>
-          <Library storage={storage} />
-        </Match>
-        <Match when={context.page() == "training"}>
-          <Training storage={storage} />
-        </Match>
-        <Match when={context.page() == "settings"}>
-          <Settings storage={storage} />
-        </Match>
-      </Switch>
-    </AppContext.Provider>
+    <div class="flex flex-col bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 h-screen outline-hidden">
+      <Show when={navbarShown()}>
+        <Navbar
+          page={page()}
+          theme={theme()}
+          setPage={setPage}
+          setTheme={setTheme}
+          setNavbarShown={setNavbarShown}
+        />
+      </Show>
+      <div class="min-h-0 pt-4 px-10 overflow-y-auto grow">
+        <Switch>
+          <Match when={page() == "library"}>
+            <Library
+              storage={storage}
+              status={status}
+              setNavbarShown={setNavbarShown}
+            />
+          </Match>
+          <Match when={page() == "training"}>
+            <Training
+              storage={storage}
+              status={status}
+              setNavbarShown={setNavbarShown}
+            />
+          </Match>
+          <Match when={page() == "settings"}>
+            <Settings
+              storage={storage}
+              status={status}
+              setNavbarShown={setNavbarShown}
+            />
+          </Match>
+        </Switch>
+      </div>
+      <Status status={status} />
+    </div>
   );
 }
 

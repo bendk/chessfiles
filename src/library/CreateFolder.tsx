@@ -1,7 +1,6 @@
 import { createSignal } from "solid-js";
 import { Field } from "@ark-ui/solid";
 import type { AppStorage } from "~/lib/storage";
-import { FileExistsError } from "~/lib/storage";
 import { Button } from "~/components";
 
 interface CreateFolderProps {
@@ -9,7 +8,7 @@ interface CreateFolderProps {
   submitText: string;
   storage: AppStorage;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string) => Promise<boolean>;
 }
 
 export function CreateFolder(props: CreateFolderProps) {
@@ -28,19 +27,12 @@ export function CreateFolder(props: CreateFolderProps) {
     if (disabled()) {
       return;
     }
-    props.storage.status.perform("creating book", async () => {
-      try {
-        await props.onCreate(name());
-      } catch (e) {
-        if (e instanceof FileExistsError) {
-          setError("File Already Exists");
-          return;
-        } else {
-          throw e;
-        }
-      }
-      setName("");
-    });
+
+    if (!(await props.onCreate(name()))) {
+      setError("File Already Exists");
+      return;
+    }
+    setName("");
   }
   return (
     <div>

@@ -2,7 +2,7 @@ import type { ChessfilesStorage, DirEntry, PathComponent } from "~/lib/storage";
 import { createStorage, joinPath, pathComponents } from "~/lib/storage";
 import { Book } from "~/lib/node";
 import type { Activity } from "~/lib/activity";
-import { StatusTracker } from "~/lib/status";
+import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training, defaultTrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
@@ -38,8 +38,10 @@ export class AppStorage {
   dirComponents: () => PathComponent[];
   status: StatusTracker;
   files: () => DirEntry[] | undefined;
+  loading: () => boolean;
   private setFiles: (files: DirEntry[] | undefined) => void;
   private setDirPath: (dir: string) => void;
+  private setLoading: (loading: boolean) => void;
   storage: () => ChessfilesStorage;
   checkedTrainingDirExists = false;
   cachedMeta?: StorageMeta;
@@ -52,6 +54,7 @@ export class AppStorage {
     [this.dir, this.setDirPath] = createSignal("/");
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
     [this.files, this.setFiles] = createSignal(undefined);
+    [this.loading, this.setLoading] = createSignal(false);
 
     createEffect(() => {
       this.doRefetchFiles(this.dir(), this.storage());
@@ -75,8 +78,9 @@ export class AppStorage {
     this.doRefetchFiles(this.dir(), this.storage());
   }
 
-  private doRefetchFiles(dir: string, storage: ChessfilesStorage) {
-    this.status.perform("loading folder", async () => {
+  private async doRefetchFiles(dir: string, storage: ChessfilesStorage) {
+    this.setLoading(true);
+    try {
       const files = (await storage.listDir(dir)).filter(
         (entry) => !this.isSpecialFile(dir, entry),
       );
@@ -86,7 +90,9 @@ export class AppStorage {
         return a.filename.localeCompare(b.filename);
       });
       this.setFiles(files);
-    });
+    } finally {
+      this.setLoading(false);
+    }
   }
 
   setDir(path: string) {

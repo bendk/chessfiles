@@ -2,7 +2,6 @@ import { createSignal, Show } from "solid-js";
 import { Field } from "@ark-ui/solid";
 import { Book, BookType, RootNode } from "~/lib/node";
 import type { AppStorage } from "~/lib/storage";
-import { FileExistsError } from "~/lib/storage";
 import { Button, RadioGroup } from "~/components";
 
 interface CreateBookProps {
@@ -10,7 +9,7 @@ interface CreateBookProps {
   submitText: string;
   storage: AppStorage;
   onClose: () => void;
-  onCreate: (name: string, book: Book) => Promise<void>;
+  onCreate: (name: string, book: Book) => Promise<boolean>;
 }
 
 export function CreateBook(props: CreateBookProps) {
@@ -61,19 +60,11 @@ export function CreateBook(props: CreateBookProps) {
         return;
     }
 
-    props.storage.status.perform("creating book", async () => {
-      try {
-        await props.onCreate(name(), book);
-      } catch (e) {
-        if (e instanceof FileExistsError) {
-          setError("File Already Exists");
-          return;
-        } else {
-          throw e;
-        }
-      }
-      setName("");
-    });
+    if (!(await props.onCreate(name(), book))) {
+      setError("File Already Exists");
+      return;
+    }
+    setName("");
   }
   return (
     <div>

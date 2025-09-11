@@ -1,12 +1,18 @@
-import { createSignal, Index, Show, Switch, Match } from "solid-js";
-import { Toast, Toaster, createToaster } from "@ark-ui/solid";
+import {
+  createEffect,
+  createSignal,
+  Index,
+  Show,
+  Switch,
+  Match,
+} from "solid-js";
 import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
-import X from "lucide-solid/icons/x";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
-import { Button, Chooser, Layout } from "~/components";
+import type { StatusTracker } from "~/components";
+import { Button, Chooser, StatusError } from "~/components";
 import { Editor } from "../editor";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
@@ -14,6 +20,8 @@ import { BooksList } from "./BooksList";
 
 export interface LibraryProps {
   storage: AppStorage;
+  status: StatusTracker;
+  setNavbarShown: (shown: boolean) => void;
 }
 
 export interface CurrentBook {
@@ -26,21 +34,21 @@ export function Library(props: LibraryProps) {
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
   const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
 
-  const toaster = createToaster({
-    placement: "bottom-end",
-    gap: 24,
-  });
+  createEffect(() =>
+    props.setNavbarShown(currentBook() === undefined && mode() == ""),
+  );
 
-  async function onCreateBook(name: string, book: Book) {
+  async function onCreateBook(name: string, book: Book): Promise<boolean> {
     let filename = name;
     if (!filename.endsWith(".pgn")) {
       filename += ".pgn";
     }
     if (await props.storage.exists(filename)) {
-      throw new FileExistsError();
+      return false;
     }
     setCurrentBook({ filename, book });
     setMode("");
+    return true;
   }
 
   async function onSaveBook(): Promise<boolean> {
@@ -49,22 +57,10 @@ export function Library(props: LibraryProps) {
       return false;
     }
     let success = false;
-    await props.storage.status.perform("saving book", async () => {
-      try {
-        await props.storage.writeFile(book.filename, book.book.export());
-        props.storage.refetchFiles();
-        toaster.create({
-          title: "Book saved",
-          type: "success",
-        });
-        success = true;
-      } catch (e) {
-        toaster.create({
-          title: "Book failed to save",
-          description: `${e}`,
-          type: "error",
-        });
-      }
+    await props.status.perform("saving book", async () => {
+      await props.storage.writeFile(book.filename, book.book.export());
+      props.storage.refetchFiles();
+      success = true;
     });
     return success;
   }
@@ -74,20 +70,24 @@ export function Library(props: LibraryProps) {
   }
 
   async function onCreateFolder(name: string) {
-    if (await props.storage.exists(name)) {
-      throw new FileExistsError();
-    }
-    try {
-      await props.storage.createDir(name);
-      props.storage.refetchFiles();
-    } catch (e) {
-      toaster.create({
-        title: "Create folder failed",
-        description: `${e}`,
-        type: "error",
-      });
-    }
+    let fileExists = false;
+    await props.status.perform(
+      {
+        title: "Creating folder",
+        description: name,
+      },
+      async () => {
+        // TODO: throw FileExistsError upwards
+        if (await props.storage.exists(name)) {
+          fileExists = true;
+          return;
+        }
+        await props.storage.createDir(name);
+      },
+    );
+    props.storage.refetchFiles();
     setMode("");
+    return fileExists;
   }
 
   async function onFileMenuAction(entry: DirEntry, action: string) {
@@ -102,26 +102,16 @@ export function Library(props: LibraryProps) {
         });
       }
     } else if (action == "delete") {
-      const toast = toaster.create({
-        title: entry.type == "file" ? "Deleting file" : "Deleting folder",
-        description: `${entry.filename}`,
-        type: "info",
-      });
-      try {
-        await props.storage.remove(entry.filename);
-        toaster.update(toast, {
-          title: "Delete successful",
+      props.status.perform(
+        {
+          title: entry.type == "file" ? "Deleting file" : "Deleting folder",
           description: `${entry.filename}`,
-          type: "success",
-        });
-        props.storage.refetchFiles();
-      } catch (e) {
-        toaster.update(toast, {
-          title: "Delete failed",
-          description: `${e}`,
-          type: "error",
-        });
-      }
+        },
+        async () => {
+          await props.storage.remove(entry.filename);
+          props.storage.refetchFiles();
+        },
+      );
     } else if (action == "move") {
       setMode("move");
       setMoveSource([entry]);
@@ -146,45 +136,30 @@ export function Library(props: LibraryProps) {
       sourceName = `${sources.length} files`;
     }
 
-    const toast = toaster.create({
-      title: "Moving",
-      description: `${sourceName} -> Home${destDir}`,
-      type: "info",
-    });
-
-    for (const source of sources) {
-      const destPath = joinPath(destDir, source.filename);
-      try {
-        await props.storage.move(source.filename, destPath);
-      } catch (e) {
-        let description;
-        if (e instanceof FileExistsError) {
-          description = `${destPath} already exists`;
-        } else {
-          console.log(e);
-          description = "";
+    props.status.perform(
+      {
+        title: "Moving files",
+        description: `${sourceName} -> Home${destDir}`,
+      },
+      async () => {
+        for (const source of sources) {
+          const destPath = joinPath(destDir, source.filename);
+          try {
+            await props.storage.move(source.filename, destPath);
+          } catch (e) {
+            if (e instanceof FileExistsError) {
+              throw new StatusError(`${destPath} already exists`);
+            } else {
+              throw e;
+            }
+          }
         }
-        toaster.update(toast, {
-          title: "Move failed",
-          description,
-          type: "error",
-        });
-        return;
-      }
-    }
-
-    toaster.update(toast, {
-      title: "Move successful",
-      description: `${sourceName} -> ${destDir}`,
-      type: "success",
-    });
+      },
+    );
   }
 
   return (
-    <Layout
-      navbar={currentBook() === undefined && mode() == ""}
-      status={props.storage.status}
-    >
+    <>
       <Switch>
         <Match when={mode() == "create-book"} keyed>
           <CreateBook
@@ -296,27 +271,6 @@ export function Library(props: LibraryProps) {
           </div>
         </Match>
       </Switch>
-
-      <Toaster toaster={toaster}>
-        {(toast) => (
-          <Toast.Root
-            class="border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2 data-[type=success]:text-sky-600 data-[type=success]:dark:text-sky-500 data-[type=error]:text-red-500"
-            style="translate: var(--x) var(--y);"
-          >
-            <div class="flex justify-between">
-              <Toast.Title class="font-bold text-lg">
-                {toast().title}
-              </Toast.Title>
-              <Toast.CloseTrigger class="cursor-pointer text-zinc-800 dark:text-zinc-300 hover:text-red-500">
-                <X />
-              </Toast.CloseTrigger>
-            </div>
-            <Toast.Description class="text-zinc-800 dark:text-zinc-300">
-              {toast().description}
-            </Toast.Description>
-          </Toast.Root>
-        )}
-      </Toaster>
-    </Layout>
+    </>
   );
 }

@@ -3,14 +3,15 @@ import { Index, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Board } from "~/editor/Board";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
-import { StatusError } from "~/lib/status";
 import type { AppStorage } from "~/lib/storage";
 import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
-import { Button, MenuButton } from "~/components";
+import type { StatusTracker } from "~/components";
+import { Button, MenuButton, StatusError } from "~/components";
 
 export interface TrainingSessionProps {
   storage: AppStorage;
+  status: StatusTracker;
   training: Training;
   onExit: () => void;
 }
@@ -27,7 +28,7 @@ export function TrainingSession(props: TrainingSessionProps) {
   });
 
   async function onExit() {
-    props.storage.status.perform("saving training", async () => {
+    props.status.perform("saving training", async () => {
       await props.storage.updateTraining(props.training);
       props.onExit();
     });
@@ -62,7 +63,7 @@ export function TrainingSession(props: TrainingSessionProps) {
   }
 
   function restartTraining() {
-    props.storage.status.perform("restarting training", async () => {
+    props.status.perform("restarting training", async () => {
       try {
         props.training = await props.storage.restartTraining(
           props.training.meta,

@@ -7,17 +7,17 @@ import {
   createResource,
   createSignal,
 } from "solid-js";
-import type { MenuItem } from "~/components";
+import type { MenuItem, StatusTracker } from "~/components";
 import {
   Button,
   Chooser,
   Dialog,
   Progress,
+  StatusError,
   Table,
   TableCell,
   TableMenuCell,
 } from "~/components";
-import { StatusError } from "~/lib/status";
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
@@ -25,6 +25,7 @@ import { FileNotFoundError, TrainingExistsError } from "~/lib/storage";
 
 export interface TrainingListProps {
   storage: AppStorage;
+  status: StatusTracker;
   openTraining: (meta: TrainingMeta) => Promise<void>;
   setChooserActive: (active: boolean) => void;
 }
@@ -74,16 +75,16 @@ export function TrainingList(props: TrainingListProps) {
         setFinishedMetaDialog(meta);
         return;
       }
-      props.storage.status.perform("opening training", async () => {
+      props.status.perform("opening training", async () => {
         await props.openTraining(meta);
       });
     } else if (action == "delete") {
-      props.storage.status.perform("deleting training", async () => {
+      props.status.perform("deleting training", async () => {
         await props.storage.removeTraining(meta);
         await refetchTrainingMetas();
       });
     } else if (action == "restart") {
-      props.storage.status.perform("restarting training", async () => {
+      props.status.perform("restarting training", async () => {
         try {
           await props.storage.restartTraining(meta);
         } catch (e) {
@@ -110,7 +111,7 @@ export function TrainingList(props: TrainingListProps) {
             storage={props.storage.clone()}
             error={chooserError()}
             onSelect={async (path) => {
-              props.storage.status.perform("creating training", async () => {
+              props.status.perform("creating training", async () => {
                 let training;
                 try {
                   training = await props.storage.createTraining(path);
