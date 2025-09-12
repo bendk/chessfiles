@@ -18,7 +18,6 @@ export interface ChooserProps {
 export function Chooser(props: ChooserProps) {
   const storage = props.storage ?? new AppStorage();
   const files = () => {
-    return storage.files();
     return storage
       .files()
       ?.filter((e) => !(e.type != "dir" && props.dirMode === true));
@@ -33,7 +32,7 @@ export function Chooser(props: ChooserProps) {
       <Show when={props.subtitle !== undefined}>
         <h1 class="text-lg truncate text-ellipsis">{props.subtitle}</h1>
       </Show>
-      <div class="text-lg mt-8 px-4 py-2 flex bg-sky-400 dark:bg-sky-700 text-zinc-800 dark:text-zinc-300">
+      <div class="text-lg mt-8 px-4 py-2 flex bg-sky-300 dark:bg-sky-700 text-zinc-700 dark:text-zinc-300">
         <span class="pr-1">Folder:</span>
         <Index each={storage.dirComponents()}>
           {(component, index) => (
@@ -58,16 +57,16 @@ export function Chooser(props: ChooserProps) {
           )}
         </Index>
       </div>
-      <div class="bg-zinc-100 dark:bg-zinc-800 px-2 py-4">
+      <div class="bg-zinc-100 dark:bg-zinc-800">
         <div class="min-h-0 overflow-y-auto">
           <ul>
             <For each={files()}>
               {(file) => {
                 if (file.type == "file") {
                   return (
-                    <li class="hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-sky-600 dark:hover:text-sky-300">
+                    <li class="hover:bg-white dark:hover:bg-zinc-700 hover:text-sky-500 dark:hover:text-sky-300">
                       <button
-                        class="flex gap-2 p-2 cursor-pointer w-full"
+                        class="flex items-center gap-2 p-2 cursor-pointer w-full"
                         onClick={() =>
                           props.onSelect(storage.absPath(file.filename))
                         }
@@ -79,9 +78,9 @@ export function Chooser(props: ChooserProps) {
                   );
                 } else {
                   return (
-                    <li class="hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-sky-600 dark:hover:text-sky-300">
+                    <li class="hover:bg-white dark:hover:bg-zinc-700 hover:text-sky-500 dark:hover:text-sky-300">
                       <button
-                        class="flex gap-2 p-2 cursor-pointer w-full"
+                        class="flex items-center gap-2 p-2 cursor-pointer w-full"
                         onClick={() => storage.setDir(file.filename)}
                       >
                         <Folder />

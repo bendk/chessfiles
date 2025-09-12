@@ -46,7 +46,7 @@ export class Training {
       score: null,
       incorrectTries: [],
     };
-    this.activity = newTrainingActivity(meta.bookId);
+    this.activity = newTrainingActivity(meta.name);
     this.board = newBoard(this.currentRootNode);
     this.state = initialState(this.currentRootNode);
   }
@@ -366,6 +366,8 @@ function initialState(rootNode: RootNode | undefined): TrainingState {
  * Settings for training sessions
  */
 export interface TrainingSettings {
+  /// Amount of time to delay before making a move
+  moveDelay: number;
   /// Skip the choose-move state after for positions that have been seen this many times
   /// `0` indicates we should always go to choose-move
   skipAfter: number;
@@ -375,6 +377,7 @@ export interface TrainingSettings {
 
 export function defaultTrainingSettings(): TrainingSettings {
   return {
+    moveDelay: 0.5,
     skipAfter: 2,
     shuffle: true,
   };
@@ -383,7 +386,7 @@ export function defaultTrainingSettings(): TrainingSettings {
 /**
  * Metadata about a training session
  *
- * These are stored together in the `ChessFiles.index` file.
+ * These are stored together in the `ChessFilesData.json` file.
  */
 export interface TrainingMeta {
   bookPath: string;

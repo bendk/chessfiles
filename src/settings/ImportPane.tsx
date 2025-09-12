@@ -1,6 +1,8 @@
 import { createSignal, Index, Match, Show, Switch } from "solid-js";
+import type { Activity } from "~/lib/activity";
 import * as settings from "~/lib/settings";
-import type { AppStorage } from "~/lib/storage";
+import type { AppStorage, StorageMeta } from "~/lib/storage";
+import type { TrainingMeta } from "~/lib/training";
 import {
   assertIsStorage,
   createStorage,
@@ -21,6 +23,8 @@ class Importer {
     choice: "overwrite" | "skip" | "overwrite-all",
   ) => void;
   private overwriteAll = false;
+  private importedActivity: Activity[] = [];
+  private importedTrainingMetas: Map<string, TrainingMeta> = new Map();
 
   constructor(
     private dest: ChessfilesStorage,
@@ -44,8 +48,9 @@ class Importer {
         this.setStatus("done");
         return;
       }
-      this.setProgress((100 * i) / this.sourceItems.length);
+      this.setProgress((100 * i) / this.sourceItems.length + 1);
     }
+    this.importMeta();
     this.setProgress(100);
     this.setStatus("done");
   }
@@ -77,18 +82,42 @@ class Importer {
     } else {
       this.pushImportLog(`importing ${path}`);
       const content = await this.source!.readFile(path);
+
+      if (path == "/ChessfilesData.json") {
+        const data = JSON.parse(content);
+        if (data.activity !== undefined) {
+          this.importedActivity = data.activity;
+        } else {
+          console.error(`${path} missing "activity"`);
+        }
+        return;
+      }
+
       try {
         await this.dest.createFile(path, content);
+        this.onFileSaved(path, content);
       } catch (e) {
         if (e instanceof FileExistsError) {
           if (overwrite || this.overwriteAll) {
             await this.dest.writeFile(path, content);
+            this.onFileSaved(path, content);
           } else {
             await this.handleConflict(path, item);
           }
           return;
         }
         throw e;
+      }
+    }
+  }
+
+  private onFileSaved(path: string, content: string) {
+    if (path.startsWith("/ChessfilesTraining/")) {
+      const data = JSON.parse(content);
+      if (data.meta !== undefined) {
+        this.importedTrainingMetas.set(data.meta.bookId, data.meta);
+      } else {
+        console.error(`${path} missing "meta"`);
       }
     }
   }
@@ -116,6 +145,39 @@ class Importer {
     if (this.onOverwriteChoice) {
       this.onOverwriteChoice(choice);
     }
+  }
+
+  private async importMeta() {
+    const meta = JSON.parse(
+      await this.dest.readFile("/ChessfilesData.json"),
+    ) as StorageMeta;
+
+    // Merge activity
+    const currentActivity = new Set(meta.activity.map((a) => a.id));
+    for (const activity of this.importedActivity) {
+      if (!currentActivity.has(activity.id)) {
+        meta.activity.push(activity);
+      }
+    }
+    meta.activity.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Merge training metas
+    for (let i = 0; i < meta.trainingMeta.length; i++) {
+      const bookId = meta.trainingMeta[i].bookId;
+      const imported = this.importedTrainingMetas.get(bookId);
+      if (imported) {
+        meta.trainingMeta[i] = imported;
+        this.importedTrainingMetas.delete(bookId);
+      }
+    }
+
+    for (const imported of this.importedTrainingMetas.values()) {
+      meta.trainingMeta.push(imported);
+    }
+
+    // Skip trainingSettings, the user can manually do it if they want
+
+    await this.dest.writeFile("/ChessfilesData.json", JSON.stringify(meta));
   }
 }
 
@@ -165,7 +227,7 @@ export function ImportPane(props: ImportPaneProps) {
   return (
     <>
       <div class="flex justify-between">
-        <h1 class="text-2xl">{title()}</h1>
+        <h1 class="text-2xl pb-4">{title()}</h1>
         <Button text="Exit" onClick={props.onClose} />
       </div>
       <Switch>

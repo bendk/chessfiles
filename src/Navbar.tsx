@@ -1,11 +1,8 @@
-import IconMoon from "lucide-solid/icons/moon";
-import IconSun from "lucide-solid/icons/sun";
 import IconBook from "lucide-solid/icons/book";
 import IconSettings from "lucide-solid/icons/settings";
 import IconTodo from "lucide-solid/icons/list-todo";
 import type { JSX } from "solid-js";
-import { Match, Show, Switch } from "solid-js";
-import { Menu } from "./components";
+import { Show } from "solid-js";
 
 interface NavbarLinkProps {
   text?: string;
@@ -19,7 +16,7 @@ function NavbarLink(props: NavbarLinkProps) {
   const current = () => props.page === props.name;
   return (
     <a
-      class="flex gap-1 items-center mx-3 text-lg cursor-pointer font-medium"
+      class="flex gap-1 items-center mx-3 pb-0.5 text-lg cursor-pointer font-medium"
       classList={{
         "border-b-2 border-sky-500": current(),
         "hover:text-sky-300": !current(),
@@ -62,36 +59,9 @@ export function Navbar(props: NavbarProps) {
         />
       </div>
       <div class="flex items-center gap-2">
-        <Menu
-          elt={
-            <Switch>
-              <Match when={props.theme === "light"}>
-                <IconSun size={16} />
-              </Match>
-              <Match when={props.theme === "dark"}>
-                <IconMoon fill="currentColor" size={16} />
-              </Match>
-            </Switch>
-          }
-          items={[
-            {
-              value: "light",
-              icon: <IconSun size={16} />,
-              text: "Light",
-              selected: props.theme == "light",
-            },
-            {
-              value: "dark",
-              icon: <IconMoon size={16} />,
-              text: "Dark",
-              selected: props.theme == "dark",
-            },
-          ]}
-          onSelect={(value) => props.setTheme(value)}
-        />
         <NavbarLink
           name="settings"
-          text={props.page == "settings" ? "Settings" : undefined}
+          text="Settings"
           icon={<IconSettings size={16} />}
           page={props.page}
           setPage={props.setPage}

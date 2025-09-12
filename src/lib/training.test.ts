@@ -113,6 +113,7 @@ function createTraining(
 const testSettings: TrainingSettings = {
   skipAfter: Number.MAX_SAFE_INTEGER,
   shuffle: false,
+  moveDelay: 0.5,
 };
 
 interface CheckTrainingSpec {

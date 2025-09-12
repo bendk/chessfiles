@@ -17,7 +17,7 @@ function Node(props: NodeProps) {
     <div
       class="flex flex-col"
       style={{
-        "padding-top": `${props.node.padding * 28}px`,
+        "padding-top": `${props.node.padding * 22}px`,
       }}
     >
       {
@@ -29,9 +29,9 @@ function Node(props: NodeProps) {
               return "text-zinc-400";
             }
             if (props.node.selected) {
-              return "text-sky-500";
+              return "text-sky-600 dark:text-sky-300";
             } else {
-              return "text-zinc-900 dark:text-zinc-100";
+              return "text-zinc-700 dark:text-zinc-100";
             }
           };
           const isDraft = () =>
@@ -80,7 +80,7 @@ export function Line(props: LineProps) {
           }}
           onClick={() => props.setMoves([])}
         >
-          <Book size={24} />
+          <Book size={20} />
         </button>
         <For each={props.view.line}>
           {(node) => <Node node={node} setMoves={props.setMoves} />}

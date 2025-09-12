@@ -1,15 +1,21 @@
+import { v4 as uuidv4 } from "uuid";
+
 // Activity record from a single training session
 export interface TrainingActivity {
-  bookId: string;
+  type: "training";
+  id: string;
+  name: string;
   timestamp: number;
   correctCount: number;
   incorrectCount: number;
 }
 
-export function newTrainingActivity(bookId: string): TrainingActivity {
+export function newTrainingActivity(name: string): TrainingActivity {
   return {
+    type: "training",
+    name,
+    id: uuidv4(),
     timestamp: Date.now(),
-    bookId,
     correctCount: 0,
     incorrectCount: 0,
   };

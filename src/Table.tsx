@@ -27,14 +27,14 @@ export function Table<T>(props: TableProps<T>) {
 
   return (
     <div
-      class={`grid w-full border-1 rounded-md border-zinc-600 justify-center ${props.class ?? ""}`}
+      class={`grid w-full border-1 rounded-md border-zinc-400 dark:border-zinc-600 justify-center ${props.class ?? ""}`}
       style={column_css}
     >
       <Show when={props.headers} keyed>
         {(headers) => (
           <Index each={headers}>
             {(header) => (
-              <div class="px-2 py-3 border-b-1 border-zinc-600 font-normal text-left">
+              <div class="px-2 py-3 border-b-1 border-zinc-400 dark:border-zinc-600 font-normal text-left">
                 {header()}
               </div>
             )}
@@ -53,7 +53,7 @@ export function Table<T>(props: TableProps<T>) {
           };
           return (
             <div
-              class={`col-span-${props.columns} grid grid-cols-subgrid group border-zinc-600 items-center`}
+              class={`col-span-${props.columns} grid grid-cols-subgrid group border-zinc-400 dark:border-zinc-600 items-center`}
               classList={{
                 "hover:bg-zinc-200": !isActive(),
                 "dark:hover:bg-zinc-700": !isActive(),

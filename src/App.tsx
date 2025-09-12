@@ -41,7 +41,7 @@ function App() {
   });
 
   return (
-    <div class="flex flex-col bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 h-screen outline-hidden">
+    <div class="text-md flex flex-col bg-gray-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 h-screen outline-hidden">
       <Show when={navbarShown()}>
         <Navbar
           page={page()}
@@ -71,6 +71,8 @@ function App() {
             <Settings
               storage={storage}
               status={status}
+              theme={theme()}
+              setTheme={setTheme}
               setNavbarShown={setNavbarShown}
             />
           </Match>

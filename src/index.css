@@ -2,9 +2,17 @@
 @import "@fontsource-variable/inter";
 @custom-variant dark (&:where(.dark, .dark *));
 
+html {
+  line-height: 1.2;
+}
+
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --animate-spin: spin 2s linear infinite;
+  --text-lg--line-height: 1.2;
+  --text-xl--line-height: 1.2;
+  --text-2xl--line-height: 1.2;
+  --text-3xl--line-height: 1.2;
 }
 
 @source inline("col-span-2 col-span-3 col-span-4");

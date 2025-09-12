@@ -20,7 +20,7 @@ import { createEffect, createMemo, createSignal } from "solid-js";
  * This mostly acts as an index for files.
  * It also stores the training settings.
  */
-interface StorageMeta {
+export interface StorageMeta {
   activity: Activity[];
   trainingMeta: TrainingMeta[];
   trainingSettings: TrainingSettings;
@@ -172,7 +172,15 @@ export class AppStorage {
   }
 
   async readTrainingSettings(): Promise<TrainingSettings> {
-    return (await this.getMeta()).trainingSettings;
+    const defaultSettings = {
+      shuffle: true,
+      skipAfter: 2,
+      moveDelay: 0.5,
+    };
+    return {
+      ...defaultSettings,
+      ...(await this.getMeta()).trainingSettings,
+    };
   }
 
   async saveTrainingSettings(

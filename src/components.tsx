@@ -1,12 +1,14 @@
 export { Button } from "./Button";
+export { Checkbox } from "./Checkbox";
 export { Dialog } from "./Dialog";
 export { Menu, MenuButton } from "./Menu";
 export type { MenuItem } from "./Menu";
 export { Progress } from "./Progress";
 export * as RadioGroup from "./RadioGroup";
 export { Navbar } from "./Navbar";
-export { Table, TableCell, TableMenuCell } from "./Table";
+export { Slider } from "./Slider";
 export { Status, StatusError, StatusTracker } from "./Status";
+export { Table, TableCell, TableMenuCell } from "./Table";
 export { Chooser } from "./library/Chooser";
 
 import LoaderIcon from "lucide-solid/icons/loader-2";
