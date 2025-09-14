@@ -216,7 +216,7 @@ export function Settings(props: SettingsProps) {
                   >
                     <RadioGroup.Label
                       text="Retrain limit"
-                      help="Skip moves once you get them correct this many times a session"
+                      help="Skip moves after getting them correct this many times in a row"
                     />
                     <RadioGroup.Item text="2 moves" value="2" />
                     <RadioGroup.Item text="3 moves" value="3" />

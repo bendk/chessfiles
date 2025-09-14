@@ -134,6 +134,7 @@ function checkTraining(training: Training, spec: CheckTrainingSpec) {
   expect(training.meta.correctCount).toEqual(spec.correct);
   expect(training.meta.incorrectCount).toEqual(spec.incorrect);
   expect(training.meta.linesTrained).toEqual(spec.linesTrained ?? 0);
+  expect(training.activity.linesTrained).toEqual(spec.linesTrained ?? 0);
   expect(training.activity.correctCount).toEqual(
     spec.activityCorrect ?? spec.correct,
   );

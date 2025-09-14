@@ -75,15 +75,22 @@ export class Training {
     return new Training(settings, meta, book.rootNodes);
   }
 
-  restart(book: Book) {
-    this.meta.correctCount = 0;
-    this.meta.incorrectCount = 0;
-    this.meta.linesTrained = 0;
-    const rootNodes = book.rootNodes;
-    if (this.settings.shuffle) {
-      shuffleArray(rootNodes);
-    }
-    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
+  restart(book: Book): Training {
+    return new Training(
+      this.settings,
+      {
+        ...this.meta,
+        correctCount: 0,
+        incorrectCount: 0,
+        linesTrained: 0,
+        totalLines: book.rootNodes.reduce(
+          (count, node) => count + node.lineCount(),
+          0,
+        ),
+        lastTrained: Date.now(),
+      },
+      book.rootNodes,
+    );
   }
 
   advance() {
@@ -221,6 +228,7 @@ export class Training {
     assertIsDefined(this.currentRootNode);
     if (this.currentNode.isEmpty()) {
       this.meta.linesTrained++;
+      this.activity.linesTrained++;
       this.state = {
         type: "show-line-summary",
         initialPosition: this.currentRootNode.initialPosition.clone(),
@@ -299,6 +307,20 @@ export class Training {
     }
   }
 
+  private rootNodeHasMovesAfterCurrentLine() {
+    assertIsDefined(this.currentRootNode);
+
+    let node: Node | undefined = this.currentRootNode;
+    for (const entry of this.currentLine) {
+      assertIsDefined(node);
+      const move = entry.move;
+      const child = node.getChild(move);
+      node = child;
+    }
+    assertIsDefined(node);
+    return node.children.length > 0;
+  }
+
   private removeCurrentLineFromRootNode() {
     assertIsDefined(this.currentRootNode);
     let lastBranch: [Node, Move] | null = null;
@@ -341,10 +363,19 @@ export class Training {
     const training = new Training(settings, meta, rootNodes);
     training.currentLine = currentLine;
     if (training.currentLine.length > 0) {
-      training.currentLineReplayCount = training.currentLine.length - 1;
-      training.state = { type: "advance-after-delay" };
+      if (!training.rootNodeHasMovesAfterCurrentLine()) {
+        training.finishLine();
+      } else {
+        training.currentLineReplayCount = training.currentLine.length - 1;
+        training.state = { type: "advance-after-delay" };
+      }
     }
     return training;
+  }
+
+  static parseMeta(data: string): TrainingMeta {
+    const { meta } = JSON.parse(data);
+    return meta;
   }
 }
 
@@ -595,13 +626,16 @@ function assertIsDefined<T>(val: T): asserts val is NonNullable<T> {
   }
 }
 
-export function trainingTimeAgo(meta: TrainingMeta, currentTimestamp: number) {
-  if (meta.lastTrained === undefined) {
+export function trainingTimeAgo(
+  timestamp: number | undefined,
+  currentTimestamp: number,
+) {
+  if (timestamp === undefined) {
     return "never";
   }
   // Do some basic checking that the meta doesn't have a future timestamp because it was
   // stored by a client with a weird clock
-  const seconds = Math.max((currentTimestamp - meta.lastTrained) / 1000, 0);
+  const seconds = Math.max((currentTimestamp - timestamp) / 1000, 0);
   const table: [number, string, string][] = [
     [604800, "week", "weeks"],
     [86400, "day", "days"],

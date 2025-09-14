@@ -1,7 +1,7 @@
 import type { ChessfilesStorage, DirEntry, PathComponent } from "~/lib/storage";
 import { createStorage, joinPath, pathComponents } from "~/lib/storage";
 import { Book } from "~/lib/node";
-import type { Activity } from "~/lib/activity";
+import type { TrainingActivity } from "~/lib/activity";
 import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training, defaultTrainingSettings } from "~/lib/training";
@@ -21,9 +21,22 @@ import { createEffect, createMemo, createSignal } from "solid-js";
  * It also stores the training settings.
  */
 export interface StorageMeta {
-  activity: Activity[];
   trainingMeta: TrainingMeta[];
+  trainingActivity: TrainingActivity[];
   trainingSettings: TrainingSettings;
+}
+
+export interface TrainingListing {
+  metas: TrainingMeta[];
+  activity: TrainingActivity[];
+}
+
+function defaultStorageMeta(): StorageMeta {
+  return {
+    trainingActivity: [],
+    trainingMeta: [],
+    trainingSettings: defaultTrainingSettings(),
+  };
 }
 
 /**
@@ -72,6 +85,12 @@ export class AppStorage {
 
   clone(): AppStorage {
     return new AppStorage(this.storage);
+  }
+
+  refreshAfterImport() {
+    this.cachedMeta = undefined;
+    this.checkedTrainingDirExists = false;
+    this.refetchFiles();
   }
 
   refetchFiles() {
@@ -192,9 +211,52 @@ export class AppStorage {
     }));
   }
 
-  async listTraining(): Promise<TrainingMeta[]> {
-    const meta = await this.getMeta();
-    return meta.trainingMeta;
+  async listTraining(): Promise<TrainingListing> {
+    try {
+      const meta = await this.getMeta();
+      await this.ensureTrainingUpToDate(meta);
+      return {
+        metas: meta.trainingMeta,
+        activity: meta.trainingActivity.slice(0, 20),
+      };
+    } catch (e) {
+      console.log(e);
+      throw e;
+    }
+  }
+
+  private async ensureTrainingUpToDate(meta: StorageMeta) {
+    if (!(await this.storage().exists("/ChessfilesTraining"))) {
+      return;
+    }
+    const storageEntries = await this.storage().listDir("/ChessfilesTraining");
+    if (await this.isTrainingUpToDate(meta, storageEntries)) {
+      return;
+    }
+
+    const trainingMeta = [];
+    for (const e of storageEntries) {
+      const data = await this.readFile(
+        joinPath("/ChessfilesTraining", e.filename),
+      );
+      trainingMeta.push(Training.parseMeta(data));
+    }
+    meta.trainingMeta = trainingMeta;
+    this.setMeta(meta);
+  }
+
+  private async isTrainingUpToDate(
+    meta: StorageMeta,
+    storageEntries: DirEntry[],
+  ): Promise<boolean> {
+    const metaItems = new Set(meta.trainingMeta.map((m) => m.bookId));
+    for (const e of storageEntries) {
+      const bookId = e.filename.replace(/.json$/, "");
+      if (!metaItems.delete(bookId)) {
+        return false;
+      }
+    }
+    return metaItems.size == 0;
   }
 
   async createTraining(bookPath: string): Promise<Training> {
@@ -262,9 +324,9 @@ export class AppStorage {
       throw new FileNotFoundError();
     }
     const book = await this.readBook(meta.bookPath);
-    training.restart(book);
-    await this.updateTraining(training);
-    return training;
+    const updated = training.restart(book);
+    await this.updateTraining(updated);
+    return updated;
   }
 
   private async trainingPath(meta: TrainingMeta): Promise<string> {
@@ -281,14 +343,21 @@ export class AppStorage {
   private async saveTraining(training: Training): Promise<void> {
     const path = await this.trainingPath(training.meta);
     await this.writeFile(path, training.export());
+
     if (
       training.activity.correctCount > 0 ||
       training.activity.incorrectCount > 0
     ) {
-      this.updateMeta((meta) => ({
-        ...meta,
-        activity: [training.activity, ...meta.activity],
-      }));
+      this.updateMeta((meta) => {
+        // We're either adding a new activity or updating the last.
+        if (training.activity.id == meta.trainingActivity.at(-1)?.id) {
+          meta.trainingActivity.splice(-1, 1, training.activity);
+        } else {
+          meta.trainingActivity.push(training.activity);
+        }
+
+        return meta;
+      });
     }
   }
 
@@ -296,14 +365,19 @@ export class AppStorage {
     if (this.cachedMeta === undefined) {
       const path = "/ChessfilesData.json";
       if (await this.exists(path)) {
-        const data = await this.readFile(path);
-        this.cachedMeta = JSON.parse(data) as StorageMeta;
+        try {
+          const data = await this.readFile(path);
+          this.cachedMeta = {
+            ...defaultStorageMeta(),
+            ...(JSON.parse(data) as StorageMeta),
+          };
+        } catch (e) {
+          console.error("Error reading meta", e);
+          this.cachedMeta = defaultStorageMeta();
+          this.setMeta(defaultStorageMeta());
+        }
       } else {
-        this.cachedMeta = {
-          activity: [],
-          trainingMeta: [],
-          trainingSettings: defaultTrainingSettings(),
-        };
+        this.cachedMeta = defaultStorageMeta();
       }
     }
     return this.cachedMeta;

@@ -26,10 +26,13 @@ export function TrainingSession(props: TrainingSessionProps) {
   const [board, setBoard] = createSignal(props.training.board, {
     equals: false,
   });
+  const [needsSave, setNeedsSave] = createSignal(false);
 
   async function onExit() {
     props.status.perform("saving training", async () => {
-      await props.storage.updateTraining(props.training);
+      if (needsSave()) {
+        await props.storage.updateTraining(props.training);
+      }
       props.onExit();
     });
   }
@@ -38,6 +41,11 @@ export function TrainingSession(props: TrainingSessionProps) {
     const s = state();
     if (s.type == "advance-after-delay") {
       setTimeout(advance, 500);
+    } else if (s.type == "show-line-summary") {
+      props.status.perform("saving training", async () => {
+        await props.storage.updateTraining(props.training);
+        setNeedsSave(false);
+      });
     }
   });
 
@@ -45,6 +53,7 @@ export function TrainingSession(props: TrainingSessionProps) {
     setState({ ...props.training.state });
     setActivity({ ...props.training.activity });
     setBoard(props.training.board);
+    setNeedsSave(true);
   }
 
   function onMove(move: Move) {

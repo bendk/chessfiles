@@ -8,7 +8,7 @@ export interface ProgressProps {
 
 export function Progress(props: ProgressProps) {
   return (
-    <ArkProgress.Root value={props.value} class="py-2">
+    <ArkProgress.Root value={props.value} class="py-2 w-full">
       <Show when={props.label}>
         <ArkProgress.Label>{props.label}</ArkProgress.Label>
       </Show>

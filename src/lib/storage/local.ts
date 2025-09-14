@@ -84,7 +84,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 
   async createDir(path: string) {
-    this.createEntry(path, "dir", JSON.stringify([]));
+    await this.createEntry(path, "dir", JSON.stringify([]));
   }
 
   async createEntry(path: string, type: "dir" | "file", content: string) {

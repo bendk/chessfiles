@@ -49,7 +49,6 @@ export async function completeLogin(state: string, code: string | null) {
     }),
   });
   const data = await resp.json();
-  console.log("setting auth", data);
   localStorage.setItem("dropbox-oauth", JSON.stringify(data));
   window.open(`${window.location.origin}#settings-dropbox`, "_self");
 }

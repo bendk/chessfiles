@@ -1,8 +1,8 @@
 import { createSignal, Index, Match, Show, Switch } from "solid-js";
-import type { Activity } from "~/lib/activity";
+import type { TrainingActivity } from "~/lib/activity";
 import * as settings from "~/lib/settings";
 import type { AppStorage, StorageMeta } from "~/lib/storage";
-import type { TrainingMeta } from "~/lib/training";
+import type { Training, TrainingMeta } from "~/lib/training";
 import {
   assertIsStorage,
   createStorage,
@@ -15,15 +15,16 @@ import { Progress } from "~/Progress";
 import * as RadioGroup from "~/RadioGroup";
 
 type ImportStatus = "configuring" | "importing" | "done";
+type ConflictChoice = "overwrite" | "skip";
 
 class Importer {
   private sourceItems: [string, DirEntry][] = [];
   private source?: ChessfilesStorage;
   private onOverwriteChoice?: (
-    choice: "overwrite" | "skip" | "overwrite-all",
+    choice: "overwrite" | "skip" | "overwrite-all" | "skip-all",
   ) => void;
-  private overwriteAll = false;
-  private importedActivity: Activity[] = [];
+  private conflictChoice?: ConflictChoice;
+  private importedTrainingActivity: TrainingActivity[] = [];
   private importedTrainingMetas: Map<string, TrainingMeta> = new Map();
 
   constructor(
@@ -77,6 +78,7 @@ class Importer {
         if (e instanceof FileExistsError) {
           return;
         }
+        console.log("ERROR: ", e);
         throw e;
       }
     } else {
@@ -85,10 +87,11 @@ class Importer {
 
       if (path == "/ChessfilesData.json") {
         const data = JSON.parse(content);
-        if (data.activity !== undefined) {
-          this.importedActivity = data.activity;
+        console.log(data);
+        if (data.trainingActivity !== undefined) {
+          this.importedTrainingActivity = data.trainingActivity;
         } else {
-          console.error(`${path} missing "activity"`);
+          console.error(`${path} missing "trainingActivity"`);
         }
         return;
       }
@@ -98,9 +101,11 @@ class Importer {
         this.onFileSaved(path, content);
       } catch (e) {
         if (e instanceof FileExistsError) {
-          if (overwrite || this.overwriteAll) {
+          if (overwrite || this.conflictChoice == "overwrite") {
             await this.dest.writeFile(path, content);
             this.onFileSaved(path, content);
+          } else if (this.conflictChoice == "skip") {
+            this.pushImportLog(`skipping ${path}`);
           } else {
             await this.handleConflict(path, item);
           }
@@ -123,7 +128,17 @@ class Importer {
   }
 
   private async handleConflict(path: string, item: [string, DirEntry]) {
-    this.setConflictPath(path);
+    if (path.startsWith("/ChessfilesTraining/")) {
+      try {
+        const training = JSON.parse(await this.dest.readFile(path)) as Training;
+        this.setConflictPath(`Duplicate Training file: ${training.meta.name}`);
+      } catch (e) {
+        console.error(`Error parsing training file: ${path} (${e})`);
+        this.setConflictPath("Duplicate training file: <unknown>");
+      }
+    } else {
+      this.setConflictPath(`Duplicate file: ${path}`);
+    }
     const promise = new Promise((resolve) => {
       this.onOverwriteChoice = resolve;
     });
@@ -132,8 +147,11 @@ class Importer {
     if (choice == "overwrite") {
       this.importItem(item, true);
     } else if (choice == "overwrite-all") {
-      this.overwriteAll = true;
+      this.conflictChoice = "overwrite";
       this.importItem(item, true);
+    } else if (choice == "skip-all") {
+      this.conflictChoice = "skip";
+      this.pushImportLog(`skipping ${path}`);
     } else {
       // skip
       this.pushImportLog(`skipping ${path}`);
@@ -141,7 +159,9 @@ class Importer {
     }
   }
 
-  handleConflictChoice(choice: "overwrite" | "skip" | "overwrite-all") {
+  handleConflictChoice(
+    choice: "overwrite" | "skip" | "overwrite-all" | "skip-all",
+  ) {
     if (this.onOverwriteChoice) {
       this.onOverwriteChoice(choice);
     }
@@ -153,13 +173,13 @@ class Importer {
     ) as StorageMeta;
 
     // Merge activity
-    const currentActivity = new Set(meta.activity.map((a) => a.id));
-    for (const activity of this.importedActivity) {
+    const currentActivity = new Set(meta.trainingActivity.map((a) => a.id));
+    for (const activity of this.importedTrainingActivity) {
       if (!currentActivity.has(activity.id)) {
-        meta.activity.push(activity);
+        meta.trainingActivity.push(activity);
       }
     }
-    meta.activity.sort((a, b) => a.timestamp - b.timestamp);
+    meta.trainingActivity.sort((a, b) => a.timestamp - b.timestamp);
 
     // Merge training metas
     for (let i = 0; i < meta.trainingMeta.length; i++) {
@@ -221,7 +241,8 @@ export function ImportPane(props: ImportPaneProps) {
   async function onImport() {
     const sourceVal = source();
     assertIsStorage(sourceVal);
-    importer.import(createStorage(sourceVal));
+    await importer.import(createStorage(sourceVal));
+    props.storage.refreshAfterImport();
   }
 
   return (
@@ -259,27 +280,37 @@ export function ImportPane(props: ImportPaneProps) {
         </Match>
         <Match when={status() != "configuring"}>
           <div class="flex flex-col">
-            <ul class="h-40 overflow-auto">
+            <ul class="h-40 overflow-auto mb-8">
               <Index each={importLog()}>{(log) => <li>{log()}</li>}</Index>
             </ul>
             <div class="grow" />
             <Show when={conflictPath() != undefined}>
               <div class="text-amber-600 dark:text-amber-300">
-                Duplicate file: {conflictPath()}
+                {conflictPath()}
               </div>
-              <div class="flex pt-2 gap-4">
-                <Button
-                  text="Overwrite"
-                  onClick={() => importer.handleConflictChoice("overwrite")}
-                />
-                <Button
-                  text="Overwrite All"
-                  onClick={() => importer.handleConflictChoice("overwrite-all")}
-                />
-                <Button
-                  text="Skip"
-                  onClick={() => importer.handleConflictChoice("skip")}
-                />
+              <div class="flex pt-2 justify-between">
+                <div class="flex gap-4">
+                  <Button
+                    text="Overwrite"
+                    onClick={() => importer.handleConflictChoice("overwrite")}
+                  />
+                  <Button
+                    text="Skip"
+                    onClick={() => importer.handleConflictChoice("skip")}
+                  />
+                </div>
+                <div class="flex gap-4">
+                  <Button
+                    text="Overwrite All"
+                    onClick={() =>
+                      importer.handleConflictChoice("overwrite-all")
+                    }
+                  />
+                  <Button
+                    text="Skip all"
+                    onClick={() => importer.handleConflictChoice("skip-all")}
+                  />
+                </div>
               </div>
             </Show>
             <Show when={error()}>

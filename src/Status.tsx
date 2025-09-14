@@ -109,16 +109,16 @@ export function Status(props: StatusProps) {
         return (
           <div
             on:transitionend={(e) => {
-              console.log("transitionend");
               if (e.target.classList.contains("opacity-0")) {
                 props.status.remove();
               }
             }}
-            class="absolute z-200 top-4 right-4 flex flex-col bg-white dark:bg-zinc-900 border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2 transition-opacity duration-1500 ease-in-out"
+            class="absolute z-200 top-3 left-0 right-0 mx-auto flex flex-col bg-white dark:bg-zinc-900 border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2 transition-opacity"
             classList={{
               "opacity-100": status().fadeOut === undefined,
               "opacity-0": status().fadeOut !== undefined,
-              "delay-1000": status().fadeOut == "after-delay",
+              "delay-1000 duration-1500 ease-in-out":
+                status().fadeOut == "after-delay",
             }}
           >
             <div class="flex items-center gap-4">
