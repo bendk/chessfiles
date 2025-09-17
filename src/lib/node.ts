@@ -220,16 +220,23 @@ export class RootNode extends Node {
   initialMoves: readonly Move[];
   shapes?: readonly Shape[];
   headers: Map<string, string>;
+  // Unique id used to locate the node in the book's rootNodes list.
+  // This is generated on construction/importing and stays when cloned.
+  // IOW, it changes on construction, but stays stable for the life of the containing book.
+  id: string;
 
   constructor(
     initialPosition: Chess,
     children: ChildNode[] = [],
     headers?: Map<string, string>,
+    comment?: string,
   ) {
     super(children);
     this.initialPosition = initialPosition;
     this.headers = headers ?? new Map();
+    this.comment = comment;
     this.initialMoves = [];
+    this.id = uuidv4();
   }
 
   static fromInitialPosition(): RootNode {
@@ -248,6 +255,37 @@ export class RootNode extends Node {
 
   set bookId(id: string) {
     this.headers.set("ChessfilesId", id);
+  }
+
+  displayName(index: number): string {
+    const white = this.headers.get("White") ?? "?";
+    const black = this.headers.get("Black") ?? "?";
+    if (white == "?" && black == "?") {
+      if (this.comment) {
+        if (this.comment.length > 40) {
+          return `${this.comment.slice(0, 40)}\u2026`;
+        } else {
+          return this.comment;
+        }
+      } else {
+        return `Game ${index + 1}`;
+      }
+    }
+    const extra = [];
+    const event = this.headers.get("Event") ?? "?";
+    const date = this.headers.get("Date") ?? "????.??.??";
+    if (event && event != "?") {
+      extra.push(event);
+    }
+    if (date && date != "????.??.??") {
+      extra.push(date.split(".")[0]);
+    }
+    const name = `${white} vs ${black}`;
+    if (extra.length == 0) {
+      return name;
+    } else {
+      return `${name} - ${extra.join(" ")}`;
+    }
   }
 
   get color(): Color | undefined {
@@ -274,6 +312,7 @@ export class RootNode extends Node {
         ChildNode.import(position.clone(), childNode),
       ),
       game.headers,
+      game.comments ? game.comments[0] : undefined,
     );
   }
 
@@ -283,6 +322,19 @@ export class RootNode extends Node {
     );
     const headers = new Map([...this.headers]);
     return newPgnGame(headers, children, this.comment);
+  }
+
+  clone(): RootNode {
+    const clone = new RootNode(
+      this.initialPosition.clone(),
+      this.children.map((c) => c.clone()),
+      new Map(this.headers),
+      this.comment,
+    );
+    clone.id = this.id;
+    clone.initialMoves = this.initialMoves;
+    clone.shapes = this.shapes;
+    return clone;
   }
 }
 
@@ -353,5 +405,16 @@ export class ChildNode extends Node {
       ChildNode.import(position.clone(), pgnNode),
     );
     return node;
+  }
+
+  clone(): ChildNode {
+    const clone = new ChildNode(
+      this.move,
+      this.children.map((c) => c.clone()),
+    );
+    clone.comment = this.comment;
+    clone.nags = this.nags;
+    clone.priority = this.priority;
+    return clone;
   }
 }

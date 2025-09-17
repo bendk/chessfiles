@@ -17,6 +17,7 @@ export interface MenuProps {
   elt: JSXElement;
   context?: boolean;
   class?: string;
+  textSize?: string;
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSelect: (value: string) => void;
@@ -64,7 +65,7 @@ export function Menu(props: MenuProps) {
       </Show>
       <ArkMenu.Positioner>
         <ArkMenu.Content
-          class="text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col z-200"
+          class={`text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col z-200 ${props.textSize ?? "text-lg"}`}
           classList={{
             "grid grid-col-2 grid-rows-8 grid-flow-col": props.style == "nags",
           }}
@@ -77,7 +78,7 @@ export function Menu(props: MenuProps) {
                     <ArkMenu.Item
                       value={item.value}
                       disabled={item.disabled}
-                      class={`flex items-center cursor-pointer text-lg gap-2 px-4 py-2 ${item.cssClass ?? ""}`}
+                      class={`flex items-center cursor-pointer gap-2 px-4 py-2 ${item.cssClass ?? ""}`}
                       classList={{
                         "dark:bg-slate-700": item.selected,
                         "bg-slate-500": item.selected,
@@ -87,7 +88,7 @@ export function Menu(props: MenuProps) {
                         "dark:text-white":
                           item.selected && item.disabled !== true,
                         "hover:bg-sky-400": item.disabled !== true,
-                        "hov2er:text-white": item.disabled !== true,
+                        "hover:text-white": item.disabled !== true,
                         "dark:hover:bg-sky-700": item.disabled !== true,
                       }}
                     >
@@ -113,6 +114,7 @@ export interface MenuButtonProps {
   class?: string;
   text?: string;
   title?: string;
+  textSize?: string;
   icon?: JSXElement;
   disabled?: boolean;
   selected?: boolean;
@@ -136,6 +138,8 @@ export function MenuButton(props: MenuButtonProps) {
     "disabled",
     "onSelect",
     "placement",
+    "textSize",
+    "sameWidth",
   ]);
   const elt = createMemo(() => {
     let buttonStyle: "flat" | "normal";
@@ -151,6 +155,7 @@ export function MenuButton(props: MenuButtonProps) {
           buttonStyle,
           props.disabled ?? false,
           props.selected ?? false,
+          props.textSize,
         )}
         classList={{
           "w-full": props.style == "full",
@@ -166,7 +171,6 @@ export function MenuButton(props: MenuButtonProps) {
       elt={elt()}
       class={props.style == "full" ? "w-full" : undefined}
       style={props.style == "nags" ? "nags" : undefined}
-      sameWidth={props.sameWidth}
       {...menuProps}
     />
   );

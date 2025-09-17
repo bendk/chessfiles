@@ -46,9 +46,9 @@ export function buttonClass(
   style: ButtonStyle,
   disabled: boolean,
   selected: boolean,
+  textSize?: string,
 ): string {
-  let cls =
-    "flex gap-1 items-center justify-center border-1 rounded-md px-3 py-1 text-lg font-medium";
+  let cls = `flex gap-1 items-center justify-center border-1 rounded-md px-3 py-1 ${textSize ?? "text-lg"}`;
 
   if (style == "primary" && !disabled) {
     cls += " border-zinc-500 dark:border-zinc-300";

@@ -12,6 +12,7 @@ interface DialogProps {
   disabled?: boolean;
   height?: number;
   submitText: string;
+  closeText?: string;
   onSubmit: () => void;
   onClose?: () => void;
 }
@@ -46,7 +47,10 @@ export function Dialog(props: DialogProps) {
                   onClick={props.onSubmit}
                 />
                 <Show when={props.onClose}>
-                  <Button text="Close" onClick={props.onClose} />
+                  <Button
+                    text={props.closeText ?? "Close"}
+                    onClick={props.onClose}
+                  />
                 </Show>
               </div>
             </ArkDialog.Description>

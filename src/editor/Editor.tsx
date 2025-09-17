@@ -16,7 +16,7 @@ import { Line } from "./Line";
 
 interface EditorProps {
   rootNode: RootNode;
-  filename: string;
+  name: string;
   onSave: () => Promise<boolean>;
   onExit: () => void;
   fen?: string;
@@ -147,22 +147,22 @@ export function Editor(props: EditorProps) {
     <div class="flex-col justify-center mx-auto">
       <div class="flex justify-between pt-4 pb-8 px-8">
         <div class="text-3xl truncate text-ellipsis">
-          Editing: {props.filename}{" "}
+          Editing: {props.name}{" "}
         </div>
         <div class="flex gap-8">
           <div class="flex">
-            <Button
-              disabled={!view().canRedo}
-              icon={<Redo />}
-              title="Redo"
-              onClick={redo}
-              style="flat"
-            />
             <Button
               disabled={!view().canUndo}
               icon={<Undo />}
               title="Undo"
               onClick={undo}
+              style="flat"
+            />
+            <Button
+              disabled={!view().canRedo}
+              icon={<Redo />}
+              title="Redo"
+              onClick={redo}
               style="flat"
             />
           </div>
@@ -208,10 +208,12 @@ export function Editor(props: EditorProps) {
         </div>
       </div>
       <div class="flex gap-4">
-        <div class="w-80 flex flex-col-reverse h-200 gap-4">
+        <div class="w-80 h-200">
           <CurrentNodeControls
             isRoot={view().ply == 0}
-            currentNode={view().currentNode}
+            view={view()}
+            editor={editor}
+            setView={setView}
             setDraftComment={setDraftComment}
             commitDraftComment={commitDraftComment}
             toggleNag={toggleNag}

@@ -13,10 +13,10 @@ import { FileExistsError, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
 import type { StatusTracker } from "~/components";
 import { Button, Chooser, StatusError } from "~/components";
-import { Editor } from "../editor";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
 import { BooksList } from "./BooksList";
+import { BookEditor } from "./BookEditor";
 
 export interface LibraryProps {
   storage: AppStorage;
@@ -95,10 +95,12 @@ export function Library(props: LibraryProps) {
       if (entry.type == "dir") {
         props.storage.setDir(entry.filename);
       } else if (entry.type == "file") {
-        const book = await props.storage.readBook(entry.filename);
-        setCurrentBook({
-          filename: entry.filename,
-          book,
+        props.status.perform("opening book", async () => {
+          const book = await props.storage.readBook(entry.filename);
+          setCurrentBook({
+            filename: entry.filename,
+            book,
+          });
         });
       }
     } else if (action == "delete") {
@@ -194,11 +196,12 @@ export function Library(props: LibraryProps) {
         </Match>
         <Match when={currentBook()} keyed>
           {(currentBook) => (
-            <Editor
+            <BookEditor
               filename={currentBook.filename}
-              rootNode={currentBook.book.rootNodes[0]}
+              book={currentBook.book}
               onSave={onSaveBook}
               onExit={onExitBook}
+              status={props.status}
             />
           )}
         </Match>

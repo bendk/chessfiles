@@ -25,6 +25,7 @@ export interface EditorView {
   readonly lastMove?: Move;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
+  readonly headers: Map<string, string>;
 }
 
 export interface EditorNode {
@@ -115,6 +116,7 @@ export class Editor {
       lastMove: node instanceof ChildNode ? node.move : undefined,
       canUndo: this.undoStack.length > 0,
       canRedo: this.redoStack.length > 0,
+      headers: this.rootNode.headers,
     };
   }
 
@@ -297,6 +299,10 @@ export class Editor {
       return;
     }
     this.performOp(new SetTrainingColor(color));
+  }
+
+  setHeaderValue(name: string, value: string | undefined) {
+    this.performOp(new SetHeaderValue(name, value));
   }
 
   undo() {
@@ -691,5 +697,24 @@ class SetTrainingColor extends EditorOp {
     const oldColor = cursor.rootNode.color;
     cursor.rootNode.color = this.color;
     return new SetTrainingColor(oldColor);
+  }
+}
+
+class SetHeaderValue extends EditorOp {
+  constructor(
+    private name: string,
+    private value: string | undefined,
+  ) {
+    super();
+  }
+
+  execute(cursor: Cursor): EditorOp {
+    const oldValue = cursor.rootNode.headers.get(this.name);
+    if (this.value === undefined) {
+      cursor.rootNode.headers.delete(this.name);
+    } else {
+      cursor.rootNode.headers.set(this.name, this.value);
+    }
+    return new SetHeaderValue(this.name, oldValue);
   }
 }

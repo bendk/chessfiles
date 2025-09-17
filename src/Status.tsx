@@ -133,8 +133,8 @@ export function Status(props: StatusProps) {
                   <Alert size={24} class="text-red-500" />
                 </Match>
               </Switch>
-              <div class="flex flex-col">
-                <div class="flex justify-between">
+              <div class="flex flex-col grow">
+                <div class="flex justify-between items-center">
                   <div
                     class="font-bold text-lg"
                     classList={{
@@ -146,7 +146,7 @@ export function Status(props: StatusProps) {
                   <Show when={status().type == "error"}>
                     <button
                       onClick={() => props.status?.dismiss()}
-                      class="cursor-pointer text-zinc-800 dark:text-zinc-300 hover:text-red-500"
+                      class="cursor-pointer text-red-500 hover:text-zinc-800 hover:dark:text-zinc-300"
                     >
                       <X />
                     </button>

@@ -8,7 +8,7 @@ export * as RadioGroup from "./RadioGroup";
 export { Navbar } from "./Navbar";
 export { Slider } from "./Slider";
 export { Status, StatusError, StatusTracker } from "./Status";
-export { Table, TableCell, TableMenuCell } from "./Table";
+export { Table, TableCell, TableGripperCell, TableMenuCell } from "./Table";
 export { Chooser } from "./library/Chooser";
 
 import LoaderIcon from "lucide-solid/icons/loader-2";

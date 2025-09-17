@@ -17,6 +17,7 @@
     "@ark-ui/solid": "^5.9.0",
     "@fontsource-variable/inter": "^5.2.5",
     "@tailwindcss/vite": "^4.1.4",
+    "@thisbeyond/solid-dnd": "^0.7.5",
     "chessground": "^9.1.1",
     "chessops": "^0.14.2",
     "lucide-solid": "^0.503.0",
