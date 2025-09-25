@@ -1,5 +1,6 @@
 import type { Color, Move, Nag, Shape, Chess } from "./chess";
 import {
+  makeFen,
   makeSan,
   moveEquals,
   nagText,
@@ -305,6 +306,13 @@ export class Editor {
     this.performOp(new SetHeaderValue(name, value));
   }
 
+  setInitialPosition(fen: string) {
+    if (fen == makeFen(this.rootNode.initialPosition.toSetup())) {
+      return;
+    }
+    this.performOp(new SetInitialPosition(fen));
+  }
+
   undo() {
     const action = this.undoStack.pop();
     if (action === undefined) {
@@ -348,6 +356,14 @@ class Cursor {
   constructor(public rootNode: RootNode) {
     this.positions = [rootNode.initialPosition.clone()];
     this.nodes = [rootNode];
+    this.pushFirstMovesIfAtLineEnd();
+    this.ply = 0;
+  }
+
+  reset() {
+    this.positions = [this.rootNode.initialPosition.clone()];
+    this.nodes = [this.rootNode];
+    this.line = [];
     this.pushFirstMovesIfAtLineEnd();
     this.ply = 0;
   }
@@ -716,5 +732,22 @@ class SetHeaderValue extends EditorOp {
       cursor.rootNode.headers.set(this.name, this.value);
     }
     return new SetHeaderValue(this.name, oldValue);
+  }
+}
+
+class SetInitialPosition extends EditorOp {
+  constructor(
+    private fen: string,
+    private restoreChildren: ChildNode[] = [],
+  ) {
+    super();
+  }
+
+  execute(cursor: Cursor): EditorOp {
+    const oldFen = makeFen(cursor.rootNode.initialPosition.toSetup());
+    const oldChildren = cursor.rootNode.children;
+    cursor.rootNode.setInitialPosition(this.fen, this.restoreChildren);
+    cursor.reset();
+    return new SetInitialPosition(oldFen, oldChildren);
   }
 }

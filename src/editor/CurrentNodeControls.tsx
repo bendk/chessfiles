@@ -7,9 +7,9 @@ import Trash from "lucide-solid/icons/trash-2";
 import type { DateValue } from "@ark-ui/solid";
 import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
+import type { BookType } from "~/lib/node";
 import { Priority } from "~/lib/node";
-import type { Editor } from "~/lib/editor";
-import type { EditorView } from "~/lib/editor";
+import type { Editor, EditorView } from "~/lib/editor";
 import { createSignal, Index, Match, Show, Switch } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Button } from "../Button";
@@ -17,6 +17,7 @@ import { MenuButton } from "../Menu";
 
 export interface CurrentNodeControlsProps {
   isRoot: boolean;
+  bookType: BookType;
   view: EditorView;
   setView: (view: EditorView) => void;
   editor: Editor;
@@ -26,6 +27,7 @@ export interface CurrentNodeControlsProps {
   setPriority: (priority: Priority) => void;
   deleteLine: () => void;
   addLine: () => void;
+  onSetInitialPosition: () => void;
 }
 
 export function CurrentNodeControls(props: CurrentNodeControlsProps) {
@@ -40,12 +42,14 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
     <Show
       when={!props.view.currentNode.isDraft}
       fallback={
-        <Button
-          text="Add Line"
-          icon={<SquarePlus />}
-          onClick={props.addLine}
-          style="flat"
-        />
+        <div class="flex flex-col justify-end h-full">
+          <Button
+            text="Add Line"
+            icon={<SquarePlus />}
+            onClick={props.addLine}
+            style="flat"
+          />
+        </div>
       }
     >
       <Switch>
@@ -97,14 +101,24 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               view={props.view}
               setView={props.setView}
             />
-            <textarea
-              class="border-1 border-zinc-400 dark:border-zinc-700 rounded-sm w-full p-2"
-              value={props.view.currentNode.comment}
-              onInput={(evt) => props.setDraftComment(evt.target.value)}
-              onChange={props.commitDraftComment}
-              placeholder="game notes and search tags"
-              rows="5"
-            ></textarea>
+            <Field.Root class="flex flex-col gap-1">
+              <Field.Label>Game notes</Field.Label>
+              <Field.Textarea
+                value={props.view.currentNode.comment}
+                onChange={(evt) => props.setDraftComment(evt.target.value)}
+                onKeyUp={(evt) => {
+                  if (evt.key == "Enter") {
+                    evt.currentTarget.blur();
+                  }
+                }}
+                class="border-1 border-zinc-400 dark:border-zinc-700 rounded-md px-2 py-1 outline-0"
+                rows="5"
+              />
+            </Field.Root>
+            <Button
+              text="Set initial position"
+              onClick={props.onSetInitialPosition}
+            />
           </div>
         </Match>
         <Match when={!props.isRoot}>

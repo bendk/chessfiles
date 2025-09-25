@@ -7,15 +7,18 @@ import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
 import type { Move, Nag, Shape } from "~/lib/chess";
 import type { Priority, RootNode } from "~/lib/node";
+import { BookType } from "~/lib/node";
 import { Editor as EditorBackend } from "~/lib/editor";
-import { createMemo, createSignal, Show } from "solid-js";
+import { createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { Button, Dialog, MenuButton } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
+import { SelectInitialPosition } from "./SelectInitialPosition";
 import { Board } from "./Board";
 import { Line } from "./Line";
 
 interface EditorProps {
   rootNode: RootNode;
+  bookType: BookType;
   name: string;
   onSave: () => Promise<boolean>;
   onExit: () => void;
@@ -27,6 +30,7 @@ export function Editor(props: EditorProps) {
   const [view, setView] = createSignal(editor.view);
   const [saving, setSaving] = createSignal(false);
   const [draftComment, setDraftComment] = createSignal<string>();
+  const [mode, setMode] = createSignal("");
   const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
 
   function onMove(move: Move) {
@@ -145,114 +149,134 @@ export function Editor(props: EditorProps) {
 
   return (
     <div class="flex-col justify-center mx-auto">
-      <div class="flex justify-between pt-4 pb-8 px-8">
-        <div class="text-3xl truncate text-ellipsis">
-          Editing: {props.name}{" "}
-        </div>
-        <div class="flex gap-8">
-          <div class="flex">
-            <Button
-              disabled={!view().canUndo}
-              icon={<Undo />}
-              title="Undo"
-              onClick={undo}
-              style="flat"
-            />
-            <Button
-              disabled={!view().canRedo}
-              icon={<Redo />}
-              title="Redo"
-              onClick={redo}
-              style="flat"
-            />
-          </div>
-          <MenuButton
-            text={`Side: ${trainingColorText()}`}
-            icon={<Settings />}
-            style="flat"
-            items={[
-              {
-                text: "White",
-                value: "white",
-                selected: view().color == "white",
-              },
-              {
-                text: "Black",
-                value: "black",
-                selected: view().color == "black",
-              },
-              {
-                text: "Both",
-                value: "both",
-                selected: view().color === undefined,
-              },
-            ]}
-            onSelect={setTrainingColor}
+      <Switch>
+        <Match when={mode() == "set-initial-position"}>
+          <SelectInitialPosition
+            name={props.name}
+            onSelect={(fen) => {
+              console.log("select: ", fen);
+              editor.setInitialPosition(fen);
+              setView(editor.view);
+              setMode("");
+            }}
+            onExit={() => setMode("")}
           />
-          <div class="flex">
-            <Button
-              text="Save"
-              icon={<Save />}
-              onClick={onSave}
-              disabled={!view().canUndo}
-              style="flat"
-            />
-            <Button
-              text="Exit"
-              icon={<LogOut />}
-              disabled={saving()}
-              onClick={onExit}
-              style="flat"
-            />
+        </Match>
+        <Match when={true}>
+          <div class="flex justify-between pt-4 pb-8 px-8">
+            <div class="text-3xl truncate text-ellipsis">
+              Editing: {props.name}{" "}
+            </div>
+            <div class="flex gap-8">
+              <div class="flex">
+                <Button
+                  disabled={!view().canUndo}
+                  icon={<Undo />}
+                  title="Undo"
+                  onClick={undo}
+                  style="flat"
+                />
+                <Button
+                  disabled={!view().canRedo}
+                  icon={<Redo />}
+                  title="Redo"
+                  onClick={redo}
+                  style="flat"
+                />
+              </div>
+              <Show when={props.bookType == BookType.Opening}>
+                <MenuButton
+                  text={`Side: ${trainingColorText()}`}
+                  icon={<Settings />}
+                  style="flat"
+                  items={[
+                    {
+                      text: "White",
+                      value: "white",
+                      selected: view().color == "white",
+                    },
+                    {
+                      text: "Black",
+                      value: "black",
+                      selected: view().color == "black",
+                    },
+                    {
+                      text: "Both",
+                      value: "both",
+                      selected: view().color === undefined,
+                    },
+                  ]}
+                  onSelect={setTrainingColor}
+                />
+              </Show>
+              <div class="flex">
+                <Button
+                  text="Save"
+                  icon={<Save />}
+                  onClick={onSave}
+                  disabled={!view().canUndo}
+                  style="flat"
+                />
+                <Button
+                  text="Exit"
+                  icon={<LogOut />}
+                  disabled={saving()}
+                  onClick={onExit}
+                  style="flat"
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="flex gap-4">
-        <div class="w-80 h-200">
-          <CurrentNodeControls
-            isRoot={view().ply == 0}
-            view={view()}
-            editor={editor}
-            setView={setView}
-            setDraftComment={setDraftComment}
-            commitDraftComment={commitDraftComment}
-            toggleNag={toggleNag}
-            deleteLine={deleteLine}
-            setPriority={setPriority}
-            addLine={addLine}
-          />
-        </div>
-        <div class="w-200 flex-col">
-          <div class="h-200">
-            <Board
-              chess={view().position}
-              lastMove={view().lastMove}
-              onMove={onMove}
-              enableShapes={view().ply > 0 && !view().currentNode.isDraft}
-              toggleShape={toggleShape}
-              shapes={view().currentNode.shapes}
-              onMoveBackwards={moveBackwards}
-              onMoveForwards={moveForwards}
-            />
+          <div class="flex gap-4">
+            <div class="w-80 h-200">
+              <CurrentNodeControls
+                isRoot={view().ply == 0}
+                bookType={props.bookType}
+                view={view()}
+                editor={editor}
+                setView={setView}
+                setDraftComment={setDraftComment}
+                commitDraftComment={commitDraftComment}
+                toggleNag={toggleNag}
+                deleteLine={deleteLine}
+                setPriority={setPriority}
+                addLine={addLine}
+                onSetInitialPosition={() => setMode("set-initial-position")}
+              />
+            </div>
+            <div class="w-200 flex-col">
+              <div class="h-200">
+                <Board
+                  chess={view().position}
+                  lastMove={view().lastMove}
+                  onMove={onMove}
+                  enableShapes={view().ply > 0 && !view().currentNode.isDraft}
+                  toggleShape={toggleShape}
+                  shapes={view().currentNode.shapes}
+                  onMoveBackwards={moveBackwards}
+                  onMoveForwards={moveForwards}
+                />
+              </div>
+              <div class="p-2 flex justify-between">
+                <button class="cursor-pointer" onClick={moveBackwards}>
+                  <ArrowBigLeft size={40} />
+                </button>
+                <button class="cursor-pointer" onClick={moveForwards}>
+                  <ArrowBigRight size={40} />
+                </button>
+              </div>
+              <div class="p-2">
+                <Line view={view()} setMoves={setMoves} />
+              </div>
+            </div>
+            <div class="py-2 w-70">
+              {
+                // Maybe engine/db lines go here?
+              }
+            </div>
           </div>
-          <div class="p-2 flex justify-between">
-            <button class="cursor-pointer" onClick={moveBackwards}>
-              <ArrowBigLeft size={40} />
-            </button>
-            <button class="cursor-pointer" onClick={moveForwards}>
-              <ArrowBigRight size={40} />
-            </button>
-          </div>
-          <div class="p-2">
-            <Line view={view()} setMoves={setMoves} />
-          </div>
-        </div>
-        <div class="py-2 w-70">
-          {
-            // Maybe engine/db lines go here?
-          }
-        </div>
-      </div>
+        </Match>
+      </Switch>
       <Show when={confirmExitDialog()} keyed>
         <Dialog
           onSubmit={onExitSubmit}

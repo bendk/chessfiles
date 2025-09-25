@@ -37,7 +37,7 @@ export {
 };
 export type { Color, Move, PgnGame, PgnChildNode, PgnNode, Shape, ShapeColor };
 export { chessgroundDests } from "chessops/compat";
-export { makeFen, parseFen, INITIAL_FEN } from "chessops/fen";
+export { makeFen, parseFen, EMPTY_BOARD_FEN, INITIAL_FEN } from "chessops/fen";
 export type { Role } from "chessops/types";
 export { squareFile, squareRank } from "chessops/util";
 

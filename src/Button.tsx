@@ -11,6 +11,7 @@ interface ButtonProps {
   disabled?: boolean;
   selected?: boolean;
   style?: ButtonStyle;
+  textSize?: string;
   onClick?: () => void;
 }
 
@@ -20,6 +21,7 @@ export function Button(props: ButtonProps) {
       props.style ?? "normal",
       props.disabled ?? false,
       props.selected ?? false,
+      props.textSize,
     );
     if (props.class !== undefined) {
       return `${cls} ${props.class}`;

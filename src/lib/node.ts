@@ -216,7 +216,7 @@ export class Node {
 }
 
 export class RootNode extends Node {
-  readonly initialPosition: Chess;
+  initialPosition: Chess;
   initialMoves: readonly Move[];
   shapes?: readonly Shape[];
   headers: Map<string, string>;
@@ -302,6 +302,11 @@ export class RootNode extends Node {
       return;
     }
     this.headers.set("ChessfilesColor", color);
+  }
+
+  setInitialPosition(fen: string, children: ChildNode[]) {
+    this.initialPosition = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
+    this.children = children;
   }
 
   static import(game: PgnGame): RootNode {

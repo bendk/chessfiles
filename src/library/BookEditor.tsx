@@ -144,6 +144,7 @@ export function BookEditor(props: BookEditorProps) {
           <Editor
             name={props.filename}
             rootNode={rootNode}
+            bookType={props.book.type}
             onSave={onEditorSave}
             onExit={onEditorExit}
           />
