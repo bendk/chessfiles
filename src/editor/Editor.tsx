@@ -1,10 +1,13 @@
 import ArrowBigLeft from "lucide-solid/icons/arrow-left";
 import ArrowBigRight from "lucide-solid/icons/arrow-right";
+import List from "lucide-solid/icons/list";
+import ListTree from "lucide-solid/icons/list-tree";
 import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
 import Undo from "lucide-solid/icons/undo";
 import Settings from "lucide-solid/icons/settings";
+import { SegmentGroup } from "@ark-ui/solid";
 import type { Move, Nag, Shape } from "~/lib/chess";
 import type { Priority, RootNode } from "~/lib/node";
 import { BookType } from "~/lib/node";
@@ -14,7 +17,8 @@ import { Button, Dialog, MenuButton } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
 import { Board } from "./Board";
-import { Line } from "./Line";
+import { MoveList } from "./MoveList";
+import { MoveTree } from "./MoveTree";
 
 interface EditorProps {
   rootNode: RootNode;
@@ -32,6 +36,9 @@ export function Editor(props: EditorProps) {
   const [draftComment, setDraftComment] = createSignal<string>();
   const [mode, setMode] = createSignal("");
   const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
+  const [moveView, setMoveView] = createSignal(
+    props.bookType == BookType.Opening ? "tree" : "list",
+  );
 
   function onMove(move: Move) {
     editor.move(move);
@@ -265,8 +272,57 @@ export function Editor(props: EditorProps) {
                   <ArrowBigRight size={40} />
                 </button>
               </div>
+              <div class="flex justify-end gap-2">
+                <SegmentGroup.Root
+                  value={moveView()}
+                  class="flex relative bg-zinc-800 rounded-md"
+                  onValueChange={(details) =>
+                    setMoveView(details.value ?? "list")
+                  }
+                >
+                  <SegmentGroup.Indicator
+                    class="bg-sky-500 opacity-30"
+                    classList={{
+                      "rounded-l-md": moveView() == "list",
+                      "rounded-r-md": moveView() == "tree",
+                    }}
+                    style="left: var(--left); top: var(--top); width: var(--width); height: var(--height)"
+                  />
+                  <SegmentGroup.Item
+                    value="list"
+                    class="px-2 py-1 cursor-pointer"
+                  >
+                    <SegmentGroup.ItemText>
+                      <List size={20} />
+                    </SegmentGroup.ItemText>
+                    <SegmentGroup.ItemControl />
+                    <SegmentGroup.ItemHiddenInput />
+                  </SegmentGroup.Item>
+                  <SegmentGroup.Item
+                    value="tree"
+                    class="px-2 py-1 cursor-pointer"
+                  >
+                    <SegmentGroup.ItemText>
+                      <ListTree size={20} />
+                    </SegmentGroup.ItemText>
+                    <SegmentGroup.ItemControl />
+                    <SegmentGroup.ItemHiddenInput />
+                  </SegmentGroup.Item>
+                </SegmentGroup.Root>
+              </div>
               <div class="p-2">
-                <Line view={view()} setMoves={setMoves} />
+                <Switch>
+                  <Match when={moveView() == "list"}>
+                    <MoveList
+                      rootNode={props.rootNode}
+                      view={view()}
+                      setMoves={setMoves}
+                    />
+                  </Match>
+                  <Match when={moveView() == "tree"}>
+                    <MoveTree view={view()} setMoves={setMoves} />
+                  </Match>
+                </Switch>
               </div>
             </div>
             <div class="py-2 w-70">

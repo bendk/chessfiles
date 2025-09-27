@@ -64,12 +64,12 @@ function Node(props: NodeProps) {
   );
 }
 
-export interface LineProps {
+export interface MoveTreeProps {
   view: EditorView;
   setMoves: (moves: readonly Move[]) => void;
 }
 
-export function Line(props: LineProps) {
+export function MoveTree(props: MoveTreeProps) {
   return (
     <div>
       <div class="flex text-lg items-start pb-4">
