@@ -51,7 +51,7 @@ function App() {
           setNavbarShown={setNavbarShown}
         />
       </Show>
-      <div class="min-h-0 pt-4 px-10 overflow-y-auto grow">
+      <div class="flex flex-col min-h-0 pt-4 px-10 grow">
         <Switch>
           <Match when={page() == "library"}>
             <Library

@@ -206,7 +206,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <div class="grow flex flex-col">
+          <>
             <div class="text-lg pb-4">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
@@ -259,7 +259,7 @@ export function Library(props: LibraryProps) {
                 }
               }}
             </Show>
-          </div>
+          </>
           <div class="flex pt-8 gap-8">
             <Button
               text="Create Book"
