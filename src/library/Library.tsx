@@ -1,18 +1,11 @@
-import {
-  createEffect,
-  createSignal,
-  Index,
-  Show,
-  Switch,
-  Match,
-} from "solid-js";
+import { createSignal, Index, Show, Switch, Match } from "solid-js";
 import BookPlus from "lucide-solid/icons/book-plus";
 import FolderPlus from "lucide-solid/icons/folder-plus";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
 import type { StatusTracker } from "~/components";
-import { Button, Chooser, StatusError } from "~/components";
+import { Button, Chooser, StandardLayout, StatusError } from "~/components";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
 import { BooksList } from "./BooksList";
@@ -21,7 +14,7 @@ import { BookEditor } from "./BookEditor";
 export interface LibraryProps {
   storage: AppStorage;
   status: StatusTracker;
-  setNavbarShown: (shown: boolean) => void;
+  setPage: (page: string) => void;
 }
 
 export interface CurrentBook {
@@ -33,10 +26,6 @@ export function Library(props: LibraryProps) {
   const [mode, setMode] = createSignal("");
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
   const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
-
-  createEffect(() =>
-    props.setNavbarShown(currentBook() === undefined && mode() == ""),
-  );
 
   async function onCreateBook(name: string, book: Book): Promise<boolean> {
     let filename = name;
@@ -206,7 +195,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <>
+          <StandardLayout page="library" setPage={props.setPage}>
             <div class="text-lg pb-4">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
@@ -259,19 +248,19 @@ export function Library(props: LibraryProps) {
                 }
               }}
             </Show>
-          </>
-          <div class="flex pt-8 gap-8">
-            <Button
-              text="Create Book"
-              icon={<BookPlus />}
-              onClick={() => setMode("create-book")}
-            />
-            <Button
-              text="Create Folder"
-              icon={<FolderPlus />}
-              onClick={() => setMode("create-folder")}
-            />
-          </div>
+            <div class="flex pt-8 gap-8">
+              <Button
+                text="Create Book"
+                icon={<BookPlus />}
+                onClick={() => setMode("create-book")}
+              />
+              <Button
+                text="Create Folder"
+                icon={<FolderPlus />}
+                onClick={() => setMode("create-folder")}
+              />
+            </div>
+          </StandardLayout>
         </Match>
       </Switch>
     </>

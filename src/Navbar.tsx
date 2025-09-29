@@ -33,10 +33,7 @@ function NavbarLink(props: NavbarLinkProps) {
 
 export interface NavbarProps {
   page: string;
-  theme: string;
   setPage: (page: string) => void;
-  setNavbarShown: (shown: boolean) => void;
-  setTheme: (theme: string) => void;
 }
 
 export function Navbar(props: NavbarProps) {

@@ -243,7 +243,7 @@ export function TrainingSession(props: TrainingSessionProps) {
   });
 
   return (
-    <div class="flex flex-col">
+    <div class="flex flex-col pt-4 px-10">
       <div class="flex justify-between pb-8">
         <h1 class="text-3xl truncate text-ellipsis">
           Training: {props.training.meta.name}

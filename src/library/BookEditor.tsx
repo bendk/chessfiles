@@ -151,33 +151,35 @@ export function BookEditor(props: BookEditorProps) {
         )}
       </Match>
       <Match when={props.book.type == BookType.Normal}>
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-3xl">Editing book: {props.filename}</h2>
-          <Button text="Exit" onClick={props.onExit} />
-        </div>
-        <Show when={props.book.rootNodes.length > 0}>
-          <Table
-            each={rootNodes()}
-            columns={3}
-            onReorder={onReorder}
-            menu={menu}
-            onMenuSelect={onMenuAction}
-            growColumn={1}
-            onClick={(entry) => onMenuAction(entry, "open")}
-          >
-            {(item) => (
-              <>
-                <TableGripperCell item={item} />
-                <TableCell grow item={item} class="flex items-center gap-2">
-                  {item.value.displayName(item.index())}
-                </TableCell>
-                <TableMenuCell item={item} />
-              </>
-            )}
-          </Table>
-        </Show>
-        <div class="flex pt-8 gap-8">
-          <Button text="Add game" onClick={addGame} />
+        <div class="pt-4 px-10">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-3xl">Editing book: {props.filename}</h2>
+            <Button text="Exit" onClick={props.onExit} />
+          </div>
+          <Show when={props.book.rootNodes.length > 0}>
+            <Table
+              each={rootNodes()}
+              columns={3}
+              onReorder={onReorder}
+              menu={menu}
+              onMenuSelect={onMenuAction}
+              growColumn={1}
+              onClick={(entry) => onMenuAction(entry, "open")}
+            >
+              {(item) => (
+                <>
+                  <TableGripperCell item={item} />
+                  <TableCell grow item={item} class="flex items-center gap-2">
+                    {item.value.displayName(item.index())}
+                  </TableCell>
+                  <TableMenuCell item={item} />
+                </>
+              )}
+            </Table>
+          </Show>
+          <div class="flex pt-8 gap-8">
+            <Button text="Add game" onClick={addGame} />
+          </div>
         </div>
       </Match>
     </Switch>

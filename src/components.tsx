@@ -1,6 +1,7 @@
 export { Button } from "./Button";
 export { Checkbox } from "./Checkbox";
 export { Dialog } from "./Dialog";
+export { StandardLayout } from "./StandardLayout";
 export { Menu, MenuButton } from "./Menu";
 export type { MenuItem } from "./Menu";
 export { Progress } from "./Progress";

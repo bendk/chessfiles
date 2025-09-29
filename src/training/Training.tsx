@@ -1,4 +1,4 @@
-import { Match, Switch, createEffect, createSignal } from "solid-js";
+import { Match, Switch, createSignal } from "solid-js";
 import type { AppStorage } from "~/lib/storage";
 import type { Training as TrainingObj } from "~/lib/training";
 import type { StatusTracker } from "~/components";
@@ -8,17 +8,12 @@ import { TrainingSession } from "./Session";
 export interface TrainingProps {
   storage: AppStorage;
   status: StatusTracker;
-  setNavbarShown: (shown: boolean) => void;
+  setPage: (page: string) => void;
 }
 
 export function Training(props: TrainingProps) {
   const [currentTraining, setCurrentTraining] =
     createSignal<TrainingObj | null>(null);
-  const [chooserActive, setChooserActive] = createSignal(false);
-
-  createEffect(() =>
-    props.setNavbarShown(currentTraining() === null && !chooserActive()),
-  );
 
   return (
     <Switch>
@@ -29,7 +24,7 @@ export function Training(props: TrainingProps) {
           openTraining={async (meta) => {
             setCurrentTraining(await props.storage.loadTraining(meta));
           }}
-          setChooserActive={setChooserActive}
+          setPage={props.setPage}
         />
       </Match>
       <Match when={currentTraining()} keyed>

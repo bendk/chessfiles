@@ -14,7 +14,7 @@ import type { EditorView } from "~/lib/editor";
  */
 function renderNode(
   node: RootNode,
-  selectedNode: ChessNode|undefined,
+  selectedNode: ChessNode | undefined,
   setMoves: (moves: readonly Move[]) => void,
 ): Node[] {
   const output: Node[] = [];
@@ -36,10 +36,7 @@ function renderNode(
   return output;
 }
 
-function renderNodeInner(
-  context: RenderNodeContext,
-  output: Node[]
-) {
+function renderNodeInner(context: RenderNodeContext, output: Node[]) {
   // Render first move link
   if (context.node.children.length == 0) {
     return;
@@ -73,7 +70,7 @@ function renderNodeInner(
 /// Data to handle a single node of `renderNode`
 interface RenderNodeContext {
   node: ChessNode;
-  selectedNode: ChessNode|undefined,
+  selectedNode: ChessNode | undefined;
   moveLink: Node;
   position: Chess;
   ply: number;
@@ -134,11 +131,14 @@ function childContext(
   };
 }
 
-function findSelectedNode(rootNode: RootNode, view: EditorView): ChessNode|undefined {
-  let selectedNode: ChessNode|undefined = undefined;
+function findSelectedNode(
+  rootNode: RootNode,
+  view: EditorView,
+): ChessNode | undefined {
+  let selectedNode: ChessNode | undefined = undefined;
   const currentEditorNode = view.line.find((n) => n.selected);
   if (!currentEditorNode) {
-    return undefined
+    return undefined;
   }
   selectedNode = rootNode;
   for (const move of currentEditorNode.movesToNode) {

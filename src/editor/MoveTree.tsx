@@ -38,7 +38,7 @@ function Node(props: NodeProps) {
             i == props.node.currentMove && props.node.currentMoveIsDraft;
           return (
             <button
-              class={`flex items-center gap-0.5 px-1 cursor-pointer ${textColor()}`}
+              class={`flex items-center gap-0.5 px-1 text-nowrap cursor-pointer ${textColor()}`}
               classList={{
                 "dark:bg-zinc-800": isDraft(),
                 "bg-zinc-200": isDraft(),
