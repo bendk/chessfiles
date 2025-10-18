@@ -1,0 +1,10 @@
+# Cloudflare pages header config
+
+# CORS policies to make WASM work
+/
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+/assets/*.js
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

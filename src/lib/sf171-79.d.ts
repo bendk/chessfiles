@@ -1,0 +1,27 @@
+// Typescript declarations for stockfish-web
+//
+// I used @lichess-org/stockfish-web/stockfishWeb.d.ts as a starting point, but had to modify things
+// since the definitions didn't seem correct.
+
+declare module "@lichess-org/stockfish-web/sf171-79" {
+  export interface StockfishClient {
+    uci(command: string): void; // send uci command, receive async response via listen
+
+    // index arguments are used for dual net sf builds, 0 for big, 1 for small, otherwise ignore
+
+    setNnueBuffer(data: Uint8Array, index?: number): void; // load nnue as buffer
+
+    getRecommendedNnue(index?: number): string; // returns a bare filename
+
+    listen: (data: string) => void; // attach listener here
+
+    onError: (msg: string) => void; // attach error handler here
+  }
+
+  export function Stockfish(options: {
+    locateFile: (filename: string) => URL,
+    mainScriptUrlOrBlob?: string;
+  }) : Promise<StockfishClient>
+
+  export default Stockfish;
+}
