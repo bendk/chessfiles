@@ -19,9 +19,9 @@ declare module "@lichess-org/stockfish-web/sf171-79" {
   }
 
   export function Stockfish(options: {
-    locateFile: (filename: string) => URL,
+    locateFile: (filename: string) => URL;
     mainScriptUrlOrBlob?: string;
-  }) : Promise<StockfishClient>
+  }): Promise<StockfishClient>;
 
   export default Stockfish;
 }

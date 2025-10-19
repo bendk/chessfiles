@@ -7,13 +7,11 @@ import Trash from "lucide-solid/icons/trash-2";
 import type { DateValue } from "@ark-ui/solid";
 import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
-import type { BookType } from "~/lib/node";
-import { Priority } from "~/lib/node";
+import { BookType, Priority } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
 import { createSignal, Index, Match, Show, Switch } from "solid-js";
 import { Portal } from "solid-js/web";
-import { Button } from "../Button";
-import { MenuButton } from "../Menu";
+import { Button, MenuButton, RadioGroup } from "~/components";
 
 export interface CurrentNodeControlsProps {
   isRoot: boolean;
@@ -38,6 +36,15 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
     cssClass,
   });
 
+  function setTrainingColor(color: string|null) {
+    if (color == "white" || color == "black") {
+      props.editor.setTrainingColor(color);
+    } else {
+      props.editor.setTrainingColor(undefined);
+    }
+    props.setView(props.editor.view);
+  }
+
   return (
     <Show
       when={!props.view.currentNode.isDraft}
@@ -53,7 +60,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
       }
     >
       <Switch>
-        <Match when={props.isRoot}>
+        <Match when={props.isRoot && props.bookType == BookType.Normal}>
           <div class="flex flex-col gap-4">
             <h2 class="text-2xl">Game Info</h2>
             <HeaderField
@@ -119,6 +126,29 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               text="Set initial position"
               onClick={props.onSetInitialPosition}
             />
+          </div>
+        </Match>
+        <Match when={props.isRoot && props.bookType == BookType.Opening}>
+          <div class="flex flex-col gap-4">
+            <h2 class="text-2xl">Opening Book</h2>
+            <RadioGroup.Root
+              value={props.view.color}
+              onValueChange={setTrainingColor}
+            >
+              <RadioGroup.Label text="Training Color" />
+              <RadioGroup.Item
+                text="White"
+                value="white"
+              />
+              <RadioGroup.Item
+                text="Black"
+                value="black"
+              />
+              <RadioGroup.Item
+                text="Both"
+                value=""
+              />
+            </RadioGroup.Root>
           </div>
         </Match>
         <Match when={!props.isRoot}>
@@ -490,23 +520,3 @@ function DateField(props: DateFieldProps) {
     </DatePicker.Root>
   );
 }
-
-//   <Field.Root
-//     class="flex flex-col gap-1"
-//     invalid={error() != ""}
-//   >
-//     <Field.Label>Date</Field.Label>
-//     <Field.Input
-//       value={props.view.headers.get("Date")}
-//       onChange={(evt) => setValue(evt.target.value)}
-//       onKeyUp={(evt) => {
-//         if (evt.key == "Enter") {
-//           evt.currentTarget.blur();
-//         }
-//       }}
-//       class="border-1 border-zinc-700 rounded-md px-2 py-1 outline-0"
-//     />
-//     <Field.ErrorText class="text-rose-500">{error()}</Field.ErrorText>
-//   </Field.Root>
-// );
-///}

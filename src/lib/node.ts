@@ -64,19 +64,19 @@ export class Book {
 
   id(): string {
     this.ensureBookIdSet();
-    return this.rootNodes[0].bookId!;
+    return this.rootNodes[0].bookId()!;
   }
 
   private ensureBookIdSet() {
     if (this.rootNodes.length == 0) {
       throw Error("No nodes in book");
     }
-    if (this.rootNodes[0].bookId !== undefined) {
+    if (this.rootNodes[0].bookId() !== undefined) {
       return;
     }
     const id = uuidv4();
     for (const rootNode of this.rootNodes) {
-      rootNode.bookId = id;
+      rootNode.setBookId(id);
     }
   }
 }
@@ -249,11 +249,11 @@ export class RootNode extends Node {
     return pgnToString(this.export());
   }
 
-  get bookId(): string | undefined {
+  bookId(): string | undefined {
     return this.headers.get("ChessfilesId");
   }
 
-  set bookId(id: string) {
+  setBookId(id: string) {
     this.headers.set("ChessfilesId", id);
   }
 
@@ -288,7 +288,7 @@ export class RootNode extends Node {
     }
   }
 
-  get color(): Color | undefined {
+  color(): Color | undefined {
     const value = this.headers.get("ChessfilesColor");
     if (value != "white" && value != "black") {
       return undefined;
@@ -296,7 +296,7 @@ export class RootNode extends Node {
     return value;
   }
 
-  set color(color: Color | undefined) {
+  setColor(color: Color | undefined) {
     if (color === undefined) {
       this.headers.delete("ChessfilesColor");
       return;

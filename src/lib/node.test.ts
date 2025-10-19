@@ -42,7 +42,7 @@ export function buildNode(nodeSpec: object): RootNode {
   if (initialMoves.length > 0) {
     node.initialMoves = initialMoves;
   }
-  node.color = color;
+  node.setColor(color);
   return node;
 }
 
@@ -175,6 +175,9 @@ describe("Node import/export", function () {
       "FEN",
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     );
-    expect(RootNode.import(node.export())).toEqual(node);
+    const importedNode = RootNode.import(node.export());
+    // workaround the fact that `id` changes each import by design
+    importedNode.id = node.id;
+    expect(importedNode).toEqual(node);
   });
 });

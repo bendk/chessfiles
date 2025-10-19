@@ -41,11 +41,11 @@ export function CreateBook(props: CreateBookProps) {
         const node = RootNode.fromInitialPosition();
         switch (color()) {
           case "white":
-            node.color = "white";
+            node.setColor("white");
             break;
 
           case "black":
-            node.color = "black";
+            node.setColor("black");
             break;
 
           default:
@@ -67,7 +67,7 @@ export function CreateBook(props: CreateBookProps) {
     setName("");
   }
   return (
-    <div>
+    <div class="px-4 py-4">
       <div class="flex justify-between">
         <h1 class="text-3xl truncate text-ellipsis">{props.title}</h1>
         <Button text="Cancel" onClick={props.onClose} />

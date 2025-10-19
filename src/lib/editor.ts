@@ -111,7 +111,7 @@ export class Editor {
       line: [...this.cursor.line],
       ply: this.cursor.ply,
       currentNode,
-      color: this.rootNode.color,
+      color: this.rootNode.color(),
       rootComment: this.rootNode.comment,
       position: this.cursor.position(),
       lastMove: node instanceof ChildNode ? node.move : undefined,
@@ -294,8 +294,8 @@ export class Editor {
 
   setTrainingColor(color: Color | undefined) {
     if (
-      (this.rootNode.color === undefined && color === undefined) ||
-      this.rootNode.color == color
+      (this.rootNode.color() === undefined && color === undefined) ||
+      this.rootNode.color() == color
     ) {
       return;
     }
@@ -710,8 +710,8 @@ class SetTrainingColor extends EditorOp {
   }
 
   execute(cursor: Cursor): EditorOp {
-    const oldColor = cursor.rootNode.color;
-    cursor.rootNode.color = this.color;
+    const oldColor = cursor.rootNode.color();
+    cursor.rootNode.setColor(this.color);
     return new SetTrainingColor(oldColor);
   }
 }

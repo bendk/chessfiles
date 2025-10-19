@@ -145,7 +145,7 @@ export function Editor(props: EditorProps) {
           />
         </Match>
         <Match when={true}>
-          <div class="grid gap-4 grid-cols-[320px_1fr_320px] grid-rows-[52px_856px_1fr] px-4 py-2 h-screen">
+          <div class="grid gap-4 grid-cols-[320px_1fr_320px] grid-rows-[52px_auto_1fr] px-4 py-2 h-screen">
             <div class="col-span-full">
               <Header
                 name={props.name}
@@ -174,15 +174,13 @@ export function Editor(props: EditorProps) {
                 onSetInitialPosition={() => setMode("set-initial-position")}
               />
             </div>
-            <div>
-              <BoardView
-                view={view()}
-                onMove={onMove}
-                toggleShape={toggleShape}
-                moveBackwards={moveBackwards}
-                moveForwards={moveForwards}
-              />
-            </div>
+            <BoardView
+              view={view()}
+              onMove={onMove}
+              toggleShape={toggleShape}
+              moveBackwards={moveBackwards}
+              moveForwards={moveForwards}
+            />
             <div>
               <RightSidebar />
             </div>
@@ -274,19 +272,17 @@ interface BoardViewProps {
 
 function BoardView(props: BoardViewProps) {
   return (
-    <div class="flex flex-col w-200 mx-auto">
-      <div class="w-200 h-200">
-        <Board
-          chess={props.view.position}
-          lastMove={props.view.lastMove}
-          onMove={props.onMove}
-          enableShapes={props.view.ply > 0 && !props.view.currentNode.isDraft}
-          toggleShape={props.toggleShape}
-          shapes={props.view.currentNode.shapes}
-          onMoveBackwards={props.moveBackwards}
-          onMoveForwards={props.moveForwards}
-        />
-      </div>
+    <div class="flex flex-col">
+      <Board
+        chess={props.view.position}
+        lastMove={props.view.lastMove}
+        onMove={props.onMove}
+        enableShapes={props.view.ply > 0 && !props.view.currentNode.isDraft}
+        toggleShape={props.toggleShape}
+        shapes={props.view.currentNode.shapes}
+        onMoveBackwards={props.moveBackwards}
+        onMoveForwards={props.moveForwards}
+      />
       <div class="p-2 flex justify-between">
         <button class="cursor-pointer" onClick={props.moveBackwards}>
           <ArrowBigLeft size={40} />

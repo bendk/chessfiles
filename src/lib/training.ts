@@ -249,8 +249,8 @@ export class Training {
   private isUsersMove(): boolean {
     assertIsDefined(this.currentRootNode);
     return (
-      this.currentRootNode.color === undefined ||
-      this.currentRootNode.color == this.board.position.turn
+      this.currentRootNode.color() === undefined ||
+      this.currentRootNode.color() == this.board.position.turn
     );
   }
 
@@ -384,8 +384,8 @@ function initialState(rootNode: RootNode | undefined): TrainingState {
     return { type: "show-training-summary" };
   }
   if (
-    rootNode.color === undefined ||
-    rootNode.color == rootNode.initialPosition.turn
+    rootNode.color() === undefined ||
+    rootNode.color() == rootNode.initialPosition.turn
   ) {
     return { type: "choose-move", wrongMoves: [] };
   } else {

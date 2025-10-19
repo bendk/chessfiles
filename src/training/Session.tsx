@@ -251,15 +251,13 @@ export function TrainingSession(props: TrainingSessionProps) {
         <Button text="Exit" onClick={onExit} />
       </div>
       <div class="flex justify-center">
-        <div class="flex gap-8">
-          <div class="w-180 h-180">
-            <Board
-              chess={board().position}
-              lastMove={board().lastMove}
-              onMove={onMove}
-              enableShapes={false}
-            />
-          </div>
+        <div class="flex w-full max-w-200 gap-8">
+          <Board
+            chess={board().position}
+            lastMove={board().lastMove}
+            onMove={onMove}
+            enableShapes={false}
+          />
           <div class="flex flex-col w-80 justify-between">
             <div>{statePane()}</div>
             <div>

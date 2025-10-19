@@ -223,7 +223,7 @@ export function Board(props: BoardProps) {
   }
 
   return (
-    <div class="w-full h-full relative">
+    <div class="w-full aspect-square relative">
       <div
         class="w-full h-full"
         classList={{

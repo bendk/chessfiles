@@ -739,7 +739,7 @@ describe("Training", () => {
   test("playing both sides", () => {
     const rootNode = openingRootNode();
     // If color is `undefined` then the user needs to choose moves for both sides
-    rootNode.color = undefined;
+    rootNode.setColor(undefined);
     const training = createTraining([rootNode]);
 
     const position = rootNode.initialPosition.clone();
