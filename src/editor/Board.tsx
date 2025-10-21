@@ -11,7 +11,7 @@ import type { DrawShape } from "chessground/draw";
 import type { Api as ChessgroundApi } from "chessground/api";
 import type { Key } from "chessground/types";
 import { Chessground } from "chessground";
-import { createSignal, createEffect, Show } from "solid-js";
+import { createSignal, createEffect, onCleanup, onMount, Show } from "solid-js";
 
 import "./chessground.base.css";
 import "./chessground.brown.css";
@@ -78,7 +78,8 @@ interface PendingPromotionState {
 }
 
 export function Board(props: BoardProps) {
-  let ref!: HTMLDivElement;
+  let outerDiv!: HTMLDivElement;
+  let innerDiv!: HTMLDivElement;
   let board: ChessgroundApi | undefined;
   const [shapeFromSquare, setShapeFromSquare] = createSignal<Key | undefined>(
     undefined,
@@ -102,7 +103,7 @@ export function Board(props: BoardProps) {
   // react to changes to `props.chess`.
   function syncPosition() {
     if (!board) {
-      board = Chessground(ref, {
+      board = Chessground(innerDiv, {
         coordinates: false,
         movable: {
           free: false,
@@ -222,9 +223,24 @@ export function Board(props: BoardProps) {
     setPendingPromotionState(undefined);
   }
 
+  function resizeInnerDiv() {
+    const boardSize = Math.min(outerDiv.clientWidth, outerDiv.clientHeight);
+    innerDiv.style.width = `${boardSize}px`;
+    innerDiv.style.height = `${boardSize}px`;
+  }
+  createEffect(resizeInnerDiv);
+  onMount(() => {
+    window.addEventListener('resize', resizeInnerDiv);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener('resize', resizeInnerDiv);
+  })
+
   return (
-    <div class="w-full aspect-square relative">
+    <div ref={outerDiv} class="h-full w-full aspect-square relative flex justify-center items-center">
       <div
+        ref={innerDiv}
         class="w-full h-full"
         classList={{
           "opacity-50": pendingPromotionState() !== undefined,
@@ -278,7 +294,6 @@ export function Board(props: BoardProps) {
             props.onMoveBackwards();
           }
         }}
-        ref={ref}
       />
       <Show when={pendingPromotionState()}>
         {(state) => (

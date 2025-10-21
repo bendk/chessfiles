@@ -36,7 +36,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
     cssClass,
   });
 
-  function setTrainingColor(color: string|null) {
+  function setTrainingColor(color: string | null) {
     if (color == "white" || color == "black") {
       props.editor.setTrainingColor(color);
     } else {
@@ -136,18 +136,9 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               onValueChange={setTrainingColor}
             >
               <RadioGroup.Label text="Training Color" />
-              <RadioGroup.Item
-                text="White"
-                value="white"
-              />
-              <RadioGroup.Item
-                text="Black"
-                value="black"
-              />
-              <RadioGroup.Item
-                text="Both"
-                value=""
-              />
+              <RadioGroup.Item text="White" value="white" />
+              <RadioGroup.Item text="Black" value="black" />
+              <RadioGroup.Item text="Both" value="" />
             </RadioGroup.Root>
           </div>
         </Match>

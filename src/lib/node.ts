@@ -27,6 +27,7 @@ export enum Priority {
 export enum BookType {
   Normal = 0,
   Opening = 1,
+  Training = 2,
 }
 
 export class Book {
@@ -48,7 +49,6 @@ export class Book {
   }
 
   export(): string {
-    this.ensureBookIdSet();
     const games = this.rootNodes.map((node) => node.export());
     if (this.type == BookType.Opening && games.length == 1) {
       // Opening book, set ChessfilesType to be "Opening"
@@ -62,22 +62,18 @@ export class Book {
     return games.map(pgnToString).join("\n\n");
   }
 
-  id(): string {
-    this.ensureBookIdSet();
-    return this.rootNodes[0].bookId()!;
+  /**
+   * Get the serialized current line, for a training file book
+   */
+  getTrainingCurrentLineData(): string|undefined {
+    return this.rootNodes.at(0)?.headers.get("TrainingCurrentLine")
   }
 
-  private ensureBookIdSet() {
+  setTrainingCurrentLineData(data: string) {
     if (this.rootNodes.length == 0) {
-      throw Error("No nodes in book");
+      throw Error("setTrainingCurrentLineData: book contains 0 rootNodes");
     }
-    if (this.rootNodes[0].bookId() !== undefined) {
-      return;
-    }
-    const id = uuidv4();
-    for (const rootNode of this.rootNodes) {
-      rootNode.setBookId(id);
-    }
+    return this.rootNodes[0].headers.set("TrainingCurrentLine", data);
   }
 }
 
@@ -249,14 +245,6 @@ export class RootNode extends Node {
     return pgnToString(this.export());
   }
 
-  bookId(): string | undefined {
-    return this.headers.get("ChessfilesId");
-  }
-
-  setBookId(id: string) {
-    this.headers.set("ChessfilesId", id);
-  }
-
   displayName(index: number): string {
     const white = this.headers.get("White") ?? "?";
     const black = this.headers.get("Black") ?? "?";
@@ -336,7 +324,6 @@ export class RootNode extends Node {
       new Map(this.headers),
       this.comment,
     );
-    clone.id = this.id;
     clone.initialMoves = this.initialMoves;
     clone.shapes = this.shapes;
     return clone;

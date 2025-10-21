@@ -107,6 +107,7 @@ function createTraining(
     settings,
     "/test book.pgn",
     new Book(BookType.Normal, rootNodes),
+    "/ChessfilesTraining/test.pgn",
   );
 }
 
@@ -446,8 +447,9 @@ describe("Training", () => {
 
     // Restart the session, the session should move back to the start of the line and play the
     // moves forward
-    const data = training.export();
-    training = Training.import(data, testSettings);
+    const meta = training.meta;
+    const pgnData = training.exportPgn();
+    training = Training.import(meta, pgnData, testSettings);
     position = Chess.default();
     checkTraining(training, {
       state: { type: "advance-after-delay" },

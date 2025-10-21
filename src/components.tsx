@@ -2,6 +2,7 @@ export { Button } from "./Button";
 export { Checkbox } from "./Checkbox";
 export { Dialog } from "./Dialog";
 export { StandardLayout } from "./StandardLayout";
+export { Home } from "./Home";
 export { Menu, MenuButton } from "./Menu";
 export type { MenuItem } from "./Menu";
 export { Progress } from "./Progress";
@@ -11,6 +12,7 @@ export { Slider } from "./Slider";
 export { Status, StatusError, StatusTracker } from "./Status";
 export { Table, TableCell, TableGripperCell, TableMenuCell } from "./Table";
 export { Chooser } from "./library/Chooser";
+export type { Page } from "./Page";
 
 import LoaderIcon from "lucide-solid/icons/loader-2";
 

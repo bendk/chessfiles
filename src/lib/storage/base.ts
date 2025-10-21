@@ -14,9 +14,11 @@ export class TrainingExistsError extends Error {}
 // TODO: use this more
 export class FileNotFoundError extends Error {}
 
+export type DirEntryType = "engine" | "dir" | "file";
+
 export interface DirEntry {
   filename: string;
-  type: "dir" | "file";
+  type: DirEntryType;
 }
 
 export function joinPath(dir: string, filename: string): string {
@@ -33,7 +35,7 @@ export function joinPath(dir: string, filename: string): string {
 export function splitPath(path: string): [string, string] {
   const lastSlash = path.lastIndexOf("/");
   if (lastSlash == -1 || path == "/") {
-    throw new Error("getParent(): Invalid path: ${path}");
+    throw new Error(`getParent(): Invalid path: ${path}`);
   }
   return [
     normalizePath(path.slice(0, lastSlash + 1)),

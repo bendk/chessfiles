@@ -4,7 +4,8 @@ import { AppStorage } from "./lib/storage";
 import { Library } from "./library";
 import { Settings } from "./settings/Settings";
 import { Training } from "./training/Training";
-import { Status, StatusTracker } from "./components";
+import type { Page } from "./components";
+import { Home, Status, StatusTracker } from "./components";
 
 function themeFromLocalStorage(): string {
   const storedValue = localStorage.getItem("theme");
@@ -27,11 +28,11 @@ function App() {
   const storage = new AppStorage();
   const status = new StatusTracker();
 
-  const [page, setPage] = createSignal("library");
+  const [page, setPage] = createSignal<Page>({ name: "home" });
   const [theme, setTheme] = createSignal(themeFromLocalStorage());
 
   if (window.location.hash.startsWith("#settings")) {
-    setPage("settings");
+    setPage({ name: "settings" });
   }
 
   createEffect(() => {
@@ -42,13 +43,26 @@ function App() {
   return (
     <div class="text-md flex flex-col bg-gray-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 min-h-screen outline-hidden">
       <Switch>
-        <Match when={page() == "library"}>
-          <Library storage={storage} status={status} setPage={setPage} />
+        <Match when={page().name == "home"}>
+          <Home storage={storage} status={status} setPage={setPage} />
         </Match>
-        <Match when={page() == "training"}>
-          <Training storage={storage} status={status} setPage={setPage} />
+        <Match when={page().name == "files"}>
+          <Library
+            storage={storage}
+            status={status}
+            setPage={setPage}
+            initialPath={page().initialPath}
+          />
         </Match>
-        <Match when={page() == "settings"}>
+        <Match when={page().name == "training"}>
+          <Training
+            storage={storage}
+            status={status}
+            setPage={setPage}
+            initialTraining={page().initialTraining}
+          />
+        </Match>
+        <Match when={page().name == "settings"}>
           <Settings
             storage={storage}
             status={status}

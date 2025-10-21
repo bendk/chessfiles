@@ -1,48 +1,37 @@
-import type { ChessfilesStorage, DirEntry, PathComponent } from "~/lib/storage";
-import { createStorage, joinPath, pathComponents } from "~/lib/storage";
+import type { ChessfilesStorage, DirEntry, PathComponent } from ".";
+import { filename, joinPath, pathComponents } from ".";
+import { AppMetaManager } from "./meta";
 import { Book } from "~/lib/node";
-import type { TrainingActivity } from "~/lib/activity";
+import { newLibraryActivity } from "~/lib/activity";
+import type { Activity, TrainingActivity } from "~/lib/activity";
 import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
-import { Training, defaultTrainingSettings } from "~/lib/training";
-import * as settings from "~/lib/settings";
+import { Training } from "~/lib/training";
+import * as dropbox from "~/lib/auth/dropbox";
 import {
   FileExistsError,
   FileNotFoundError,
-  TrainingExistsError,
+  normalizePath,
 } from "./base";
+import { ChessfilesStorageLocal } from "./local";
+import { ChessfilesStorageDropbox } from "./dropbox";
 
-import { createEffect, createMemo, createSignal } from "solid-js";
-
-/**
- * Storage metadata
- *
- * This mostly acts as an index for files.
- * It also stores the training settings.
- */
-export interface StorageMeta {
-  trainingMeta: TrainingMeta[];
-  trainingActivity: TrainingActivity[];
-  trainingSettings: TrainingSettings;
-}
+import { createMemo, createSignal } from "solid-js";
 
 export interface TrainingListing {
   metas: TrainingMeta[];
   activity: TrainingActivity[];
 }
 
-function defaultStorageMeta(): StorageMeta {
-  return {
-    trainingActivity: [],
-    trainingMeta: [],
-    trainingSettings: defaultTrainingSettings(),
-  };
+interface StorageEngines {
+  local: ChessfilesStorageLocal;
+  dropbox: ChessfilesStorageDropbox;
 }
 
 /**
- * App storage, this presents a high-level interface to a `ChessfilesStorage` instance:
+ * High-level storage API
  *
- * - Directory listings are cached
+ * - Individual storage engines (local, dropbox) are children of the root directory.
  * - Operates on books/training instances rather than file contents
  * - Is owned by the `App` component and persists across page changes.
  */
@@ -50,55 +39,46 @@ export class AppStorage {
   dir: () => string;
   dirComponents: () => PathComponent[];
   status: StatusTracker;
-  files: () => DirEntry[] | undefined;
+  files: () => DirEntry[];
   loading: () => boolean;
   private setFiles: (files: DirEntry[] | undefined) => void;
   private setDirPath: (dir: string) => void;
   private setLoading: (loading: boolean) => void;
-  storage: () => ChessfilesStorage;
-  checkedTrainingDirExists = false;
-  cachedMeta?: StorageMeta;
+  private storage: StorageEngines;
+  private metaManager: Promise<AppMetaManager>;
 
-  constructor(storage?: () => ChessfilesStorage) {
-    this.storage =
-      storage ??
-      createMemo<ChessfilesStorage>(() => createStorage(settings.storage()));
+  constructor(storage?: StorageEngines, initialDir: string = "/") {
+    this.storage = storage ?? {
+      local: new ChessfilesStorageLocal(),
+      dropbox: new ChessfilesStorageDropbox(),
+    };
+    this.metaManager = AppMetaManager.load(this.allStorageEngines());
     this.status = new StatusTracker();
-    [this.dir, this.setDirPath] = createSignal("/");
+    [this.dir, this.setDirPath] = createSignal(initialDir);
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
-    [this.files, this.setFiles] = createSignal(undefined);
+    [this.files, this.setFiles] = createSignal([]);
     [this.loading, this.setLoading] = createSignal(false);
-
-    createEffect(() => {
-      this.doRefetchFiles(this.dir(), this.storage());
-    });
-
-    createEffect(() => {
-      // Call `storage()` so that this runs when `this.storage` changes.
-      this.storage();
-      // ...and reset these properties
-      this.cachedMeta = undefined;
-      this.checkedTrainingDirExists = false;
-      this.setDir("/");
-    });
-  }
-
-  clone(): AppStorage {
-    return new AppStorage(this.storage);
-  }
-
-  refreshAfterImport() {
-    this.cachedMeta = undefined;
-    this.checkedTrainingDirExists = false;
     this.refetchFiles();
   }
 
-  refetchFiles() {
-    this.doRefetchFiles(this.dir(), this.storage());
+  clone(): AppStorage {
+    return new AppStorage(this.storage, this.dir());
   }
 
-  private async doRefetchFiles(dir: string, storage: ChessfilesStorage) {
+  async refetchFiles() {
+    if (this.dir() == "/") {
+      this.setFiles(
+        this.allStorageEngines().map(([name]) => ({
+          filename: name,
+          type: "engine",
+        })),
+      );
+      return;
+    }
+
     this.setLoading(true);
+    const [storage, dir] = this.resolvePath(this.dir());
+
     try {
       const files = (await storage.listDir(dir)).filter(
         (entry) => !this.isSpecialFile(dir, entry),
@@ -114,26 +94,55 @@ export class AppStorage {
     }
   }
 
+  private resolvePath(path: string): [ChessfilesStorage, string] {
+    path = joinPath(this.dir(), path);
+    const [name, engine] = this.engineForPath(path);
+    return [engine, normalizePath(path.substring(name.length + 1))];
+  }
+
+  private allStorageEngines(): [string, ChessfilesStorage][] {
+    const storages: [string, ChessfilesStorage][] = [
+      ["Local Storage", this.storage.local],
+    ];
+    if (dropbox.isAuthorized()) {
+      storages.push(["Dropbox", this.storage.dropbox]);
+    }
+    return storages;
+  }
+
+  private engineForPath(path: string): [string, ChessfilesStorage] {
+    path = joinPath(this.dir(), path);
+    for (const [name, engine] of this.allStorageEngines()) {
+      if (path.startsWith(`/${name}`)) {
+        return [name, engine]
+      }
+    }
+    throw new FileNotFoundError(path);
+  }
+
+  toplevelStorageEngines(): string[] {
+    return this.allStorageEngines().map(([name]) => name);
+  }
+
   setDir(path: string) {
     if (!path.startsWith("/")) {
       path = joinPath(this.dir(), path);
     }
     this.setDirPath(path);
+    this.refetchFiles();
   }
 
   async readFile(path: string): Promise<string> {
-    path = joinPath(this.dir(), path);
-    const storage = this.storage();
-    return await storage.readFile(path);
+    const [storage, storagePath] = this.resolvePath(path);
+    return await storage.readFile(storagePath);
   }
 
   async writeFile(path: string, content: string) {
-    path = joinPath(this.dir(), path);
-    const storage = this.storage();
-    if (await this.exists(path)) {
-      await storage.writeFile(path, content);
+    const [storage, storagePath] = this.resolvePath(path);
+    if (await storage.exists(storagePath)) {
+      await storage.writeFile(storagePath, content);
     } else {
-      await storage.createFile(path, content);
+      await storage.createFile(storagePath, content);
     }
   }
 
@@ -142,21 +151,41 @@ export class AppStorage {
   }
 
   async writeBook(path: string, book: Book): Promise<void> {
+    const metaManager = (await this.metaManager);
+    path = joinPath(this.dir(), path);
     await this.writeFile(path, book.export());
+    await metaManager.addActivity(newLibraryActivity(filename(path)), path);
   }
 
   async exists(path: string): Promise<boolean> {
-    return await this.storage().exists(joinPath(this.dir(), path));
+    try {
+      const [storage, storagePath] = this.resolvePath(path);
+      return await storage.exists(storagePath);
+    } catch (e) {
+      if (e instanceof FileNotFoundError) {
+        return false;
+      }
+      throw e;
+    }
   }
 
   async createDir(path: string) {
-    path = joinPath(this.dir(), path);
-    await this.storage().createDir(path);
+    const [storage, storagePath] = this.resolvePath(path);
+    await storage.createDir(storagePath);
   }
 
-  async remove(path: string) {
-    path = joinPath(this.dir(), path);
-    await this.storage().remove(path);
+  async delete(paths: string[]) {
+    paths = paths.map((p) => this.absPath(p));
+    for (const path of paths) {
+      this.deleteFile(path)
+    }
+    const metaManager = (await this.metaManager);
+    await metaManager.onFilesDeleted(paths);
+  }
+
+  private async deleteFile(path: string) {
+      const [storage, storagePath] = this.resolvePath(path);
+      await storage.remove(storagePath);
   }
 
   absPath(path: string): string {
@@ -166,23 +195,66 @@ export class AppStorage {
   async move(
     sourceFilename: string,
     destPath: string,
-    refetch: boolean = true,
   ) {
-    const sourcePath = joinPath(this.dir(), sourceFilename);
-    if (await this.storage().exists(destPath)) {
-      throw FileExistsError;
+    const sourcePath = normalizePath(joinPath(this.dir(), sourceFilename));
+    const overwriteCallback = (path: string) => {
+      throw new FileExistsError(path);
+    };
+    await this.bulkMove([[sourcePath, destPath]], () => {}, overwriteCallback);
+  }
+
+  async bulkMove(
+    paths: [string, string][],
+    progressCallback: (current: number, total: number) => void,
+    overwriteCallback: (path: string) => Promise<boolean>,
+  ) {
+    const totalItems = paths.length + 1; // 1 for each path, plus one for the `onFilesMoved` call
+
+    // Perform each individual move
+    const movedPaths: [string, string][] = [];
+    for (let i = 0; i < paths.length; i++) {
+      progressCallback(i, totalItems);
+      const [sourcePath, destPath] = paths[i];
+      const [sourceEngine, sourceEnginePath] = this.resolvePath(sourcePath)
+      const [destEngine, destEnginePath] = this.resolvePath(destPath)
+      const exists = await destEngine.exists(destEnginePath);
+
+      if (exists) {
+        if (!await overwriteCallback(destPath)) {
+          continue;
+        }
+      }
+      if (sourceEngine === destEngine) {
+        await sourceEngine.move(sourceEnginePath, destEnginePath);
+      } else {
+        const content = await sourceEngine.readFile(sourceEnginePath);
+        if (exists) {
+          await destEngine.writeFile(destEnginePath, content);
+        } else {
+          await destEngine.createFile(destEnginePath, content);
+        }
+        await sourceEngine.remove(sourceEnginePath);
+      }
+      movedPaths.push([sourcePath, destPath]);
     }
-    await this.storage().move(sourcePath, destPath);
-    if (refetch) {
-      this.refetchFiles();
-    }
+
+    // Call `onFilesMoved` to update the training metadata
+    progressCallback(paths.length, totalItems);
+    const metaManager = (await this.metaManager);
+    await metaManager.onFilesMoved(movedPaths);
+
+    // Final progressCallback for 100% completion.
+    progressCallback(totalItems, totalItems);
+    this.refetchFiles();
   }
 
   private isSpecialFile(dir: string, entry: DirEntry): boolean {
     if (
       dir == "/" &&
       (entry.filename == "ChessfilesData.json" ||
-        entry.filename == "ChessfilesTraining")
+        entry.filename == "ChessfilesTraining" ||
+        entry.filename == "ChessfilesTrainingSettings"
+      )
     ) {
       return true;
     }
@@ -190,210 +262,109 @@ export class AppStorage {
     return false;
   }
 
+  async listActivity(): Promise<Activity[]> {
+    const metaManager = await this.metaManager;
+    return metaManager.listActivity();
+  }
+
+  // Training settings are always stored in local storage
   async readTrainingSettings(): Promise<TrainingSettings> {
     const defaultSettings = {
       shuffle: true,
       skipAfter: 2,
       moveDelay: 0.5,
     };
+    let storedSettings = {}
+    try {
+      if (await this.storage.local.exists("/ChessfilesTrainingSettings")) {
+        const storedJson = await this.storage.local.readFile("/ChessfilesTrainingSettings")
+        storedSettings = JSON.parse(storedJson);
+      }
+    } catch (e) {
+      console.warn(`Error loading stored settings: ${e}`)
+    }
+
     return {
       ...defaultSettings,
-      ...(await this.getMeta()).trainingSettings,
+      ...storedSettings,
     };
   }
 
   async saveTrainingSettings(
     trainingSettings: TrainingSettings,
   ): Promise<void> {
-    await this.updateMeta((meta) => ({
-      ...meta,
-      trainingSettings,
-    }));
+    const data = JSON.stringify(trainingSettings);
+    if (await this.storage.local.exists("/ChessfilesTrainingSettings")) {
+      await this.storage.local.writeFile("/ChessfilesTrainingSettings", data);
+    } else {
+      await this.storage.local.createFile("/ChessfilesTrainingSettings", data);
+    }
   }
 
   async listTraining(): Promise<TrainingListing> {
-    try {
-      const meta = await this.getMeta();
-      await this.ensureTrainingUpToDate(meta);
-      return {
-        metas: meta.trainingMeta,
-        activity: meta.trainingActivity.slice(0, 20),
-      };
-    } catch (e) {
-      console.log(e);
-      throw e;
-    }
-  }
-
-  private async ensureTrainingUpToDate(meta: StorageMeta) {
-    if (!(await this.storage().exists("/ChessfilesTraining"))) {
-      return;
-    }
-    const storageEntries = await this.storage().listDir("/ChessfilesTraining");
-    if (await this.isTrainingUpToDate(meta, storageEntries)) {
-      return;
-    }
-
-    const trainingMeta = [];
-    for (const e of storageEntries) {
-      const data = await this.readFile(
-        joinPath("/ChessfilesTraining", e.filename),
-      );
-      trainingMeta.push(Training.parseMeta(data));
-    }
-    meta.trainingMeta = trainingMeta;
-    this.setMeta(meta);
-  }
-
-  private async isTrainingUpToDate(
-    meta: StorageMeta,
-    storageEntries: DirEntry[],
-  ): Promise<boolean> {
-    const metaItems = new Set(meta.trainingMeta.map((m) => m.bookId));
-    for (const e of storageEntries) {
-      const bookId = e.filename.replace(/.json$/, "");
-      if (!metaItems.delete(bookId)) {
-        return false;
-      }
-    }
-    return metaItems.size == 0;
+    const metaManager = (await this.metaManager);
+    const trainingMetas = metaManager.listTraining();
+    const activity = metaManager.listActivity();
+    return {
+      metas: trainingMetas,
+      activity: activity
+        .filter((a) => a.type == "training")
+        .slice(0, 20),
+    };
   }
 
   async createTraining(bookPath: string): Promise<Training> {
     const book = await this.readBook(bookPath);
     const settings = await this.readTrainingSettings();
+    const [storageName] = this.engineForPath(bookPath);
+    const trainingDir = `/${storageName}/ChessfilesTraining/`
+    const training = Training.create(settings, bookPath, book, trainingDir);
 
-    const training = Training.create(settings, bookPath, book);
-    const meta = await this.getMeta();
-    for (const trainingMeta of meta.trainingMeta) {
-      if (trainingMeta.bookId == book.id()) {
-        throw new TrainingExistsError();
-      }
-    }
-
-    await this.updateMeta((meta) => ({
-      ...meta,
-      trainingMeta: [...meta.trainingMeta, training.meta],
-    }));
+    const metaManager = (await this.metaManager);
+    metaManager.saveTrainingMeta(training.meta);
     await this.saveTraining(training);
     return training;
   }
 
-  async lookupTrainingMeta(bookId: string): Promise<TrainingMeta | null> {
-    const meta = await this.getMeta();
-    for (const trainingMeta of meta.trainingMeta) {
-      if (trainingMeta.bookId == bookId) {
-        return trainingMeta;
-      }
-    }
-    return null;
-  }
-
   async loadTraining(meta: TrainingMeta): Promise<Training> {
     const settings = await this.readTrainingSettings();
-    const pgnData = await this.readFile(await this.trainingPath(meta));
-    return Training.import(pgnData, settings);
+    const pgnData = await this.readFile(meta.trainingBookPath);
+
+    return Training.import(meta, pgnData, settings);
   }
 
   async updateTraining(training: Training): Promise<void> {
+    const metaManager = (await this.metaManager);
     await this.saveTraining(training);
-    await this.updateMeta((meta) => ({
-      ...meta,
-      trainingMeta: [
-        ...meta.trainingMeta.filter(
-          (meta) => meta.bookId != training.meta.bookId,
-        ),
-        training.meta,
-      ],
-    }));
+    await metaManager.saveTrainingMeta(training.meta);
   }
 
   async removeTraining(meta: TrainingMeta): Promise<void> {
-    await this.remove(await this.trainingPath(meta));
-    await this.updateMeta((storageMeta) => ({
-      ...storageMeta,
-      trainingMeta: storageMeta.trainingMeta.filter(
-        (m) => m.bookId != meta.bookId,
-      ),
-    }));
+    const metaManager = (await this.metaManager);
+    await this.deleteFile(meta.trainingBookPath);
+    await metaManager.removeTrainingMeta(meta);
   }
 
   async restartTraining(meta: TrainingMeta): Promise<Training> {
     const training = await this.loadTraining(meta);
-    if (!(await this.exists(meta.bookPath))) {
+    if (!(await this.exists(meta.sourceBookPath))) {
       throw new FileNotFoundError();
     }
-    const book = await this.readBook(meta.bookPath);
+    const book = await this.readBook(meta.sourceBookPath);
     const updated = training.restart(book);
     await this.updateTraining(updated);
     return updated;
   }
 
-  private async trainingPath(meta: TrainingMeta): Promise<string> {
-    const filename = `${meta.bookId}.json`;
-    if (!this.checkedTrainingDirExists) {
-      if (!(await this.exists("ChessfilesTraining"))) {
-        await this.createDir("ChessfilesTraining");
-      }
-      this.checkedTrainingDirExists = true;
-    }
-    return joinPath("ChessfilesTraining", filename);
-  }
-
   private async saveTraining(training: Training): Promise<void> {
-    const path = await this.trainingPath(training.meta);
-    await this.writeFile(path, training.export());
+    const metaManager = (await this.metaManager);
+    await this.writeFile(training.meta.trainingBookPath, training.exportPgn());
 
     if (
       training.activity.correctCount > 0 ||
       training.activity.incorrectCount > 0
     ) {
-      this.updateMeta((meta) => {
-        // We're either adding a new activity or updating the last.
-        if (training.activity.id == meta.trainingActivity.at(-1)?.id) {
-          meta.trainingActivity.splice(-1, 1, training.activity);
-        } else {
-          meta.trainingActivity.push(training.activity);
-        }
-
-        return meta;
-      });
+      metaManager.addActivity(training.activity, training.meta.trainingBookPath);
     }
-  }
-
-  private async getMeta(): Promise<StorageMeta> {
-    if (this.cachedMeta === undefined) {
-      const path = "/ChessfilesData.json";
-      if (await this.exists(path)) {
-        try {
-          const data = await this.readFile(path);
-          this.cachedMeta = {
-            ...defaultStorageMeta(),
-            ...(JSON.parse(data) as StorageMeta),
-          };
-        } catch (e) {
-          console.error("Error reading meta", e);
-          this.cachedMeta = defaultStorageMeta();
-          this.setMeta(defaultStorageMeta());
-        }
-      } else {
-        this.cachedMeta = defaultStorageMeta();
-      }
-    }
-    return this.cachedMeta;
-  }
-
-  private async setMeta(meta: StorageMeta): Promise<void> {
-    this.cachedMeta = meta;
-    const path = "/ChessfilesData.json";
-    const data = JSON.stringify(meta);
-    await this.writeFile(path, data);
-  }
-
-  private async updateMeta(
-    update: (meta: StorageMeta) => StorageMeta,
-  ): Promise<void> {
-    const meta = await this.getMeta();
-    await this.setMeta(update(meta));
   }
 }

@@ -1,9 +1,10 @@
 import type { JSX } from "solid-js";
+import type { Page } from "~/components";
 import { Navbar } from "~/components";
 
 interface StandardLayoutProps {
   page: string;
-  setPage: (page: string) => void;
+  setPage: (page: Page) => void;
   children: JSX.Element;
 }
 

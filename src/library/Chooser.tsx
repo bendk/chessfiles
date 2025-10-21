@@ -20,11 +20,11 @@ export function Chooser(props: ChooserProps) {
   const files = () => {
     return storage
       .files()
-      ?.filter((e) => !(e.type != "dir" && props.dirMode === true));
+      ?.filter((e) => props.dirMode !== true || (e.type == "dir" || e.type == "engine"))
   };
 
   return (
-    <div>
+    <div class="py-4 px-8">
       <div class="flex justify-between">
         <h1 class="text-3xl truncate text-ellipsis">{props.title}</h1>
         <Button text="Cancel" onClick={props.onClose} />

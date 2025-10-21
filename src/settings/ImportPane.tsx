@@ -10,6 +10,7 @@ import {
   FileExistsError,
 } from "~/lib/storage";
 import type { ChessfilesStorage, DirEntry } from "~/lib/storage";
+import { ChessfilesStorageLocal } from "~/lib/storage";
 import { Button } from "~/Button";
 import { Progress } from "~/Progress";
 import * as RadioGroup from "~/RadioGroup";
@@ -173,13 +174,13 @@ class Importer {
     ) as StorageMeta;
 
     // Merge activity
-    const currentActivity = new Set(meta.trainingActivity.map((a) => a.id));
+    const currentActivity = new Set(meta.activity.map((a) => a.id));
     for (const activity of this.importedTrainingActivity) {
       if (!currentActivity.has(activity.id)) {
-        meta.trainingActivity.push(activity);
+        meta.activity.push(activity);
       }
     }
-    meta.trainingActivity.sort((a, b) => a.timestamp - b.timestamp);
+    meta.activity.sort((a, b) => a.timestamp - b.timestamp);
 
     // Merge training metas
     for (let i = 0; i < meta.trainingMeta.length; i++) {
@@ -215,7 +216,7 @@ export function ImportPane(props: ImportPaneProps) {
   const [error, setError] = createSignal<string>();
 
   const importer = new Importer(
-    props.storage.storage(),
+    new ChessfilesStorageLocal(),
     setStatus,
     setProgress,
     (msg) => setImportLog([...importLog(), msg]),
@@ -242,7 +243,6 @@ export function ImportPane(props: ImportPaneProps) {
     const sourceVal = source();
     assertIsStorage(sourceVal);
     await importer.import(createStorage(sourceVal));
-    props.storage.refreshAfterImport();
   }
 
   return (

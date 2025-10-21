@@ -1,7 +1,7 @@
 import Plus from "lucide-solid/icons/plus";
 import Loader from "lucide-solid/icons/loader-2";
 import { Match, Show, Switch, createResource, createSignal } from "solid-js";
-import type { MenuItem, StatusTracker } from "~/components";
+import type { MenuItem, Page, StatusTracker } from "~/components";
 import {
   Button,
   Chooser,
@@ -22,7 +22,7 @@ export interface TrainingListProps {
   storage: AppStorage;
   status: StatusTracker;
   openTraining: (meta: TrainingMeta) => Promise<void>;
-  setPage: (page: string) => void;
+  setPage: (page: Page) => void;
 }
 
 export function TrainingList(props: TrainingListProps) {

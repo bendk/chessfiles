@@ -3,7 +3,7 @@ import type { AppStorage, Storage } from "~/lib/storage";
 import type { TrainingSettings } from "~/lib/training";
 import * as settings from "~/lib/settings";
 import * as dropbox from "~/lib/auth/dropbox";
-import type { StatusTracker } from "~/components";
+import type { Page, StatusTracker } from "~/components";
 import {
   Button,
   Checkbox,
@@ -24,7 +24,7 @@ function removeHash() {
 export interface SettingsProps {
   storage: AppStorage;
   status: StatusTracker;
-  setPage: (page: string) => void;
+  setPage: (page: Page) => void;
   theme: string;
   setTheme: (theme: string) => void;
 }

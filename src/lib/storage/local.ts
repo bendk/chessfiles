@@ -13,11 +13,18 @@ interface DirEntryLocal extends DirEntry {
 }
 
 export class ChessfilesStorageLocal extends ChessfilesStorage {
-  constructor() {
-    super();
+  localStorage: Storage;
+
+  constructor(localStorageObj?: Storage) {
+    super()
+    if (localStorageObj) {
+      this.localStorage = localStorageObj;
+    } else {
+      this.localStorage = localStorage;
+    }
     // Ensure the root entry is present
-    if (localStorage.getItem("files-root") === null) {
-      localStorage.setItem("files-root", JSON.stringify([]));
+    if (this.localStorage.getItem("files-root") === null) {
+      this.localStorage.setItem("files-root", JSON.stringify([]));
     }
   }
 
@@ -46,7 +53,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
 
   private readEntry(entry: DirEntryLocal): string {
     const key = entryKey(entry);
-    const entryData = localStorage.getItem(key);
+    const entryData = this.localStorage.getItem(key);
     if (entryData === null) {
       throw Error(`ChessfilesStorage.readEntry: ${key} is null`);
     }
@@ -80,7 +87,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
 
   async writeFile(path: string, content: string) {
     const entry = this.lookup(path, "file");
-    localStorage.setItem(entryKey(entry), content);
+    this.localStorage.setItem(entryKey(entry), content);
   }
 
   async createDir(path: string) {
@@ -102,8 +109,8 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
       filename,
       type,
     };
-    localStorage.setItem(entryKey(newEntry), content);
-    localStorage.setItem(
+    this.localStorage.setItem(entryKey(newEntry), content);
+    this.localStorage.setItem(
       entryKey(dirEntry),
       JSON.stringify([...entries, newEntry]),
     );
@@ -130,8 +137,8 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     }
 
     toDirEntries.push(...fromDirEntries.splice(fromIndex, 1));
-    localStorage.setItem(entryKey(fromEntry), JSON.stringify(fromDirEntries));
-    localStorage.setItem(entryKey(toEntry), JSON.stringify(toDirEntries));
+    this.localStorage.setItem(entryKey(fromEntry), JSON.stringify(fromDirEntries));
+    this.localStorage.setItem(entryKey(toEntry), JSON.stringify(toDirEntries));
   }
 
   async remove(path: string) {
@@ -141,7 +148,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     const dirEntry = this.lookup(dir, "dir");
     const entries = this.readDirEntry(dirEntry);
     const newEntries = entries.filter((e) => e.filename != filename);
-    localStorage.setItem(entryKey(dirEntry), JSON.stringify(newEntries));
+    this.localStorage.setItem(entryKey(dirEntry), JSON.stringify(newEntries));
   }
 
   private removeEntryRecursive(entry: DirEntryLocal) {
@@ -150,7 +157,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
         this.removeEntryRecursive(childEntry);
       }
     }
-    localStorage.removeItem(entryKey(entry));
+    this.localStorage.removeItem(entryKey(entry));
   }
 }
 

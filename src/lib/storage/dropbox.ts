@@ -1,4 +1,4 @@
-import type { DirEntry } from "./base";
+import type { DirEntry, DirEntryType } from "./base";
 import { splitPath, ChessfilesStorage, FileExistsError } from "./base";
 import * as dropbox from "~/lib/auth/dropbox";
 
@@ -49,7 +49,7 @@ export class ChessfilesStorageDropbox extends ChessfilesStorage {
     }
   }
 
-  private addCachedEntry(path: string, type: "file" | "dir") {
+  private addCachedEntry(path: string, type: DirEntryType) {
     const [dir, filename] = splitPath(path);
     if (this.cachedEntries[dir] !== undefined) {
       this.cachedEntries[dir].push({

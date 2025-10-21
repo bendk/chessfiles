@@ -1,10 +1,11 @@
 import type { ChildNode, Node, RootNode } from "./node";
 import type { TrainingActivity } from "./activity";
-import { newTrainingActivity } from "./activity";
-import { Book, Priority } from "./node";
+import { v4 as uuidv4 } from "uuid";
+import { activityTimeAgo, newTrainingActivity } from "./activity";
+import { Book, BookType, Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, makeSan, Chess } from "./chess";
-import { filename } from "~/lib/storage";
+import { filename, joinPath } from "~/lib/storage";
 
 export type Score = "correct" | "incorrect";
 
@@ -23,6 +24,7 @@ export class Training {
   private currentLine: CurrentLineEntry[];
   private draftEntry: DraftHistoryEntry;
   private currentNode: Node | undefined;
+
   // Are we replying the current line because we imported an in-progress session?/
   private currentLineReplayCount = -1;
   // Maps positions seen to the number of correct moves in a row.  If this exceeds
@@ -53,26 +55,30 @@ export class Training {
 
   static create(
     settings: TrainingSettings,
-    bookPath: string,
-    book: Book,
+    sourceBookPath: string,
+    sourceBook: Book,
+    trainingDir: string,
   ): Training {
-    const bookFilename = filename(bookPath);
+    const bookFilename = filename(sourceBookPath);
+    const trainingBookPath = joinPath(trainingDir, `${uuidv4()}.pgn`);
     const name = bookFilename.split(".")[0];
     const meta = {
+      id: uuidv4(),
       name,
-      bookPath,
-      bookId: book.id(),
+      sourceBookPath,
+      trainingBookPath,
       settings,
       correctCount: 0,
       incorrectCount: 0,
       linesTrained: 0,
-      totalLines: book.rootNodes.reduce(
+      totalLines: sourceBook.rootNodes.reduce(
         (count, node) => count + node.lineCount(),
         0,
       ),
       lastTrained: Date.now(),
+      currentLine: [],
     };
-    return new Training(settings, meta, book.rootNodes);
+    return new Training(settings, meta, sourceBook.rootNodes);
   }
 
   restart(book: Book): Training {
@@ -344,24 +350,37 @@ export class Training {
     }
   }
 
-  export(): string {
-    return JSON.stringify({
-      meta: this.meta,
-      currentLine: this.currentLine,
-      rootNodesPgn: [
-        this.currentRootNode?.toPgnString(),
-        ...this.rootNodesToGo.map((node) => node.toPgnString()),
-      ],
-    });
+  /**
+   * Export this training session as a PGN file
+   *
+   * This returns all the data not stored in `meta`.
+   */
+  exportPgn(): string {
+    const rootNodes = [
+      ...(this.currentRootNode ? [this.currentRootNode] : []),
+      ...this.rootNodesToGo,
+    ];
+
+    const book = new Book(BookType.Training, rootNodes);
+    book.setTrainingCurrentLineData(JSON.stringify(this.currentLine));
+    return book.export();
   }
 
-  static import(data: string, settings: TrainingSettings): Training {
-    const { meta, currentLine, rootNodesPgn } = JSON.parse(data);
-    const rootNodes = rootNodesPgn.map(
-      (pgn: string) => Book.import(pgn).rootNodes[0],
-    );
+  /**
+   * Import training session data
+   *
+   * This recreates a `Training` object using:
+   *   - A training meta from the `TrainingMetaList`
+   *   - A PGN string, loaded from disk
+   *   - The `TrainingSettings`, also loaded from disk
+   */
+  static import(meta: TrainingMeta, pgnData: string, settings: TrainingSettings): Training {
+    const book = Book.import(pgnData);
+    const rootNodes = book.rootNodes;
     const training = new Training(settings, meta, rootNodes);
-    training.currentLine = currentLine;
+    const currentLineData = book.getTrainingCurrentLineData();
+    training.currentLine = currentLineData ? JSON.parse(currentLineData) : [];
+
     if (training.currentLine.length > 0) {
       if (!training.rootNodeHasMovesAfterCurrentLine()) {
         training.finishLine();
@@ -371,11 +390,6 @@ export class Training {
       }
     }
     return training;
-  }
-
-  static parseMeta(data: string): TrainingMeta {
-    const { meta } = JSON.parse(data);
-    return meta;
   }
 }
 
@@ -416,12 +430,10 @@ export function defaultTrainingSettings(): TrainingSettings {
 
 /**
  * Metadata about a training session
- *
- * These are stored together in the `ChessFilesData.json` file.
  */
 export interface TrainingMeta {
-  bookPath: string;
-  bookId: string;
+  trainingBookPath: string;
+  sourceBookPath: string;
   name: string;
   correctCount: number;
   incorrectCount: number;
@@ -630,28 +642,5 @@ export function trainingTimeAgo(
   timestamp: number | undefined,
   currentTimestamp: number,
 ) {
-  if (timestamp === undefined) {
-    return "never";
-  }
-  // Do some basic checking that the meta doesn't have a future timestamp because it was
-  // stored by a client with a weird clock
-  const seconds = Math.max((currentTimestamp - timestamp) / 1000, 0);
-  const table: [number, string, string][] = [
-    [604800, "week", "weeks"],
-    [86400, "day", "days"],
-    [3600, "hour", "hours"],
-    [60, "minute", "minutes"],
-  ];
-
-  for (const [amount, singular, plural] of table) {
-    if (seconds >= amount) {
-      const count = Math.round(seconds / amount);
-      if (count === 1) {
-        return `${count} ${singular} ago`;
-      } else {
-        return `${count} ${plural} ago`;
-      }
-    }
-  }
-  return "now";
+  return activityTimeAgo(timestamp, currentTimestamp);
 }

@@ -4,7 +4,7 @@ import FolderPlus from "lucide-solid/icons/folder-plus";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import { FileExistsError, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
-import type { StatusTracker } from "~/components";
+import type { Page, StatusTracker } from "~/components";
 import { Button, Chooser, StandardLayout, StatusError } from "~/components";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
@@ -14,7 +14,8 @@ import { BookEditor } from "./BookEditor";
 export interface LibraryProps {
   storage: AppStorage;
   status: StatusTracker;
-  setPage: (page: string) => void;
+  setPage: (page: Page) => void;
+  initialPath?: string;
 }
 
 export interface CurrentBook {
@@ -26,6 +27,9 @@ export function Library(props: LibraryProps) {
   const [mode, setMode] = createSignal("");
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
   const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
+  if (props.initialPath) {
+    props.storage.setDir(props.initialPath);
+  }
 
   async function onCreateBook(name: string, book: Book): Promise<boolean> {
     let filename = name;
@@ -47,7 +51,7 @@ export function Library(props: LibraryProps) {
     }
     let success = false;
     await props.status.perform("saving book", async () => {
-      await props.storage.writeFile(book.filename, book.book.export());
+      await props.storage.writeBook(book.filename, book.book);
       props.storage.refetchFiles();
       success = true;
     });
@@ -81,7 +85,7 @@ export function Library(props: LibraryProps) {
 
   async function onFileMenuAction(entry: DirEntry, action: string) {
     if (action == "open") {
-      if (entry.type == "dir") {
+      if (entry.type == "dir" || entry.type == "engine") {
         props.storage.setDir(entry.filename);
       } else if (entry.type == "file") {
         props.status.perform("opening book", async () => {
@@ -99,7 +103,7 @@ export function Library(props: LibraryProps) {
           description: `${entry.filename}`,
         },
         async () => {
-          await props.storage.remove(entry.filename);
+          await props.storage.delete([entry.filename]);
           props.storage.refetchFiles();
         },
       );
@@ -195,7 +199,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <StandardLayout page="library" setPage={props.setPage}>
+          <StandardLayout page="files" setPage={props.setPage}>
             <div class="text-lg pb-4">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
@@ -224,29 +228,13 @@ export function Library(props: LibraryProps) {
                 )}
               </Index>
             </div>
-            <Show when={props.storage.files()} keyed>
-              {(files) => {
-                if (files.length == 0 && props.storage.dir() == "/") {
-                  return (
-                    <div class="pt-4">
-                      <h2 class="text-3xl">Welcome to Chess Files</h2>
-                      <p class="text-lg pt-1">
-                        Use the "Create Book" button below to start building
-                        your library
-                      </p>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div class="min-h-0 overflow-y-auto grow">
-                      <BooksList
-                        files={files}
-                        onFileAction={onFileMenuAction}
-                      />
-                    </div>
-                  );
-                }
-              }}
+            <Show when={true}>
+              <div class="min-h-0 overflow-y-auto grow">
+                <BooksList
+                  storage={props.storage}
+                  onFileAction={onFileMenuAction}
+                />
+              </div>
             </Show>
             <div class="flex pt-8 gap-8">
               <Button
