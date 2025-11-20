@@ -1,4 +1,4 @@
-import { createSignal, splitProps } from "solid-js";
+import { createMemo, createSignal, splitProps } from "solid-js";
 import type { JSXElement } from "solid-js";
 import { For, Index, Match, Show, Switch } from "solid-js";
 import EllipsisVertical from "lucide-solid/icons/ellipsis-vertical";
@@ -28,6 +28,7 @@ export interface TableProps<T> {
   menu?: (value: T) => MenuItem[];
   onMenuSelect?: (value: T, action: string) => void;
   onClick?: (value: T) => void;
+  emptyText?: string;
 }
 
 function itemId<T>(props: TableProps<T>, item: T): string {
@@ -47,14 +48,17 @@ export function Table<T>(props: TableProps<T>) {
   const [activeItem, setActiveItem] = createSignal<ActiveItem | null>(null);
   const [itemProps] = splitProps(props, ["menu", "onMenuSelect"]);
 
-  let column_css = "grid-template-columns:";
-  for (let i = 0; i < props.columns; i++) {
-    if (i == (props.growColumn ?? 0)) {
-      column_css += " 1fr";
-    } else {
-      column_css += " auto";
+  const columnCss = createMemo(() => {
+    let css = "grid-template-columns:";
+    for (let i = 0; i < props.columns; i++) {
+      if (i == (props.growColumn ?? 0)) {
+        css += " 1fr";
+      } else {
+        css += " auto";
+      }
     }
-  }
+    return css;
+  });
 
   function onClick(value: T) {
     if (props.onClick) {
@@ -82,51 +86,56 @@ export function Table<T>(props: TableProps<T>) {
   }
 
   const itemList = () => (
-    <For each={props.each}>
-      {(item, index) => {
-        const id = itemId(props, item);
-        const activeState = () => {
-          const active = activeItem();
-          if (active === null) {
-            return null;
-          }
-          return {
-            thisItem: active.id == id,
-            type: active.type,
+    <Show
+      when={props.each.length > 0}
+      fallback={<div class="italic px-4 py-4">{props.emptyText}</div>}
+    >
+      <For each={props.each}>
+        {(item, index) => {
+          const id = itemId(props, item);
+          const activeState = () => {
+            const active = activeItem();
+            if (active === null) {
+              return null;
+            }
+            return {
+              thisItem: active.id == id,
+              type: active.type,
+            };
           };
-        };
-        const tableItem: TableItem<T> = {
-          value: item,
-          index,
-          activeState,
-          setActive: (type) => setActiveItem(type ? { type, id } : null),
-          onClick,
-          ...itemProps,
-        };
-        let sortable;
-        if (props.onReorder !== undefined) {
-          sortable = createSortable(id);
-          tableItem.sortableDragActivators = () => sortable!.dragActivators;
-        }
-        return (
-          <div
-            ref={sortable?.ref}
-            style={sortable ? transformStyle(sortable.transform) : undefined}
-            class={`col-span-${props.columns} grid grid-cols-subgrid group border-zinc-400 dark:border-zinc-600 items-center`}
-            classList={{
-              "hover:bg-zinc-200 dark:hover:bg-zinc-700":
-                !otherItemActive(tableItem),
-              "bg-zinc-200 dark:bg-zinc-700": thisItemActive(tableItem),
-              "transition-transform delay-20 ease-in-out":
-                otherItemActive(tableItem),
-              "border-b-1": index() != props.each.length - 1,
-            }}
-          >
-            {props.children(tableItem)}
-          </div>
-        );
-      }}
-    </For>
+          const tableItem: TableItem<T> = {
+            value: item,
+            index,
+            activeState,
+            setActive: (type) => setActiveItem(type ? { type, id } : null),
+            onClick,
+            ...itemProps,
+          };
+          let sortable;
+          if (props.onReorder !== undefined) {
+            sortable = createSortable(id);
+            tableItem.sortableDragActivators = () => sortable!.dragActivators;
+          }
+          return (
+            <div
+              ref={sortable?.ref}
+              style={sortable ? transformStyle(sortable.transform) : undefined}
+              class={`col-span-${props.columns} grid grid-cols-subgrid group border-zinc-400 dark:border-zinc-600 items-center`}
+              classList={{
+                "hover:bg-zinc-200 dark:hover:bg-zinc-700":
+                  !otherItemActive(tableItem),
+                "bg-zinc-200 dark:bg-zinc-700": thisItemActive(tableItem),
+                "transition-transform delay-20 ease-in-out":
+                  otherItemActive(tableItem),
+                "border-b-1": index() != props.each.length - 1,
+              }}
+            >
+              {props.children(tableItem)}
+            </div>
+          );
+        }}
+      </For>
+    </Show>
   );
 
   return (
@@ -135,7 +144,7 @@ export function Table<T>(props: TableProps<T>) {
       classList={{
         "cursor-grab": activeItem()?.type == "reorder",
       }}
-      style={column_css}
+      style={columnCss()}
     >
       <Show when={props.headers} keyed>
         {(headers) => (

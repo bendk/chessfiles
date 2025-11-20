@@ -22,7 +22,7 @@ export interface DirEntry {
 }
 
 export function joinPath(dir: string, filename: string): string {
-  if (filename.startsWith("/")) {
+  if (filename.startsWith("/") || dir == "") {
     return filename;
   }
   if (dir.endsWith("/")) {
@@ -50,6 +50,28 @@ export function filename(path: string): string {
 export function normalizePath(path: string): string {
   path = path.replace(/\/+$/, "");
   return path == "" ? "/" : path;
+}
+
+export function filenameValid(
+  filename: string,
+  fileType: DirEntryType,
+): boolean {
+  // TODO: check for invalid chars, "..", ".", etc.
+  return (
+    filename != "" &&
+    filename.indexOf("/") == -1 &&
+    (fileType == "file" || !filename.toLowerCase().endsWith(".pgn"))
+  );
+}
+
+export function normalizeNewFilename(
+  filename: string,
+  fileType: DirEntryType,
+): string {
+  if (fileType == "file" && !filename.endsWith(".pgn")) {
+    filename += ".pgn";
+  }
+  return filename;
 }
 
 export interface PathComponent {

@@ -21,7 +21,10 @@ export interface TrainingActivity {
   incorrectCount: number;
 }
 
-export function newLibraryActivity(filename: string, timestamp?: number): LibraryActivity {
+export function newLibraryActivity(
+  filename: string,
+  timestamp?: number,
+): LibraryActivity {
   return {
     type: "library",
     id: uuidv4(),
@@ -30,7 +33,10 @@ export function newLibraryActivity(filename: string, timestamp?: number): Librar
   };
 }
 
-export function newTrainingActivity(name: string, timestamp?: number): TrainingActivity {
+export function newTrainingActivity(
+  name: string,
+  timestamp?: number,
+): TrainingActivity {
   return {
     type: "training",
     name,

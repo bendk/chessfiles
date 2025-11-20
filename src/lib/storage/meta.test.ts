@@ -10,31 +10,31 @@ async function trainingFiles(s: ChessfilesStorageLocal): Promise<string[]> {
   return entries.map((e) => e.filename);
 }
 
-class MockLocalStorage {
-  private data: Map<string, string> = new Map;
+export class MockLocalStorage {
+  private data: Map<string, string> = new Map();
 
   get length() {
-    return this.data.size
+    return this.data.size;
   }
 
-  key(index: number): string|null {
+  key(index: number): string | null {
     const iter = this.data.keys();
-    for (var i = 0; i < index; i++) {
+    for (let i = 0; i < index; i++) {
       iter.next();
     }
-    return iter.next().value ?? null
+    return iter.next().value ?? null;
   }
 
-  getItem(key: string): string|null {
-    return this.data.get(key) ?? null
+  getItem(key: string): string | null {
+    return this.data.get(key) ?? null;
   }
 
   setItem(key: string, value: string) {
-    this.data.set(key, value)
+    this.data.set(key, value);
   }
 
   removeItem(key: string) {
-    this.data.delete(key)
+    this.data.delete(key);
   }
 
   clear() {
@@ -42,7 +42,12 @@ class MockLocalStorage {
   }
 }
 
-function trainingMeta(storageName: string, trainingFilename: string, bookName: string, lastTrained: number): TrainingMeta {
+function trainingMeta(
+  storageName: string,
+  trainingFilename: string,
+  bookName: string,
+  lastTrained: number,
+): TrainingMeta {
   return {
     trainingBookPath: `/${storageName}/ChessfilesTraining/${trainingFilename}`,
     sourceBookPath: `/${storageName}/${bookName}.pgn`,
@@ -52,15 +57,13 @@ function trainingMeta(storageName: string, trainingFilename: string, bookName: s
     linesTrained: 3,
     totalLines: 4,
     lastTrained,
-  }
+  };
 }
 
 describe("StorageMeta", function () {
   test("initial load", async () => {
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
     expect(metaManager.listActivity()).toEqual([]);
     expect(metaManager.listTraining()).toEqual([]);
   });
@@ -69,40 +72,58 @@ describe("StorageMeta", function () {
     const meta1 = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const activity = newLibraryActivity("MyBook.pgn", 1);
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
-    s.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [ meta1 ],
-      activity: [activity],
-    }));
+    s.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta1],
+        activity: [activity],
+      }),
+    );
     s.createDir("/ChessfilesTraining");
     s.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
     expect(metaManager.listActivity()).toEqual([activity]);
     expect(metaManager.listTraining()).toEqual([meta1]);
   });
 
   test("merge engine data", async () => {
     const meta1 = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
-    const meta2 = trainingMeta("storage2", "training-2.pgn", "MyOtherBook", 200);
+    const meta2 = trainingMeta(
+      "storage2",
+      "training-2.pgn",
+      "MyOtherBook",
+      200,
+    );
     const activity1 = newLibraryActivity("MyBook.pgn", 1);
     const activity2 = newLibraryActivity("MyOtherBook.pgn", 2);
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta1],
-      activity: [activity1],
-    }));
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta1],
+        activity: [activity1],
+      }),
+    );
     await s1.createDir("/ChessfilesTraining");
-    await s1.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      "Fake training data",
+    );
 
     const s2 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s2.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta2],
-      activity: [activity2],
-    }));
+    await s2.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta2],
+        activity: [activity2],
+      }),
+    );
     await s2.createDir("/ChessfilesTraining");
-    await s2.createFile("/ChessfilesTraining/training-2.pgn", "Fake training data");
+    await s2.createFile(
+      "/ChessfilesTraining/training-2.pgn",
+      "Fake training data",
+    );
 
     const metaManager = await AppMetaManager.load([
       ["storage1", s1],
@@ -115,21 +136,25 @@ describe("StorageMeta", function () {
   test("invalid training meta", async () => {
     const meta1 = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
-    s.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [
-        meta1,
-        // TrainingMeta entry that doesn't have a corresponding PGN file on disk
-        trainingMeta("storage1", "non-existent-filename.pgn", "MyBook2", 200),
-      ],
-    }));
+    s.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [
+          meta1,
+          // TrainingMeta entry that doesn't have a corresponding PGN file on disk
+          trainingMeta("storage1", "non-existent-filename.pgn", "MyBook2", 200),
+        ],
+      }),
+    );
     s.createDir("/ChessfilesTraining");
     s.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
     // Training file with no corresponding TrainingMeta
-    s.createFile("/ChessfilesTraining/training-with-no-meta.pgn", "Fake training data");
+    s.createFile(
+      "/ChessfilesTraining/training-with-no-meta.pgn",
+      "Fake training data",
+    );
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
     expect(metaManager.listTraining()).toEqual([meta1]);
     // Make training-with-no-meta.pgn should be deleted during load
     expect(await trainingFiles(s)).toEqual(["training-1.pgn"]);
@@ -138,35 +163,42 @@ describe("StorageMeta", function () {
   test("addActivity", async () => {
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
     const activity = newLibraryActivity("MyBook.pgn", 1);
-    s.createFile("/ChessfilesData.json", JSON.stringify({
-      activity: [activity],
-    }));
+    s.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        activity: [activity],
+      }),
+    );
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
 
     // Add new activity entry
     const activity2 = newLibraryActivity("MyOtherBook.pgn", 2);
-    metaManager.addActivity(activity2, "/storage1/MyOtherBook.pgn")
+    metaManager.addActivity(activity2, "/storage1/MyOtherBook.pgn");
     expect(metaManager.listActivity()).toEqual([activity2, activity]);
   });
 
   test("saveTrainingMeta", async () => {
     const meta = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
-    s.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta],
-      activity: [],
-    }));
+    s.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta],
+        activity: [],
+      }),
+    );
     s.createDir("/ChessfilesTraining");
     s.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
 
-    const newTrainingMeta = trainingMeta("storage1", "training-2.pgn", "MyOtherBook", 200);
+    const newTrainingMeta = trainingMeta(
+      "storage1",
+      "training-2.pgn",
+      "MyOtherBook",
+      200,
+    );
     await metaManager.saveTrainingMeta(newTrainingMeta);
 
     const updatedTrainingMeta = {
@@ -176,28 +208,30 @@ describe("StorageMeta", function () {
       linesTrained: 3,
       totalLines: 4,
       lastTrained: 300,
-    }
+    };
     await metaManager.saveTrainingMeta(updatedTrainingMeta);
 
     expect(metaManager.listTraining()).toEqual([
-      updatedTrainingMeta, newTrainingMeta,
+      updatedTrainingMeta,
+      newTrainingMeta,
     ]);
   });
 
   test("removeTraining", async () => {
     const meta = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s = new ChessfilesStorageLocal(new MockLocalStorage());
-    s.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta],
-      activity: [],
-    }));
+    s.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta],
+        activity: [],
+      }),
+    );
     s.createDir("/ChessfilesTraining");
     s.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s],
-    ]);
-    await metaManager.removeTrainingMeta(meta)
+    const metaManager = await AppMetaManager.load([["storage1", s]]);
+    await metaManager.removeTrainingMeta(meta);
     expect(metaManager.listTraining()).toEqual([]);
     expect(await trainingFiles(s)).toEqual([]);
   });
@@ -205,12 +239,18 @@ describe("StorageMeta", function () {
   test("files deleted", async () => {
     const meta = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta],
-      activity: [],
-    }));
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta],
+        activity: [],
+      }),
+    );
     await s1.createDir("/ChessfilesTraining");
-    await s1.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      "Fake training data",
+    );
     const s2 = new ChessfilesStorageLocal(new MockLocalStorage());
 
     const metaManager = await AppMetaManager.load([
@@ -227,25 +267,27 @@ describe("StorageMeta", function () {
     expect(metaManager.listTraining()).toEqual([meta]);
 
     // Deleting books for a training should cause the training to be deleted
-    await metaManager.onFilesDeleted([
-      "/storage1/MyBook.pgn",
-    ]);
+    await metaManager.onFilesDeleted(["/storage1/MyBook.pgn"]);
     expect(metaManager.listTraining()).toEqual([]);
   });
 
   test("files moved", async () => {
     const meta = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta],
-      activity: [],
-    }));
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta],
+        activity: [],
+      }),
+    );
     await s1.createDir("/ChessfilesTraining");
-    await s1.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      "Fake training data",
+    );
 
-    const metaManager = await AppMetaManager.load([
-      ["storage1", s1],
-    ]);
+    const metaManager = await AppMetaManager.load([["storage1", s1]]);
     expect(metaManager.listTraining()).toEqual([meta]);
 
     // Moving books with no associated training should be a no-op
@@ -262,19 +304,25 @@ describe("StorageMeta", function () {
       {
         ...meta,
         sourceBookPath: "/storage1/Openings/MyNewBookName.pgn",
-      }
+      },
     ]);
   });
 
   test("files moved between storages", async () => {
     const meta = trainingMeta("storage1", "training-1.pgn", "MyBook", 100);
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [meta],
-      activity: [],
-    }));
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [meta],
+        activity: [],
+      }),
+    );
     await s1.createDir("/ChessfilesTraining");
-    await s1.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      "Fake training data",
+    );
     await s1.createFile("/MyBook.pgn", "fake book data");
     const s2 = new ChessfilesStorageLocal(new MockLocalStorage());
 
@@ -287,14 +335,18 @@ describe("StorageMeta", function () {
       ["/storage1/MyBook.pgn", "/storage2/MyBook.pgn"],
     ]);
     const expectedNewMeta = {
-        ...meta,
-        sourceBookPath: "/storage2/MyBook.pgn",
-        trainingBookPath: "/storage2/ChessfilesTraining/training-1.pgn",
-    }
+      ...meta,
+      sourceBookPath: "/storage2/MyBook.pgn",
+      trainingBookPath: "/storage2/ChessfilesTraining/training-1.pgn",
+    };
     expect(metaManager.listTraining()).toEqual([expectedNewMeta]);
     // The training meta should be in `s2` now, since that's where the book file is
-    expect(JSON.parse(await s1.readFile("/ChessfilesData.json")).trainingMeta).toEqual([]);
-    expect(JSON.parse(await s2.readFile("/ChessfilesData.json")).trainingMeta).toEqual([expectedNewMeta]);
+    expect(
+      JSON.parse(await s1.readFile("/ChessfilesData.json")).trainingMeta,
+    ).toEqual([]);
+    expect(
+      JSON.parse(await s2.readFile("/ChessfilesData.json")).trainingMeta,
+    ).toEqual([expectedNewMeta]);
 
     // The training files assocated with the moved book should also move to the new storages
     expect(await trainingFiles(s1)).toEqual([]);
@@ -309,32 +361,56 @@ describe("StorageMeta", function () {
     const meta5 = trainingMeta("storage2", "training-5.pgn", "MyBook5", 104);
     const meta6 = trainingMeta("storage2", "training-6.pgn", "MyBook6", 105);
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [
-        meta1, // This will not move
-        meta2, // This will move, but stay on s1
-        meta3, // This will move to s2
-      ],
-      activity: [],
-    }));
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [
+          meta1, // This will not move
+          meta2, // This will move, but stay on s1
+          meta3, // This will move to s2
+        ],
+        activity: [],
+      }),
+    );
     await s1.createDir("/ChessfilesTraining");
-    await s1.createFile("/ChessfilesTraining/training-1.pgn", "Fake training data");
-    await s1.createFile("/ChessfilesTraining/training-2.pgn", "Fake training data");
-    await s1.createFile("/ChessfilesTraining/training-3.pgn", "Fake training data");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      "Fake training data",
+    );
+    await s1.createFile(
+      "/ChessfilesTraining/training-2.pgn",
+      "Fake training data",
+    );
+    await s1.createFile(
+      "/ChessfilesTraining/training-3.pgn",
+      "Fake training data",
+    );
 
     const s2 = new ChessfilesStorageLocal(new MockLocalStorage());
-    await s2.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [
-        meta4, // This will move, but stay on s2
-        meta5, // This will move to s1
-        meta6, // This will not move
-      ],
-      activity: [],
-    }));
+    await s2.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [
+          meta4, // This will move, but stay on s2
+          meta5, // This will move to s1
+          meta6, // This will not move
+        ],
+        activity: [],
+      }),
+    );
     await s2.createDir("/ChessfilesTraining");
-    await s2.createFile("/ChessfilesTraining/training-4.pgn", "Fake training data");
-    await s2.createFile("/ChessfilesTraining/training-5.pgn", "Fake training data");
-    await s2.createFile("/ChessfilesTraining/training-6.pgn", "Fake training data");
+    await s2.createFile(
+      "/ChessfilesTraining/training-4.pgn",
+      "Fake training data",
+    );
+    await s2.createFile(
+      "/ChessfilesTraining/training-5.pgn",
+      "Fake training data",
+    );
+    await s2.createFile(
+      "/ChessfilesTraining/training-6.pgn",
+      "Fake training data",
+    );
 
     const metaManager = await AppMetaManager.load([
       ["storage1", s1],
@@ -351,46 +427,48 @@ describe("StorageMeta", function () {
     const expectedNewMetaS1 = [
       meta1,
       {
-          ...meta2,
-          sourceBookPath: "/storage1/Openings/MyBook2.pgn",
-          trainingBookPath: "/storage1/ChessfilesTraining/training-2.pgn",
+        ...meta2,
+        sourceBookPath: "/storage1/Openings/MyBook2.pgn",
+        trainingBookPath: "/storage1/ChessfilesTraining/training-2.pgn",
       },
       {
-          ...meta5,
-          sourceBookPath: "/storage1/MyBook5.pgn",
-          trainingBookPath: "/storage1/ChessfilesTraining/training-5.pgn",
+        ...meta5,
+        sourceBookPath: "/storage1/MyBook5.pgn",
+        trainingBookPath: "/storage1/ChessfilesTraining/training-5.pgn",
       },
-    ]
+    ];
     const expectedNewMetaS2 = [
       meta6,
       {
-          ...meta3,
-          sourceBookPath: "/storage2/MyBook3WithANewName.pgn",
-          trainingBookPath: "/storage2/ChessfilesTraining/training-3.pgn",
+        ...meta3,
+        sourceBookPath: "/storage2/MyBook3WithANewName.pgn",
+        trainingBookPath: "/storage2/ChessfilesTraining/training-3.pgn",
       },
       {
-          ...meta4,
-          sourceBookPath: "/storage2/MyBook4WithANewName.pgn",
-          trainingBookPath: "/storage2/ChessfilesTraining/training-4.pgn",
+        ...meta4,
+        sourceBookPath: "/storage2/MyBook4WithANewName.pgn",
+        trainingBookPath: "/storage2/ChessfilesTraining/training-4.pgn",
       },
-    ]
+    ];
 
-    expect(new Set(metaManager.listTraining())).toEqual(new Set([...expectedNewMetaS1, ...expectedNewMetaS2]))
+    expect(new Set(metaManager.listTraining())).toEqual(
+      new Set([...expectedNewMetaS1, ...expectedNewMetaS2]),
+    );
     // The training meta should be in `s2` now, since that's where the book file is
-    expect(JSON.parse(await s1.readFile("/ChessfilesData.json")).trainingMeta).toEqual(expectedNewMetaS1);
-    expect(JSON.parse(await s2.readFile("/ChessfilesData.json")).trainingMeta).toEqual(expectedNewMetaS2);
+    expect(
+      JSON.parse(await s1.readFile("/ChessfilesData.json")).trainingMeta,
+    ).toEqual(expectedNewMetaS1);
+    expect(
+      JSON.parse(await s2.readFile("/ChessfilesData.json")).trainingMeta,
+    ).toEqual(expectedNewMetaS2);
 
     // The training files assocated with the moved book should also move to the new storages
-    expect(new Set(await trainingFiles(s1))).toEqual(new Set([
-      "training-1.pgn",
-      "training-2.pgn",
-      "training-5.pgn",
-    ]));
-    expect(new Set(await trainingFiles(s2))).toEqual(new Set([
-      "training-3.pgn",
-      "training-4.pgn",
-      "training-6.pgn",
-    ]));
+    expect(new Set(await trainingFiles(s1))).toEqual(
+      new Set(["training-1.pgn", "training-2.pgn", "training-5.pgn"]),
+    );
+    expect(new Set(await trainingFiles(s2))).toEqual(
+      new Set(["training-3.pgn", "training-4.pgn", "training-6.pgn"]),
+    );
   });
 
   test("updateStorage", async () => {
@@ -399,20 +477,29 @@ describe("StorageMeta", function () {
     const activity3 = newLibraryActivity("MyBook3.pgn", 3);
 
     const s1 = new ChessfilesStorageLocal(new MockLocalStorage());
-    s1.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [],
-      activity: [activity1],
-    }));
+    s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [],
+        activity: [activity1],
+      }),
+    );
     const s2 = new ChessfilesStorageLocal(new MockLocalStorage());
-    s2.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [],
-      activity: [activity2],
-    }));
+    s2.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [],
+        activity: [activity2],
+      }),
+    );
     const s3 = new ChessfilesStorageLocal(new MockLocalStorage());
-    s3.createFile("/ChessfilesData.json", JSON.stringify({
-      trainingMeta: [],
-      activity: [activity3],
-    }));
+    s3.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [],
+        activity: [activity3],
+      }),
+    );
 
     const metaManager = await AppMetaManager.load([
       ["storage1", s1],

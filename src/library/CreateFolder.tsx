@@ -1,5 +1,6 @@
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { Field } from "@ark-ui/solid";
+import { filenameValid } from "~/lib/storage";
 import type { AppStorage } from "~/lib/storage";
 import { Button } from "~/components";
 
@@ -14,10 +15,7 @@ interface CreateFolderProps {
 export function CreateFolder(props: CreateFolderProps) {
   const [name, setName] = createSignal("");
   const [error, setError] = createSignal("");
-  function disabled() {
-    // TODO: check for invalid chars, "..", ".", etc.
-    return name() == "" || name().indexOf("/") != -1;
-  }
+  const disabled = () => !filenameValid(name(), "dir");
   function onKeyPress(e: KeyboardEvent) {
     if (e.key === "Enter" && !disabled()) {
       onCreate();
@@ -28,14 +26,26 @@ export function CreateFolder(props: CreateFolderProps) {
       return;
     }
 
-    if (!(await props.onCreate(name()))) {
+    const fileExists = await props.onCreate(name());
+    console.log(fileExists);
+
+    if (fileExists) {
+      console.log("setError");
       setError("File Already Exists");
       return;
     }
     setName("");
   }
+  createEffect(() => {
+    if (name() != "" && disabled()) {
+      setError("Invalid directory name");
+    } else {
+      setError("");
+    }
+  });
+
   return (
-    <div>
+    <div class="px-4 py-4">
       <div class="flex justify-between">
         <h1 class="text-3xl truncate text-ellipsis">{props.title}</h1>
         <Button text="Cancel" onClick={props.onClose} />

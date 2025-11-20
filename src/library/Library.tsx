@@ -1,15 +1,23 @@
-import { createSignal, Index, Show, Switch, Match } from "solid-js";
+import { createSignal, createMemo, Index, Show, Switch, Match } from "solid-js";
 import BookPlus from "lucide-solid/icons/book-plus";
+import BulkMode from "lucide-solid/icons/list-todo";
+import Copy from "lucide-solid/icons/copy";
 import FolderPlus from "lucide-solid/icons/folder-plus";
-import type { DirEntry, AppStorage } from "~/lib/storage";
-import { FileExistsError, joinPath } from "~/lib/storage";
+import MoveRight from "lucide-solid/icons/move-right";
+import Square from "lucide-solid/icons/square";
+import SquareCheck from "lucide-solid/icons/square-check";
+import Trash from "lucide-solid/icons/trash-2";
+import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
+import { normalizeNewFilename, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
 import type { Page, StatusTracker } from "~/components";
-import { Button, Chooser, StandardLayout, StatusError } from "~/components";
+import { Button, Chooser, Dialog, StandardLayout } from "~/components";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
 import { BooksList } from "./BooksList";
 import { BookEditor } from "./BookEditor";
+import { OperationProgress } from "./OperationProgress";
+import { RenameFile } from "./RenameFile";
 
 export interface LibraryProps {
   storage: AppStorage;
@@ -23,24 +31,55 @@ export interface CurrentBook {
   book: Book;
 }
 
+type Dialog =
+  | { type: "null" }
+  | { type: "create-book" }
+  | { type: "create-folder" }
+  | {
+      type: "chooser";
+      operation: "move" | "copy";
+      files: DirEntry[];
+    }
+  | {
+      type: "confirm-delete";
+      files: DirEntry[];
+    }
+  | {
+      type: "rename";
+      file: DirEntry;
+    }
+  | {
+      type: "operation-progress";
+      title: string;
+      operation: (callbacks: OperationCallbacks) => Promise<void>;
+    };
+
 export function Library(props: LibraryProps) {
-  const [mode, setMode] = createSignal("");
+  const [dialog, setDialog] = createSignal<Dialog>({ type: "null" });
+
+  const [bulkMode, setBulkMode] = createSignal(false);
+  const [selectedFiles, setSelectedFiles] = createSignal<Set<DirEntry>>(
+    new Set(),
+    { equals: false },
+  );
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
-  const [moveSource, setMoveSource] = createSignal<DirEntry[]>([]);
+
   if (props.initialPath) {
     props.storage.setDir(props.initialPath);
   }
 
+  function unsetDialog() {
+    setDialog({ type: "null" });
+    setBulkMode(false);
+  }
+
   async function onCreateBook(name: string, book: Book): Promise<boolean> {
-    let filename = name;
-    if (!filename.endsWith(".pgn")) {
-      filename += ".pgn";
-    }
+    const filename = normalizeNewFilename(name, "file");
     if (await props.storage.exists(filename)) {
       return false;
     }
     setCurrentBook({ filename, book });
-    setMode("");
+    unsetDialog();
     return true;
   }
 
@@ -62,7 +101,17 @@ export function Library(props: LibraryProps) {
     setCurrentBook(undefined);
   }
 
-  async function onCreateFolder(name: string) {
+  function toggleSelected(entry: DirEntry) {
+    const files = selectedFiles();
+    if (files.has(entry)) {
+      files.delete(entry);
+    } else {
+      files.add(entry);
+    }
+    setSelectedFiles(files);
+  }
+
+  async function onCreateFolder(name: string): Promise<boolean> {
     let fileExists = false;
     await props.status.perform(
       {
@@ -70,7 +119,6 @@ export function Library(props: LibraryProps) {
         description: name,
       },
       async () => {
-        // TODO: throw FileExistsError upwards
         if (await props.storage.exists(name)) {
           fileExists = true;
           return;
@@ -78,9 +126,20 @@ export function Library(props: LibraryProps) {
         await props.storage.createDir(name);
       },
     );
+    if (fileExists) {
+      return true;
+    }
     props.storage.refetchFiles();
-    setMode("");
-    return fileExists;
+    unsetDialog();
+    return false;
+  }
+
+  function onFileClick(entry: DirEntry) {
+    if (bulkMode()) {
+      toggleSelected(entry);
+    } else {
+      onFileMenuAction(entry, "open");
+    }
   }
 
   async function onFileMenuAction(entry: DirEntry, action: string) {
@@ -97,96 +156,200 @@ export function Library(props: LibraryProps) {
         });
       }
     } else if (action == "delete") {
-      props.status.perform(
-        {
-          title: entry.type == "file" ? "Deleting file" : "Deleting folder",
-          description: `${entry.filename}`,
-        },
-        async () => {
-          await props.storage.delete([entry.filename]);
-          props.storage.refetchFiles();
-        },
-      );
-    } else if (action == "move") {
-      setMode("move");
-      setMoveSource([entry]);
-    }
-  }
-
-  function cloneMove() {
-    setMode("");
-    setMoveSource([]);
-  }
-
-  async function completeMove(destDir: string) {
-    const sources = moveSource();
-
-    cloneMove();
-    let sourceName;
-    if (sources.length == 0 || destDir == props.storage.dir()) {
-      return;
-    } else if (sources.length == 1) {
-      sourceName = sources[0].filename;
-    } else {
-      sourceName = `${sources.length} files`;
-    }
-
-    props.status.perform(
-      {
-        title: "Moving files",
-        description: `${sourceName} -> Home${destDir}`,
-      },
-      async () => {
-        for (const source of sources) {
-          const destPath = joinPath(destDir, source.filename);
-          try {
-            await props.storage.move(source.filename, destPath);
-          } catch (e) {
-            if (e instanceof FileExistsError) {
-              throw new StatusError(`${destPath} already exists`);
-            } else {
-              throw e;
-            }
+      setDialog({
+        type: "confirm-delete",
+        files: [entry],
+      });
+    } else if (action == "rename") {
+      setDialog({
+        type: "rename",
+        file: entry,
+      });
+    } else if (action == "duplicate") {
+      props.status.perform("duplicating file", async () => {
+        const files = props.storage.files();
+        let newFilename = `Copy of ${entry.filename}`;
+        let i = 0;
+        while (files.findIndex((e) => e.filename == newFilename) != -1) {
+          newFilename = `Copy of ${newFilename}`;
+          if (i++ == 10) {
+            throw Error("duplicate: Can't find new filename");
           }
         }
-      },
-    );
+        const content = await props.storage.readFile(entry.filename);
+        await props.storage.writeFile(
+          joinPath(props.storage.dir(), newFilename),
+          content,
+        );
+        props.storage.refetchFiles();
+      });
+    } else if (action == "copy") {
+      setDialog({
+        type: "chooser",
+        operation: "copy",
+        files: [entry],
+      });
+    } else if (action == "move") {
+      setDialog({
+        type: "chooser",
+        operation: "move",
+        files: [entry],
+      });
+    }
   }
+
+  function performOperation(
+    title: string,
+    fileCount: number,
+    operation: (callbacks: OperationCallbacks) => Promise<void>,
+  ) {
+    if (fileCount <= 1) {
+      props.status.perform(
+        {
+          title,
+        },
+        () => operation({}),
+      );
+      unsetDialog();
+    } else {
+      setDialog({
+        type: "operation-progress",
+        title,
+        operation,
+      });
+    }
+  }
+
+  function onBulkMenuAction(action: string) {
+    if (action == "move") {
+      setDialog({
+        type: "chooser",
+        operation: "move",
+        files: Array.from(selectedFiles()),
+      });
+    } else if (action == "copy") {
+      setDialog({
+        type: "chooser",
+        operation: "copy",
+        files: Array.from(selectedFiles()),
+      });
+    } else if (action == "delete") {
+      setDialog({
+        type: "confirm-delete",
+        files: Array.from(selectedFiles()),
+      });
+    }
+    setSelectedFiles(new Set<DirEntry>());
+  }
+
+  const renderedDialog = createMemo(() => {
+    const d = dialog();
+
+    if (d.type === "null") {
+      return null;
+    } else if (d.type == "create-book") {
+      return (
+        <CreateBook
+          title="Create New Book"
+          storage={props.storage.clone()}
+          submitText="Create Book"
+          onClose={unsetDialog}
+          onCreate={onCreateBook}
+        />
+      );
+    } else if (d.type == "create-folder") {
+      return (
+        <CreateFolder
+          title="Create New Folder"
+          storage={props.storage.clone()}
+          submitText="Create Folder"
+          onClose={unsetDialog}
+          onCreate={onCreateFolder}
+        />
+      );
+    } else if (d.type == "chooser" && d.operation == "move") {
+      return (
+        <Chooser
+          storage={props.storage.clone()}
+          sources={d.files}
+          title="Move files"
+          subtitle="Select destination"
+          onSelect={(destDir) =>
+            performOperation("Moving files", d.files.length, (callbacks) =>
+              props.storage.move(d.files, destDir, callbacks),
+            )
+          }
+          onClose={unsetDialog}
+          dirMode
+          selectDirText="Move here"
+        />
+      );
+    } else if (d.type == "chooser" && d.operation == "copy") {
+      return (
+        <Chooser
+          storage={props.storage.clone()}
+          sources={d.files}
+          title="Copy files"
+          subtitle="Select destination"
+          onSelect={(destDir) =>
+            performOperation("Copying files", d.files.length, (callbacks) =>
+              props.storage.copy(d.files, destDir, callbacks),
+            )
+          }
+          onClose={unsetDialog}
+          dirMode
+          selectDirText="Copy here"
+        />
+      );
+    } else if (d.type == "confirm-delete") {
+      return (
+        <Dialog
+          onSubmit={() =>
+            performOperation("Deleting files", d.files.length, (callbacks) =>
+              props.storage.delete(d.files, callbacks),
+            )
+          }
+          onClose={unsetDialog}
+          title="Confirm delete"
+          submitText="Delete"
+        >
+          <div>This will permanently delete {d.files.length} files</div>
+        </Dialog>
+      );
+    } else if (d.type == "rename") {
+      return (
+        <RenameFile
+          storage={props.storage}
+          status={props.status}
+          filename={d.file.filename}
+          fileType={d.file.type}
+          onSubmit={(newFilename: string) => {
+            unsetDialog();
+            newFilename = normalizeNewFilename(newFilename, d.file.type);
+            props.status.perform("Renaming", async () => {
+              await props.storage.rename(d.file.filename, newFilename);
+              props.storage.refetchFiles();
+            });
+          }}
+          onClose={unsetDialog}
+        />
+      );
+    } else if (d.type == "operation-progress") {
+      return (
+        <OperationProgress
+          title={d.title}
+          onClose={unsetDialog}
+          operation={d.operation}
+        />
+      );
+    }
+    throw Error(`invalid dialog: ${d}`);
+  });
 
   return (
     <>
       <Switch>
-        <Match when={mode() == "create-book"} keyed>
-          <CreateBook
-            title="Create New Book"
-            storage={props.storage.clone()}
-            submitText="Create Book"
-            onClose={() => setMode("")}
-            onCreate={onCreateBook}
-          />
-        </Match>
-        <Match when={mode() == "create-folder"} keyed>
-          <CreateFolder
-            title="Create New Folder"
-            storage={props.storage.clone()}
-            submitText="Create Folder"
-            onClose={() => setMode("")}
-            onCreate={onCreateFolder}
-          />
-        </Match>
-        <Match when={mode() == "move"}>
-          <Chooser
-            storage={props.storage.clone()}
-            title={`Moving: ${moveSource()
-              .map((e) => e.filename)
-              .join(", ")}`}
-            subtitle="Select destination folder"
-            onSelect={completeMove}
-            onClose={cloneMove}
-            dirMode
-            selectDirText="Move here"
-          />
-        </Match>
+        <Match when={renderedDialog()}>{renderedDialog()}</Match>
         <Match when={currentBook()} keyed>
           {(currentBook) => (
             <BookEditor
@@ -213,7 +376,10 @@ export function Library(props: LibraryProps) {
                       >
                         <button
                           class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
-                          onClick={() => props.storage.setDir(component().path)}
+                          onClick={() => {
+                            props.storage.setDir(component().path);
+                            setBulkMode(false);
+                          }}
                         >
                           {component().filename}
                         </button>
@@ -232,22 +398,74 @@ export function Library(props: LibraryProps) {
               <div class="min-h-0 overflow-y-auto grow">
                 <BooksList
                   storage={props.storage}
+                  bulkMode={bulkMode()}
+                  selectedFiles={selectedFiles()}
+                  setSelectedFiles={setSelectedFiles}
                   onFileAction={onFileMenuAction}
+                  onClick={onFileClick}
                 />
               </div>
             </Show>
-            <div class="flex pt-8 gap-8">
-              <Button
-                text="Create Book"
-                icon={<BookPlus />}
-                onClick={() => setMode("create-book")}
-              />
-              <Button
-                text="Create Folder"
-                icon={<FolderPlus />}
-                onClick={() => setMode("create-folder")}
-              />
-            </div>
+            <Switch>
+              <Match when={!bulkMode()}>
+                <div class="flex pt-11 gap-8">
+                  <Button
+                    text="Bulk select"
+                    icon={<BulkMode />}
+                    disabled={props.storage.dir() == "/"}
+                    onClick={() => {
+                      setBulkMode(true);
+                      setSelectedFiles(new Set<DirEntry>());
+                    }}
+                  />
+                  <Button
+                    text="Create Book"
+                    icon={<BookPlus />}
+                    onClick={() => setDialog({ type: "create-book" })}
+                  />
+                  <Button
+                    text="Create Folder"
+                    icon={<FolderPlus />}
+                    onClick={() => setDialog({ type: "create-folder" })}
+                  />
+                </div>
+              </Match>
+              <Match when={bulkMode()}>
+                <h2 class="pt-4">{selectedFiles().size} files selected</h2>
+                <div class="flex pt-2 gap-8">
+                  <Button
+                    text="Cancel"
+                    icon={<Square />}
+                    onClick={() => {
+                      setBulkMode(false);
+                      setSelectedFiles(new Set<DirEntry>());
+                    }}
+                  />
+                  <Button
+                    text="Select all"
+                    icon={<SquareCheck />}
+                    onClick={() =>
+                      setSelectedFiles(new Set(props.storage.files()))
+                    }
+                  />
+                  <Button
+                    text="Copy"
+                    icon={<Copy />}
+                    onClick={() => onBulkMenuAction("copy")}
+                  />
+                  <Button
+                    text="Move"
+                    icon={<MoveRight />}
+                    onClick={() => onBulkMenuAction("move")}
+                  />
+                  <Button
+                    text="Delete"
+                    icon={<Trash />}
+                    onClick={() => onBulkMenuAction("delete")}
+                  />
+                </div>
+              </Match>
+            </Switch>
           </StandardLayout>
         </Match>
       </Switch>

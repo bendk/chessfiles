@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import { Field } from "@ark-ui/solid";
 import { Book, BookType, RootNode } from "~/lib/node";
+import { filenameValid } from "~/lib/storage";
 import type { AppStorage } from "~/lib/storage";
 import { Button, RadioGroup } from "~/components";
 
@@ -17,10 +18,7 @@ export function CreateBook(props: CreateBookProps) {
   const [error, setError] = createSignal("");
   const [bookType, setBookType] = createSignal<string | null>("normal");
   const [color, setColor] = createSignal<string | null>("white");
-  function disabled() {
-    // TODO: check for invalid chars, "..", ".", etc.
-    return name() == "" || name().indexOf("/") != -1;
-  }
+  const disabled = () => !filenameValid(name(), "file");
   function onKeyPress(e: KeyboardEvent) {
     if (e.key === "Enter" && !disabled()) {
       onCreate();

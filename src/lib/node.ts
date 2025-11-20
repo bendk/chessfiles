@@ -65,8 +65,8 @@ export class Book {
   /**
    * Get the serialized current line, for a training file book
    */
-  getTrainingCurrentLineData(): string|undefined {
-    return this.rootNodes.at(0)?.headers.get("TrainingCurrentLine")
+  getTrainingCurrentLineData(): string | undefined {
+    return this.rootNodes.at(0)?.headers.get("TrainingCurrentLine");
   }
 
   setTrainingCurrentLineData(data: string) {

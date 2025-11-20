@@ -1,7 +1,9 @@
 export {
   filename,
+  filenameValid,
   joinPath,
   splitPath,
+  normalizeNewFilename,
   normalizePath,
   pathComponents,
   type PathComponent,
@@ -16,6 +18,7 @@ import { ChessfilesStorage } from "./base";
 import { ChessfilesStorageDropbox } from "./dropbox";
 import { ChessfilesStorageLocal } from "./local";
 import { AppStorage } from "./app";
+import { type OperationCallbacks } from "./app";
 
 export {
   ChessfilesStorage,
@@ -23,7 +26,7 @@ export {
   ChessfilesStorageLocal,
   AppStorage,
 };
-export type { Storage };
+export type { OperationCallbacks, Storage };
 
 export function createStorage(storage: Storage): ChessfilesStorage {
   if (storage == "browser") {

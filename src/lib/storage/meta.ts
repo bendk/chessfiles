@@ -3,7 +3,7 @@ import { filename } from "./base";
 import type { Activity } from "~/lib/activity";
 import type { TrainingMeta } from "~/lib/training";
 
-const META_PATH = "/ChessfilesData.json"
+const META_PATH = "/ChessfilesData.json";
 
 /**
  * Manage storage metadata
@@ -31,25 +31,31 @@ function defaultStorageMeta(): StorageMeta {
  * Manage metadata for a single storage engine
  */
 class StorageMetaManager {
-  constructor(public storageName: string, private storage: ChessfilesStorage, public meta: StorageMeta) { }
+  constructor(
+    public storageName: string,
+    private storage: ChessfilesStorage,
+    public meta: StorageMeta,
+  ) {}
 
-  static async load(storageName: string, storage: ChessfilesStorage): Promise<StorageMetaManager> {
-    var meta = defaultStorageMeta();
+  static async load(
+    storageName: string,
+    storage: ChessfilesStorage,
+  ): Promise<StorageMetaManager> {
+    let meta = defaultStorageMeta();
     if (await storage.exists(META_PATH)) {
       const content = await storage.readFile(META_PATH);
       try {
         meta = {
           ...meta,
           ...JSON.parse(content),
-        }
-      } catch(e) {
+        };
+      } catch (e) {
         console.warn(`Error reading ${storageName} meta: ${e}`);
       }
     }
-    const manager = new StorageMetaManager(storageName, storage, meta)
+    const manager = new StorageMetaManager(storageName, storage, meta);
     await manager.onLoad();
     return manager;
-
   }
 
   /**
@@ -60,8 +66,14 @@ class StorageMetaManager {
       await this.storage.createDir("/ChessfilesTraining");
     }
     const trainingFiles = await this.storage.listDir("/ChessfilesTraining");
-    const trainingFilePaths = new Set(trainingFiles.map((e) => `/${this.storageName}/ChessfilesTraining/${e.filename}`));
-    const metaFilePaths = new Set(this.meta.trainingMeta.map((m) => m.trainingBookPath));
+    const trainingFilePaths = new Set(
+      trainingFiles.map(
+        (e) => `/${this.storageName}/ChessfilesTraining/${e.filename}`,
+      ),
+    );
+    const metaFilePaths = new Set(
+      this.meta.trainingMeta.map((m) => m.trainingBookPath),
+    );
 
     // Remove files in `ChessfilesTraining` with no corresponding metadata
     for (const path of trainingFilePaths) {
@@ -71,7 +83,9 @@ class StorageMetaManager {
     }
 
     // Remove metadata entry with no corresponding file in `ChessfilesTraining`
-    const filteredTrainingMeta = this.meta.trainingMeta.filter((m) => trainingFilePaths.has(m.trainingBookPath));
+    const filteredTrainingMeta = this.meta.trainingMeta.filter((m) =>
+      trainingFilePaths.has(m.trainingBookPath),
+    );
     if (filteredTrainingMeta.length != this.meta.trainingMeta.length) {
       this.meta.trainingMeta = filteredTrainingMeta;
       await this.saveMeta();
@@ -79,14 +93,16 @@ class StorageMetaManager {
   }
 
   matchesPath(path: string): boolean {
-    return path.startsWith(`/${this.storageName}/`)
+    return path.startsWith(`/${this.storageName}/`);
   }
 
   enginePath(path: string): string {
     if (path.startsWith(`/${this.storageName}/`)) {
       return path.slice(this.storageName.length + 1);
     }
-    throw Error(`StorageMetaManager.enginePath: path not for my storage engine (${path}, ${this.storageName})`);
+    throw Error(
+      `StorageMetaManager.enginePath: path not for my storage engine (${path}, ${this.storageName})`,
+    );
   }
 
   async saveMeta() {
@@ -105,8 +121,10 @@ class StorageMetaManager {
   addTrainingMetas(metas: TrainingMeta[]) {
     const trainingBookPaths = new Set(metas.map((m) => m.trainingBookPath));
     this.meta.trainingMeta = [
-      ...this.meta.trainingMeta.filter((m) => !trainingBookPaths.has(m.trainingBookPath)),
-      ...metas
+      ...this.meta.trainingMeta.filter(
+        (m) => !trainingBookPaths.has(m.trainingBookPath),
+      ),
+      ...metas,
     ];
   }
 
@@ -116,7 +134,9 @@ class StorageMetaManager {
   }
 
   async removeTrainingMeta(meta: TrainingMeta): Promise<void> {
-    this.meta.trainingMeta = this.meta.trainingMeta.filter((m) => m.trainingBookPath != meta.trainingBookPath);
+    this.meta.trainingMeta = this.meta.trainingMeta.filter(
+      (m) => m.trainingBookPath != meta.trainingBookPath,
+    );
     await this.saveMeta();
     const enginePath = this.enginePath(meta.trainingBookPath);
     if (await this.storage.exists(enginePath)) {
@@ -126,7 +146,7 @@ class StorageMetaManager {
 
   async addActivity(activity: Activity): Promise<void> {
     this.meta.activity.push(activity);
-    await this.saveMeta()
+    await this.saveMeta();
   }
 
   /**
@@ -137,29 +157,28 @@ class StorageMetaManager {
    * Does not call `saveMeta()`, the AppMetaManager is responsible for that.
    */
   removeMatchingMetas(paths: Set<string>): TrainingMeta[] {
-    const removed: TrainingMeta[] = []
+    const removed: TrainingMeta[] = [];
     this.meta.trainingMeta = this.meta.trainingMeta.filter((m) => {
       if (!paths.has(m.sourceBookPath)) {
         return true;
       } else {
-        removed.push(m)
+        removed.push(m);
         return false;
       }
     });
-    return removed
+    return removed;
   }
 
-
   async readFile(path: string): Promise<string> {
-    return await this.storage.readFile(this.enginePath(path))
+    return await this.storage.readFile(this.enginePath(path));
   }
 
   async createFile(path: string, content: string): Promise<void> {
-    await this.storage.createFile(this.enginePath(path), content)
+    await this.storage.createFile(this.enginePath(path), content);
   }
 
   async remove(path: string): Promise<void> {
-    await this.storage.remove(this.enginePath(path))
+    await this.storage.remove(this.enginePath(path));
   }
 }
 
@@ -167,46 +186,50 @@ class StorageMetaManager {
  * Manage the metadata for the entire application
  */
 export class AppMetaManager {
-  private constructor(
-    private storageMetaManagers: StorageMetaManager[],
-  ) { }
+  private constructor(private storageMetaManagers: StorageMetaManager[]) {}
 
-  static async load(engines: [string, ChessfilesStorage][]): Promise<AppMetaManager> {
+  static async load(
+    engines: [string, ChessfilesStorage][],
+  ): Promise<AppMetaManager> {
     const enginesWithMeta = [];
     const storageMetaManagers = [];
     for (const [name, storage] of engines) {
-      var meta = defaultStorageMeta();
+      let meta = defaultStorageMeta();
       if (await storage.exists(META_PATH)) {
         const content = await storage.readFile(META_PATH);
         try {
           meta = {
             ...meta,
             ...JSON.parse(content),
-          }
-        } catch(e) {
+          };
+        } catch (e) {
           console.warn(`Error reading ${name} meta: ${e}`);
         }
       }
-      enginesWithMeta.push({name, storage, meta})
-      storageMetaManagers.push(await StorageMetaManager.load(name, storage))
+      enginesWithMeta.push({ name, storage, meta });
+      storageMetaManagers.push(await StorageMetaManager.load(name, storage));
     }
-    return new AppMetaManager(
-      storageMetaManagers,
-    );
+    return new AppMetaManager(storageMetaManagers);
   }
 
-  async updateStorageEngines(engines: [string, ChessfilesStorage][]): Promise<void> {
+  async updateStorageEngines(
+    engines: [string, ChessfilesStorage][],
+  ): Promise<void> {
     const engineSet = new Map(engines);
-    const updatedStorageMetaManagers = this.storageMetaManagers.filter((storageMetaManager) => {
-      if (engineSet.has(storageMetaManager.storageName)) {
-        engineSet.delete(storageMetaManager.storageName);
-        return true;
-      } else {
-        return false;
-      }
-    });
+    const updatedStorageMetaManagers = this.storageMetaManagers.filter(
+      (storageMetaManager) => {
+        if (engineSet.has(storageMetaManager.storageName)) {
+          engineSet.delete(storageMetaManager.storageName);
+          return true;
+        } else {
+          return false;
+        }
+      },
+    );
     for (const [name, storage] of engineSet) {
-      updatedStorageMetaManagers.push(await StorageMetaManager.load(name, storage))
+      updatedStorageMetaManagers.push(
+        await StorageMetaManager.load(name, storage),
+      );
     }
     this.storageMetaManagers = updatedStorageMetaManagers;
   }
@@ -221,7 +244,7 @@ export class AppMetaManager {
   }
 
   async addActivity(activity: Activity, forPath: string): Promise<void> {
-    const storageMetaManager = this.lookupStorageMetaManager(forPath)
+    const storageMetaManager = this.lookupStorageMetaManager(forPath);
     await storageMetaManager.addActivity(activity);
   }
 
@@ -235,18 +258,22 @@ export class AppMetaManager {
   }
 
   async saveTrainingMeta(meta: TrainingMeta): Promise<void> {
-    const storageMetaManager = this.lookupStorageMetaManager(meta.trainingBookPath)
+    const storageMetaManager = this.lookupStorageMetaManager(
+      meta.trainingBookPath,
+    );
     await storageMetaManager.saveTrainingMeta(meta);
   }
 
   async removeTrainingMeta(meta: TrainingMeta): Promise<void> {
-    const storageMetaManager = this.lookupStorageMetaManager(meta.trainingBookPath)
+    const storageMetaManager = this.lookupStorageMetaManager(
+      meta.trainingBookPath,
+    );
     await storageMetaManager.removeTrainingMeta(meta);
   }
 
   /**
-    * Update metadata after files have been deleted
-    */
+   * Update metadata after files have been deleted
+   */
   async onFilesDeleted(paths: string[]): Promise<void> {
     const pathSet = new Set(paths);
 
@@ -259,10 +286,10 @@ export class AppMetaManager {
   }
 
   /**
-    * Update metadata after files have been moved
-    *
-    * Inputs an array of [sourcePath, destPath] items.
-    */
+   * Update metadata after files have been moved
+   *
+   * Inputs an array of [sourcePath, destPath] items.
+   */
   async onFilesMoved(paths: [string, string][]): Promise<void> {
     const pathMap = new Map(paths);
     const sourcePathSet = new Set(pathMap.keys());
@@ -308,7 +335,7 @@ export class AppMetaManager {
   private lookupStorageMetaManager(path: string): StorageMetaManager {
     for (const storageMetaManager of this.storageMetaManagers) {
       if (storageMetaManager.matchesPath(path)) {
-        return storageMetaManager
+        return storageMetaManager;
       }
     }
     throw Error(`no StorageMetaManager found for ${path}`);

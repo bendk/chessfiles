@@ -230,15 +230,18 @@ export function Board(props: BoardProps) {
   }
   createEffect(resizeInnerDiv);
   onMount(() => {
-    window.addEventListener('resize', resizeInnerDiv);
+    window.addEventListener("resize", resizeInnerDiv);
   });
 
   onCleanup(() => {
-    window.removeEventListener('resize', resizeInnerDiv);
-  })
+    window.removeEventListener("resize", resizeInnerDiv);
+  });
 
   return (
-    <div ref={outerDiv} class="h-full w-full aspect-square relative flex justify-center items-center">
+    <div
+      ref={outerDiv}
+      class="h-full w-full aspect-square relative flex justify-center items-center"
+    >
       <div
         ref={innerDiv}
         class="w-full h-full"

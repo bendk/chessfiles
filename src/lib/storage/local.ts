@@ -6,6 +6,7 @@ import {
   pathComponents,
   ChessfilesStorage,
   FileExistsError,
+  FileNotFoundError,
 } from "./base";
 
 interface DirEntryLocal extends DirEntry {
@@ -16,7 +17,7 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   localStorage: Storage;
 
   constructor(localStorageObj?: Storage) {
-    super()
+    super();
     if (localStorageObj) {
       this.localStorage = localStorageObj;
     } else {
@@ -39,7 +40,9 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
       const entries = this.readDirEntry(entry);
       const nextEntry = entries.find((e) => e.filename == c.filename);
       if (nextEntry === undefined) {
-        throw new Error(`localStorage.lookup: path does not exist (${path})`);
+        throw new FileNotFoundError(
+          `localStorage.lookup: path does not exist (${path})`,
+        );
       }
       entry = nextEntry;
     }
@@ -76,7 +79,16 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
 
   async exists(path: string) {
     const [dir, filename] = splitPath(normalizePath(path));
-    const dirEntry = this.lookup(dir, "dir");
+    let dirEntry;
+    try {
+      dirEntry = this.lookup(dir, "dir");
+    } catch (e) {
+      if (e instanceof FileNotFoundError) {
+        return false;
+      } else {
+        throw e;
+      }
+    }
     const entries = this.readDirEntry(dirEntry);
     return entries.some((e) => e.filename == filename);
   }
@@ -135,10 +147,29 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
     if (toDirEntries.some((e) => e.filename == toFilename)) {
       throw new Error(`localStorage.move: to already present: ${to}`);
     }
+    const newEntry = {
+      ...fromDirEntries[fromIndex],
+      filename: toFilename,
+    };
 
-    toDirEntries.push(...fromDirEntries.splice(fromIndex, 1));
-    this.localStorage.setItem(entryKey(fromEntry), JSON.stringify(fromDirEntries));
-    this.localStorage.setItem(entryKey(toEntry), JSON.stringify(toDirEntries));
+    if (toDir == fromDir) {
+      fromDirEntries[fromIndex] = newEntry;
+      this.localStorage.setItem(
+        entryKey(fromEntry),
+        JSON.stringify(fromDirEntries),
+      );
+    } else {
+      fromDirEntries.splice(fromIndex, 1);
+      toDirEntries.push(newEntry);
+      this.localStorage.setItem(
+        entryKey(fromEntry),
+        JSON.stringify(fromDirEntries),
+      );
+      this.localStorage.setItem(
+        entryKey(toEntry),
+        JSON.stringify(toDirEntries),
+      );
+    }
   }
 
   async remove(path: string) {

@@ -374,7 +374,11 @@ export class Training {
    *   - A PGN string, loaded from disk
    *   - The `TrainingSettings`, also loaded from disk
    */
-  static import(meta: TrainingMeta, pgnData: string, settings: TrainingSettings): Training {
+  static import(
+    meta: TrainingMeta,
+    pgnData: string,
+    settings: TrainingSettings,
+  ): Training {
     const book = Book.import(pgnData);
     const rootNodes = book.rootNodes;
     const training = new Training(settings, meta, rootNodes);

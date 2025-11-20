@@ -1,5 +1,10 @@
 import type { DirEntry, DirEntryType } from "./base";
-import { splitPath, ChessfilesStorage, FileExistsError } from "./base";
+import {
+  splitPath,
+  ChessfilesStorage,
+  FileExistsError,
+  FileNotFoundError,
+} from "./base";
 import * as dropbox from "~/lib/auth/dropbox";
 
 function apiPath(path: string): string {
@@ -73,7 +78,17 @@ export class ChessfilesStorageDropbox extends ChessfilesStorage {
 
   async exists(path: string) {
     const [dir, filename] = splitPath(path);
-    for (const entry of await this.listDir(dir)) {
+    let listing;
+    try {
+      listing = await this.listDir(dir);
+    } catch (e) {
+      if (e instanceof FileNotFoundError) {
+        return false;
+      } else {
+        throw e;
+      }
+    }
+    for (const entry of listing) {
       if (entry.filename == filename) {
         return true;
       }
@@ -226,12 +241,12 @@ async function checkApiResponse(resp: Response) {
     } catch {
       errorData = undefined;
     }
-    if (
-      errorData !== undefined &&
-      errorData.error_summary &&
-      errorData.error_summary.startsWith("path/conflict")
-    ) {
-      throw new FileExistsError();
+    if (errorData !== undefined && errorData.error_summary) {
+      if (errorData.error_summary.startsWith("path/conflict")) {
+        throw new FileExistsError();
+      } else if (errorData.error_summary.startsWith("path/not_found")) {
+        throw new FileNotFoundError();
+      }
     }
     throw Error("Dropbox API error");
   }
