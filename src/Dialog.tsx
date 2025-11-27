@@ -11,9 +11,9 @@ interface DialogProps {
   loading?: boolean;
   disabled?: boolean;
   height?: number;
-  submitText: string;
+  submitText?: string;
   closeText?: string;
-  onSubmit: () => void;
+  onSubmit?: () => void;
   onClose?: () => void;
 }
 
@@ -37,15 +37,17 @@ export function Dialog(props: DialogProps) {
             <ArkDialog.Description class="flex flex-col px-4 py-4 grow">
               <div class="grow">{props.children}</div>
               <div class="flex justify-between pt-8">
-                <Button
-                  text={props.submitText}
-                  icon={
-                    <Show when={props.loading}>
-                      <LoaderCircle class="animate-spin" />
-                    </Show>
-                  }
-                  onClick={props.onSubmit}
-                />
+                <Show when={props.onSubmit && props.submitText}>
+                  <Button
+                    text={props.submitText}
+                    icon={
+                      <Show when={props.loading}>
+                        <LoaderCircle class="animate-spin" />
+                      </Show>
+                    }
+                    onClick={props.onSubmit}
+                  />
+                </Show>
                 <Show when={props.onClose}>
                   <Button
                     text={props.closeText ?? "Close"}

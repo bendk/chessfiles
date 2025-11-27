@@ -21,7 +21,7 @@
     "@thisbeyond/solid-dnd": "^0.7.5",
     "chessground": "^9.1.1",
     "chessops": "^0.14.2",
-    "lucide-solid": "^0.503.0",
+    "lucide-solid": "^0.555.0",
     "pkce-challenge": "^5.0.0",
     "solid-js": "^1.9.5",
     "tailwindcss": "^4.1.13",

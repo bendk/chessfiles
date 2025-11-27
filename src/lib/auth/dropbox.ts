@@ -50,7 +50,7 @@ export async function completeLogin(state: string, code: string | null) {
   });
   const data = await resp.json();
   localStorage.setItem("dropbox-oauth", JSON.stringify(data));
-  window.open(`${window.location.origin}#settings-dropbox`, "_self");
+  window.open(`${window.location.origin}`, "_self");
 }
 
 function getOauthData(): OAuthData | undefined {
@@ -92,4 +92,19 @@ export async function refreshAccessToken(): Promise<string | undefined> {
     }),
   );
   return data.access_token;
+}
+
+export async function disconnect() {
+  const accessToken = refreshAccessToken();
+  if (accessToken === undefined) {
+    return;
+  }
+  const url = new URL("https://api.dropboxapi.com/2/auth/token/revoke");
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+
+  await fetch(url, { method: "POST", headers });
+  localStorage.removeItem("dropbox-oauth");
 }
