@@ -69,6 +69,21 @@ export function shapeEquals(left: Shape, right: Shape): boolean {
   );
 }
 
+export function moveListEquals(
+  left: readonly Move[],
+  right: readonly Move[],
+): boolean {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (let i = 0; i < left.length; i++) {
+    if (!moveEquals(left[i], right[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function newPgnGame(
   headers: Map<string, string>,
   children: PgnChildNode[],

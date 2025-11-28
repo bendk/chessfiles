@@ -1,5 +1,3 @@
-import ArrowBigLeft from "lucide-solid/icons/arrow-left";
-import ArrowBigRight from "lucide-solid/icons/arrow-right";
 import List from "lucide-solid/icons/list";
 import ListTree from "lucide-solid/icons/list-tree";
 import LogOut from "lucide-solid/icons/log-out";
@@ -64,23 +62,18 @@ export function Editor(props: EditorProps) {
 
   function moveBackwards() {
     commitDraftComment();
-    editor.moveBackwards();
+    editor.moveBackward();
     setView(editor.view);
   }
 
   function moveForwards() {
     commitDraftComment();
-    editor.moveForwards();
+    editor.moveForward();
     setView(editor.view);
   }
 
-  function addLine() {
-    editor.addLine();
-    setView(editor.view);
-  }
-
-  function deleteLine() {
-    editor.deleteLine();
+  function deleteNode() {
+    editor.deleteNode();
     setView(editor.view);
   }
 
@@ -145,8 +138,15 @@ export function Editor(props: EditorProps) {
           />
         </Match>
         <Match when={true}>
-          <div class="grid gap-4 grid-cols-[320px_minmax(0,1fr)_320px] grid-rows-[52px_minmax(0,1fr)_auto] px-4 py-2 h-screen">
-            <div class="col-span-full">
+          {
+            // the middle grid-row value is calculated to be the available width:
+            //   - start with 100vw
+            //   - 640px for the left and right sidebars
+            //   + 52px for the controls
+            //   - mod(100vw, 8px) so that it's divisible by 8 (all other terms are already divisible)
+          }
+          <div class="grid grid-cols-[320px_minmax(0,1fr)_320px] grid-rows-[auto_minmax(0,calc(100vw-640px+52px-mod(1vw,8px))))_minmax(200px,1fr)] h-screen">
+            <div class="col-span-full text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300 px-2 py-4 mb-2">
               <Header
                 name={props.name}
                 bookType={props.bookType}
@@ -158,7 +158,7 @@ export function Editor(props: EditorProps) {
                 onExit={onExit}
               />
             </div>
-            <div>
+            <div class="pt-4 pl-4 pr-2">
               <CurrentNodeControls
                 isRoot={view().ply == 0}
                 bookType={props.bookType}
@@ -168,27 +168,27 @@ export function Editor(props: EditorProps) {
                 setDraftComment={setDraftComment}
                 commitDraftComment={commitDraftComment}
                 toggleNag={toggleNag}
-                deleteLine={deleteLine}
                 setPriority={setPriority}
-                addLine={addLine}
                 onSetInitialPosition={() => setMode("set-initial-position")}
               />
             </div>
             <Board
               chess={view().position}
               lastMove={view().lastMove}
-              enableShapes={view().ply > 0 && !view().currentNode.isDraft}
+              enableShapes={view().ply > 0}
               shapes={view().currentNode.shapes}
               onMove={onMove}
               toggleShape={toggleShape}
               onMoveBackwards={moveBackwards}
               onMoveForwards={moveForwards}
-              arrows
+              onDeleteNode={deleteNode}
+              withArrows
+              withDeleteNode
             />
-            <div>
+            <div class="pt-2 px-2">
               <RightSidebar />
             </div>
-            <div class="col-2 flex min-w-0 min-h-0">
+            <div class="col-span-full bg-slate-100 dark:bg-zinc-800 p-2">
               <MoveView
                 bookType={props.bookType}
                 rootNode={props.rootNode}
@@ -266,32 +266,6 @@ function Header(props: HeaderProps) {
   );
 }
 
-interface BoardViewProps {
-  view: EditorView;
-  onMove: (move: Move) => void;
-  toggleShape: (shape: Shape) => void;
-  moveBackwards: () => void;
-  moveForwards: () => void;
-}
-
-function BoardView(props: BoardViewProps) {
-  return (
-    <div class="flex flex-col">
-      <Board
-        chess={props.view.position}
-        lastMove={props.view.lastMove}
-        onMove={props.onMove}
-        enableShapes={props.view.ply > 0 && !props.view.currentNode.isDraft}
-        toggleShape={props.toggleShape}
-        shapes={props.view.currentNode.shapes}
-        onMoveBackwards={props.moveBackwards}
-        onMoveForwards={props.moveForwards}
-        arrows
-      />
-    </div>
-  );
-}
-
 interface MoveViewProps {
   bookType: BookType;
   rootNode: RootNode;
@@ -305,14 +279,14 @@ function MoveView(props: MoveViewProps) {
   );
   return (
     <div class="flex flex-col min-h-full min-w-full">
-      <div class="flex justify-end pb-2">
+      <div class="flex justify-start pb-2">
         <SegmentGroup.Root
           value={moveView()}
-          class="flex relative bg-zinc-800 rounded-md"
+          class="flex relative dark:bg-zinc-800 border-1 border-zinc-500 rounded-md"
           onValueChange={(details) => setMoveView(details.value ?? "list")}
         >
           <SegmentGroup.Indicator
-            class="bg-sky-500 opacity-30"
+            class="bg-sky-400 dark:bg-sky-500 opacity-30"
             classList={{
               "rounded-l-md": moveView() == "list",
               "rounded-r-md": moveView() == "tree",

@@ -1,5 +1,3 @@
-import type { JSXElement } from "solid-js";
-
 export abstract class ChessfilesStorage {
   abstract listDir(path: string): Promise<DirEntry[]>;
   abstract readFile(path: string): Promise<string>;

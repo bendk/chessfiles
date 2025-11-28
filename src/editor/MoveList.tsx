@@ -14,14 +14,15 @@ import type { EditorView } from "~/lib/editor";
  */
 function renderNode(
   node: RootNode,
-  selectedNode: ChessNode | undefined,
+  view: EditorView,
   setMoves: (moves: readonly Move[]) => void,
 ): Node[] {
   const output: Node[] = [];
   const whiteToMove = node.initialPosition.turn == "white";
   const context: RenderNodeContext = {
     node,
-    selectedNode,
+    nodesInLine: new Set(view.line.map((editorNode) => editorNode.node)),
+    selectedNode: view.currentNode.node,
     position: node.initialPosition.clone(),
     ply: whiteToMove ? 0 : 1,
     renderNextMoveNum: true,
@@ -70,6 +71,7 @@ function renderNodeInner(context: RenderNodeContext, output: Node[]) {
 /// Data to handle a single node of `renderNode`
 interface RenderNodeContext {
   node: ChessNode;
+  nodesInLine: Set<ChessNode>;
   selectedNode: ChessNode | undefined;
   moveLink: Node;
   position: Chess;
@@ -112,42 +114,27 @@ function childContext(
   const moveLink = document.createElement("a");
   moveLink.text = `${moveNum}${moveSan}${priorityString}${nagTextString}${commentString}`;
   moveLink.href = "#";
-  if (childNode === context.selectedNode) {
+  if (context.nodesInLine.has(childNode)) {
     moveLink.classList.add("text-sky-600");
     moveLink.classList.add("dark:text-sky-300");
+    if (childNode === context.selectedNode) {
+      moveLink.classList.add("underline");
+    }
+  } else {
+    moveLink.classList.add("text-zinc-400");
   }
   moveLink.addEventListener("click", () => context.setMoves(moves));
 
   return {
+    ...context,
     node: childNode,
-    selectedNode: context.selectedNode,
     moveLink,
     position,
     ply: context.ply + 1,
     renderNextMoveNum: whiteToMove || willDisplayAfterAlternatives,
     whiteToMove,
     moves,
-    setMoves: context.setMoves,
   };
-}
-
-function findSelectedNode(
-  rootNode: RootNode,
-  view: EditorView,
-): ChessNode | undefined {
-  let selectedNode: ChessNode | undefined = undefined;
-  const currentEditorNode = view.line.find((n) => n.selected);
-  if (!currentEditorNode) {
-    return undefined;
-  }
-  selectedNode = rootNode;
-  for (const move of currentEditorNode.movesToNode) {
-    selectedNode = selectedNode.getChild(move);
-    if (selectedNode === undefined) {
-      return undefined;
-    }
-  }
-  return selectedNode.children[currentEditorNode.currentMove];
 }
 
 export interface MoveListProps {
@@ -158,13 +145,12 @@ export interface MoveListProps {
 
 export function MoveList(props: MoveListProps) {
   const renderedNodes = createMemo(() => {
-    const selectedNode = findSelectedNode(props.rootNode, props.view);
-    return renderNode(props.rootNode, selectedNode, props.setMoves);
+    return renderNode(props.rootNode, props.view, props.setMoves);
   });
 
   return (
     <div>
-      <div class="text-lg">
+      <div class="text-lg/[25px]">
         <button
           class="cursor-pointer translate-y-1 mr-2"
           classList={{
@@ -172,7 +158,7 @@ export function MoveList(props: MoveListProps) {
           }}
           onClick={() => props.setMoves([])}
         >
-          <Book size={21} />
+          <Book size={20} />
         </button>
         {renderedNodes()}
       </div>

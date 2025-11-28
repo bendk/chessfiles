@@ -1,15 +1,13 @@
 import ArrowUpDown from "lucide-solid/icons/arrow-up-down";
-import SquarePlus from "lucide-solid/icons/square-plus";
 import PrevIcon from "lucide-solid/icons/chevron-left";
 import NextIcon from "lucide-solid/icons/chevron-right";
 import Tags from "lucide-solid/icons/tags";
-import Trash from "lucide-solid/icons/trash-2";
 import type { DateValue } from "@ark-ui/solid";
 import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
 import { BookType, Priority } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
-import { createSignal, Index, Match, Show, Switch } from "solid-js";
+import { createSignal, Index, Match, Switch } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Button, MenuButton, RadioGroup } from "~/components";
 
@@ -23,8 +21,6 @@ export interface CurrentNodeControlsProps {
   commitDraftComment: () => void;
   toggleNag: (nag: Nag) => void;
   setPriority: (priority: Priority) => void;
-  deleteLine: () => void;
-  addLine: () => void;
   onSetInitialPosition: () => void;
 }
 
@@ -46,176 +42,157 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
   }
 
   return (
-    <Show
-      when={!props.view.currentNode.isDraft}
-      fallback={
-        <div class="flex flex-col justify-end h-full">
+    <Switch>
+      <Match when={props.isRoot && props.bookType == BookType.Normal}>
+        <div class="flex flex-col gap-4">
+          <h2 class="text-2xl">Game Info</h2>
+          <HeaderField
+            label="White Player"
+            key="White"
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <HeaderField
+            label="Black Player"
+            key="Black"
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <HeaderField
+            label="Event"
+            key="Event"
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <HeaderField
+            label="Site"
+            key="Site"
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <DateField
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <HeaderField
+            label="Round"
+            key="Round"
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <ResultField
+            editor={props.editor}
+            view={props.view}
+            setView={props.setView}
+          />
+          <Field.Root class="flex flex-col gap-1">
+            <Field.Label>Game notes</Field.Label>
+            <Field.Textarea
+              value={props.view.currentNode.comment}
+              onChange={(evt) => props.setDraftComment(evt.target.value)}
+              onKeyUp={(evt) => {
+                if (evt.key == "Enter") {
+                  evt.currentTarget.blur();
+                }
+              }}
+              class="border-1 border-zinc-400 dark:border-zinc-700 rounded-md px-2 py-1 outline-0"
+              rows="5"
+            />
+          </Field.Root>
           <Button
-            text="Add Line"
-            icon={<SquarePlus />}
-            onClick={props.addLine}
-            style="flat"
+            text="Set initial position"
+            onClick={props.onSetInitialPosition}
           />
         </div>
-      }
-    >
-      <Switch>
-        <Match when={props.isRoot && props.bookType == BookType.Normal}>
-          <div class="flex flex-col gap-4">
-            <h2 class="text-2xl">Game Info</h2>
-            <HeaderField
-              label="White Player"
-              key="White"
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <HeaderField
-              label="Black Player"
-              key="Black"
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <HeaderField
-              label="Event"
-              key="Event"
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <HeaderField
-              label="Site"
-              key="Site"
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <DateField
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <HeaderField
-              label="Round"
-              key="Round"
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <ResultField
-              editor={props.editor}
-              view={props.view}
-              setView={props.setView}
-            />
-            <Field.Root class="flex flex-col gap-1">
-              <Field.Label>Game notes</Field.Label>
-              <Field.Textarea
-                value={props.view.currentNode.comment}
-                onChange={(evt) => props.setDraftComment(evt.target.value)}
-                onKeyUp={(evt) => {
-                  if (evt.key == "Enter") {
-                    evt.currentTarget.blur();
-                  }
-                }}
-                class="border-1 border-zinc-400 dark:border-zinc-700 rounded-md px-2 py-1 outline-0"
-                rows="5"
-              />
-            </Field.Root>
-            <Button
-              text="Set initial position"
-              onClick={props.onSetInitialPosition}
-            />
-          </div>
-        </Match>
-        <Match when={props.isRoot && props.bookType == BookType.Opening}>
-          <div class="flex flex-col gap-4">
-            <h2 class="text-2xl">Opening Book</h2>
-            <RadioGroup.Root
-              value={props.view.color}
-              onValueChange={setTrainingColor}
-            >
-              <RadioGroup.Label text="Training Color" />
-              <RadioGroup.Item text="White" value="white" />
-              <RadioGroup.Item text="Black" value="black" />
-              <RadioGroup.Item text="Both" value="" />
-            </RadioGroup.Root>
-          </div>
-        </Match>
-        <Match when={!props.isRoot}>
-          <div class="flex flex-col gap-4 h-full justify-end">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <MenuButton
-                  placement="top-end"
-                  style="nags"
-                  icon=<Tags />
-                  items={[
-                    item(Nag.BrilliantMove, "row-start-2"),
-                    item(Nag.GoodMove),
-                    item(Nag.InterestingMove),
-                    item(Nag.DubiousMove),
-                    item(Nag.PoorMove),
-                    item(Nag.BlunderMove),
+      </Match>
+      <Match when={props.isRoot && props.bookType == BookType.Opening}>
+        <div class="flex flex-col gap-4">
+          <h2 class="text-2xl">Opening Book</h2>
+          <RadioGroup.Root
+            value={props.view.color}
+            onValueChange={setTrainingColor}
+          >
+            <RadioGroup.Label text="Training Color" />
+            <RadioGroup.Item text="White" value="white" />
+            <RadioGroup.Item text="Black" value="black" />
+            <RadioGroup.Item text="Both" value="" />
+          </RadioGroup.Root>
+        </div>
+      </Match>
+      <Match when={!props.isRoot}>
+        <div class="flex flex-col gap-4 h-full">
+          <h2 class="text-2xl">Notes</h2>
+          <textarea
+            class="border-1 border-zinc-400 dark:border-zinc-700 rounded-sm w-full p-2"
+            value={props.view.currentNode.comment}
+            onInput={(evt) => props.setDraftComment(evt.target.value)}
+            onChange={props.commitDraftComment}
+            rows="3"
+          ></textarea>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <MenuButton
+                placement="top-end"
+                style="nags"
+                icon=<Tags />
+                items={[
+                  item(Nag.BrilliantMove, "row-start-2"),
+                  item(Nag.GoodMove),
+                  item(Nag.InterestingMove),
+                  item(Nag.DubiousMove),
+                  item(Nag.PoorMove),
+                  item(Nag.BlunderMove),
 
-                    item(Nag.PlusOverMinusPosition, "row-start-1"),
-                    item(Nag.PlusMinusPosition),
-                    item(Nag.PlusEqualsPosition),
-                    item(Nag.EqualPosition),
-                    item(Nag.UnclearPosition),
-                    item(Nag.EqualsPlusPosition),
-                    item(Nag.MinusPlusPosition),
-                    item(Nag.MinusOverPlusPosition),
-                  ]}
-                  onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
-                />
-                <MenuButton
-                  placement="top-end"
-                  style="flat"
-                  icon=<ArrowUpDown />
-                  items={[
-                    {
-                      text: "Priority: First",
-                      value: Priority.TrainFirst.toString(),
-                      selected:
-                        props.view.currentNode.priority == Priority.TrainFirst,
-                    },
-                    {
-                      text: "Priority: Default",
-                      value: Priority.Default.toString(),
-                      selected:
-                        props.view.currentNode.priority == Priority.Default,
-                    },
-                    {
-                      text: "Priority: Last",
-                      value: Priority.TrainLast.toString(),
-                      selected:
-                        props.view.currentNode.priority == Priority.TrainLast,
-                    },
-                  ]}
-                  onSelect={(priority) =>
-                    props.setPriority(Number.parseInt(priority))
-                  }
-                />
-              </div>
-              <Button
-                icon={<Trash />}
-                onClick={props.deleteLine}
+                  item(Nag.PlusOverMinusPosition, "row-start-1"),
+                  item(Nag.PlusMinusPosition),
+                  item(Nag.PlusEqualsPosition),
+                  item(Nag.EqualPosition),
+                  item(Nag.UnclearPosition),
+                  item(Nag.EqualsPlusPosition),
+                  item(Nag.MinusPlusPosition),
+                  item(Nag.MinusOverPlusPosition),
+                ]}
+                onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
+              />
+              <MenuButton
+                placement="top-end"
                 style="flat"
+                icon=<ArrowUpDown />
+                items={[
+                  {
+                    text: "Priority: First",
+                    value: Priority.TrainFirst.toString(),
+                    selected:
+                      props.view.currentNode.priority == Priority.TrainFirst,
+                  },
+                  {
+                    text: "Priority: Default",
+                    value: Priority.Default.toString(),
+                    selected:
+                      props.view.currentNode.priority == Priority.Default,
+                  },
+                  {
+                    text: "Priority: Last",
+                    value: Priority.TrainLast.toString(),
+                    selected:
+                      props.view.currentNode.priority == Priority.TrainLast,
+                  },
+                ]}
+                onSelect={(priority) =>
+                  props.setPriority(Number.parseInt(priority))
+                }
               />
             </div>
-            <textarea
-              class="border-1 border-zinc-400 dark:border-zinc-700 rounded-sm w-full p-2"
-              value={props.view.currentNode.comment}
-              onInput={(evt) => props.setDraftComment(evt.target.value)}
-              onChange={props.commitDraftComment}
-              placeholder="move comment"
-              rows="3"
-            ></textarea>
           </div>
-        </Match>
-      </Switch>
-    </Show>
+        </div>
+      </Match>
+    </Switch>
   );
 }
 

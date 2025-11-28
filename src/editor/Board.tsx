@@ -13,7 +13,9 @@ import type { Key } from "chessground/types";
 import { Chessground } from "chessground";
 import ArrowBigLeft from "lucide-solid/icons/arrow-left";
 import ArrowBigRight from "lucide-solid/icons/arrow-right";
+import Delete from "lucide-solid/icons/delete";
 import { createSignal, createEffect, onCleanup, onMount, Show } from "solid-js";
+import { Button } from "~/components";
 
 import "./chessground.base.css";
 import "./chessground.brown.css";
@@ -68,10 +70,12 @@ interface BoardProps {
   onMove: (move: Move) => void;
   shapes?: readonly Shape[];
   enableShapes?: boolean;
-  arrows?: boolean;
+  withArrows?: boolean;
+  withDeleteNode?: boolean;
   toggleShape?: (shape: Shape) => void;
   onMoveBackwards?: () => void;
   onMoveForwards?: () => void;
+  onDeleteNode?: () => void;
 }
 
 interface PendingPromotionState {
@@ -83,7 +87,7 @@ interface PendingPromotionState {
 export function Board(props: BoardProps) {
   let outerDiv!: HTMLDivElement;
   let innerDiv!: HTMLDivElement;
-  let arrowDiv: HTMLDivElement|undefined = undefined;
+  let arrowDiv: HTMLDivElement | undefined;
   let board: ChessgroundApi | undefined;
   const [shapeFromSquare, setShapeFromSquare] = createSignal<Key | undefined>(
     undefined,
@@ -251,10 +255,7 @@ export function Board(props: BoardProps) {
   });
 
   return (
-    <div
-      ref={outerDiv}
-      class="flex flex-col justify-center items-center"
-    >
+    <div ref={outerDiv} class="flex flex-col justify-center items-center">
       <div
         ref={innerDiv}
         classList={{
@@ -315,14 +316,29 @@ export function Board(props: BoardProps) {
           <PromotionSelector onSelect={onPromotionSelect} {...state()} />
         )}
       </Show>
-      <Show when={props.arrows}>
-        <div class="p-2 w-full flex justify-between" ref={arrowDiv}>
-          <button class="cursor-pointer" onClick={props.onMoveBackwards}>
-            <ArrowBigLeft size={40} />
-          </button>
-          <button class="cursor-pointer" onClick={props.onMoveForwards}>
-            <ArrowBigRight size={40} />
-          </button>
+      <Show when={props.withArrows || props.withDeleteNode}>
+        <div class="w-full h-[52px] flex justify-between" ref={arrowDiv}>
+          <Show when={props.withArrows}>
+            <Button
+              style="flat"
+              icon={<ArrowBigLeft size={40} />}
+              onClick={props.onMoveBackwards}
+            />
+          </Show>
+          <Show when={props.withDeleteNode}>
+            <Button
+              style="flat"
+              icon={<Delete size={40} />}
+              onClick={props.onDeleteNode}
+            />
+          </Show>
+          <Show when={props.withArrows}>
+            <Button
+              style="flat"
+              icon={<ArrowBigRight size={40} />}
+              onClick={props.onMoveForwards}
+            />
+          </Show>
         </div>
       </Show>
     </div>

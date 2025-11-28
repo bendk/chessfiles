@@ -1,19 +1,29 @@
 import { test, expect } from "vitest";
 
-import type { PgnGame, Shape } from "./chess";
-import { Nag, parseSan, parseSquare, pgnToString } from "./chess";
+import type { Chess, Move, PgnGame, Shape } from "./chess";
+import {
+  moveEquals,
+  Nag,
+  makeFen,
+  makeSan,
+  makeSanAndPlay,
+  parseSan,
+  parseSquare,
+  pgnToString,
+} from "./chess";
 import { Priority, type RootNode } from "./node";
 import { buildNode } from "./node.test";
-import type { EditorMove, EditorNode } from "./editor";
 import { Editor } from "./editor";
 
-function moveSan(editor: Editor, san: string) {
-  editor.move(parseSan(editor.view.position, san));
+function moveSan(editor: Editor, ...sanStrings: string[]) {
+  for (const san of sanStrings) {
+    editor.move(parseSan(editor.view.position, san));
+  }
 }
 
-function setMovesSan(editor: Editor, san: string[]) {
+function setMovesSan(editor: Editor, sanStrings: string[]) {
   const position = editor.rootNode.initialPosition.clone();
-  const moves = san.map((san) => {
+  const moves = sanStrings.map((san) => {
     const move = parseSan(position, san);
     position.play(move);
     return move;
@@ -22,88 +32,86 @@ function setMovesSan(editor: Editor, san: string[]) {
   editor.setMoves(moves);
 }
 
+function makeSanArray(
+  initialPosition: Chess,
+  moves: readonly Move[],
+): string[] {
+  const pos = initialPosition.clone();
+  return moves.map((move) => makeSanAndPlay(pos, move));
+}
+
 interface EditorNodeSpec {
   moves: string[];
   currentMove: number;
-  currentMoveIsDraft?: boolean;
-  selected?: boolean;
   comment?: string;
-  shapes?: Shape[];
-  nags?: Nag[];
+  shapes?: readonly Shape[];
+  nags?: readonly Nag[];
   priority?: Priority;
-  padding: number;
 }
 
 interface EditorStateSpec {
+  ply: number;
   line: EditorNodeSpec[];
-  currentNode?: {
-    isDraft?: boolean;
-    comment?: string;
-    nags?: Nag[];
-    shapes?: Shape[];
-    priority?: Priority;
-  };
 }
 
 function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
-  const currentPosition = editor.rootNode.initialPosition.clone();
+  const initialPosition = editor.rootNode.initialPosition;
+  const currentPosition = initialPosition.clone();
 
-  const line: EditorNode[] = [];
-  const movesToNode = [];
-  for (const node of stateSpec.line) {
-    const moves: EditorMove[] = node.moves.map((move) => {
-      let san,
-        nagText = "",
-        hasComment = false,
-        priority = Priority.Default;
-      for (const part of move.split(" ")) {
-        if (part == "*") {
-          hasComment = true;
-        } else if (part == "+") {
-          priority = Priority.TrainFirst;
-        } else if (part == "-") {
-          priority = Priority.TrainLast;
-        } else if (part.match(/^[A-Za-z]/)) {
-          san = part;
-        } else {
-          nagText = part;
-        }
+  const line: EditorNodeSpec[] = [];
+  const movesToParent = [];
+
+  // Map editor nodes to EditorNodeSpec items
+  for (const editorNode of editor.view.line) {
+    // The main work here is conventing moves to move spec strings
+    const moves: string[] = editorNode.parentMoves.map((move) => {
+      expect(move.san).toEqual(makeSan(currentPosition, move.move));
+      let moveSpec = move.san;
+      if (move.hasComment) {
+        moveSpec += " *";
       }
-      if (san === undefined) {
-        throw Error(`Invalid move spec: ${move}`);
+      if (move.priority == Priority.TrainFirst) {
+        moveSpec += " +";
+      } else if (move.priority == Priority.TrainLast) {
+        moveSpec += " -";
       }
-      return {
-        move: parseSan(currentPosition, san),
-        san,
-        nagText,
-        hasComment,
-        priority,
-      };
+      if (move.nagText.length > 0) {
+        moveSpec += ` ${move.nagText}`;
+      }
+      return moveSpec;
     });
-    const move = moves[node.currentMove];
-    currentPosition.play(move.move);
     line.push({
-      selected: false,
-      currentMoveIsDraft: false,
-      comment: undefined,
-      shapes: undefined,
-      nags: undefined,
-      priority: Priority.Default,
-      movesToNode: [...movesToNode],
-      ...node,
       moves,
+      currentMove: editorNode.parentMoves.findIndex((m) =>
+        moveEquals(m.move, editorNode.node.move),
+      ),
+      comment: editorNode.node.comment,
+      shapes: editorNode.node.shapes,
+      nags: editorNode.node.nags,
+      priority: editorNode.node.priority,
     });
-    movesToNode.push(move.move);
+
+    // Check that the position and movesToParent fields
+    expect(makeSanArray(initialPosition, editorNode.movesToParent)).toEqual(
+      makeSanArray(initialPosition, movesToParent),
+    );
+    currentPosition.play(editorNode.node.move);
+    movesToParent.push(editorNode.node.move);
+    expect(makeFen(editorNode.position.toSetup())).toEqual(
+      makeFen(currentPosition.toSetup()),
+    );
   }
-  expect(editor.view.line).toEqual(line);
-  expect(editor.view.currentNode).toEqual({
-    isDraft: false,
-    comment: "",
-    nags: [],
-    shapes: [],
-    priority: Priority.Default,
-    ...(stateSpec.currentNode ?? {}),
-  });
+
+  // Compare everything
+  expect(editor.view.ply).toEqual(stateSpec.ply);
+  const expectedLine = stateSpec.line.map((editorNode) => ({
+    comment: undefined,
+    nags: undefined,
+    shapes: undefined,
+    priority: 0,
+    ...editorNode,
+  }));
+  expect(line).toEqual(expectedLine);
 }
 
 function testRootNode(): RootNode {
@@ -130,491 +138,261 @@ function testRootNode(): RootNode {
   });
 }
 
-test("moves and views", () => {
+test("moving with existing moves", () => {
   const editor = new Editor(testRootNode());
   checkEditorState(editor, {
+    ply: 0,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
 
   moveSan(editor, "e4");
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
 
   moveSan(editor, "e5");
   checkEditorState(editor, {
+    ply: 2,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
 
   moveSan(editor, "Nf3");
   checkEditorState(editor, {
+    ply: 3,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
-        selected: true,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      comment: "Hello",
-    },
   });
 
-  editor.moveBackwards();
+  editor.moveBackward();
   checkEditorState(editor, {
+    ply: 2,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
 
-  editor.moveForwards();
+  editor.moveForward();
   checkEditorState(editor, {
+    ply: 3,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
-        selected: true,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      comment: "Hello",
-    },
   });
+});
 
-  editor.moveBackwards();
+test("moving with new moves", () => {
+  const editor = new Editor(testRootNode());
+  moveSan(editor, "e4");
+  moveSan(editor, "e5");
   moveSan(editor, "f4");
   checkEditorState(editor, {
+    ply: 3,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *", "f4"],
         currentMove: 1,
-        currentMoveIsDraft: true,
-        selected: true,
-        padding: 0,
       },
     ],
-    currentNode: {
-      isDraft: true,
-    },
   });
 
   moveSan(editor, "d5");
   checkEditorState(editor, {
+    ply: 4,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *", "f4"],
         currentMove: 1,
-        currentMoveIsDraft: true,
-        padding: 0,
       },
       {
         moves: ["d5"],
         currentMove: 0,
-        currentMoveIsDraft: true,
-        selected: true,
-        padding: 1,
       },
     ],
-    currentNode: {
-      isDraft: true,
-    },
   });
 
-  setMovesSan(editor, ["e4", "e5"]);
+  editor.moveBackward();
+  moveSan(editor, "exf4");
   checkEditorState(editor, {
+    ply: 4,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
-        moves: ["Nf3 *"],
-        currentMove: 0,
-        comment: "Hello",
-        padding: 0,
-      },
-      {
-        moves: ["Nc6", "Nf6"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["Bc4"],
-        currentMove: 0,
-        padding: 0,
-      },
-    ],
-  });
-
-  setMovesSan(editor, ["d4", "d5", "c4"]);
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4", "d4"],
+        moves: ["Nf3 *", "f4"],
         currentMove: 1,
-        currentMoveIsDraft: true,
-        selected: false,
-        padding: 0,
       },
       {
-        moves: ["d5"],
-        currentMove: 0,
-        currentMoveIsDraft: true,
-        selected: false,
-        padding: 1,
-      },
-      {
-        moves: ["c4"],
-        currentMove: 0,
-        currentMoveIsDraft: true,
-        selected: true,
-        padding: 1,
-      },
-    ],
-    currentNode: {
-      isDraft: true,
-    },
-  });
-
-  editor.moveBackwards();
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4", "d4"],
+        moves: ["d5", "exf4"],
         currentMove: 1,
-        currentMoveIsDraft: true,
-        selected: false,
-        padding: 0,
-      },
-      {
-        moves: ["d5"],
-        currentMove: 0,
-        currentMoveIsDraft: true,
-        selected: true,
-        padding: 1,
-      },
-    ],
-    currentNode: {
-      isDraft: true,
-    },
-  });
-
-  setMovesSan(editor, ["e4", "e5", "Nf3", "Nc6", "Bc4"]);
-  editor.moveBackwards();
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["e5", "e6"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["Nf3 *"],
-        currentMove: 0,
-        comment: "Hello",
-        padding: 0,
-      },
-      {
-        moves: ["Nc6", "Nf6"],
-        currentMove: 0,
-        selected: true,
-        padding: 0,
-      },
-      {
-        moves: ["Bc4"],
-        currentMove: 0,
-        padding: 0,
-      },
-    ],
-  });
-
-  setMovesSan(editor, ["e4", "e6", "Nf3"]);
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["e5", "e6"],
-        currentMove: 1,
-        padding: 0,
-      },
-      {
-        moves: ["d4", "Nf3"],
-        currentMove: 1,
-        padding: 1,
-        selected: true,
-      },
-      {
-        moves: ["d5"],
-        currentMove: 0,
-        padding: 2,
       },
     ],
   });
 });
 
-test("add line", () => {
+test("delete node", () => {
   const editor = new Editor(testRootNode());
-  setMovesSan(editor, ["e4", "e5", "Nc3", "Nf6"]);
-  editor.addLine();
+  moveSan(editor, "e4", "e5", "Nf3");
+  editor.deleteNode();
   checkEditorState(editor, {
+    ply: 2,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["Nf3 *", "Nc3"],
-        currentMove: 1,
-        padding: 0,
-      },
-      {
-        moves: ["Nf6"],
-        currentMove: 0,
-        selected: true,
-        padding: 1,
-      },
-    ],
-  });
-
-  // Test adding after moving backwards
-  setMovesSan(editor, ["e4", "e5", "Bc4", "Nf6", "d4"]);
-  editor.moveBackwards();
-  editor.moveBackwards();
-
-  editor.addLine();
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["e5", "e6"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["Nf3 *", "Nc3", "Bc4"],
-        currentMove: 2,
-        selected: true,
-        padding: 0,
-      },
-    ],
-  });
-});
-
-test("delete line", () => {
-  const editor = new Editor(testRootNode());
-  setMovesSan(editor, ["e4", "e5", "Nf3"]);
-  editor.deleteLine();
-  checkEditorState(editor, {
-    line: [
-      {
-        moves: ["e4"],
-        currentMove: 0,
-        padding: 0,
-      },
-      {
-        moves: ["e5", "e6"],
-        currentMove: 0,
-        selected: true,
-        padding: 0,
       },
     ],
   });
@@ -626,189 +404,153 @@ test("comments", () => {
   setMovesSan(editor, ["e4", "e5", "Nf3", "Nc6"]);
   editor.setComment("Hi");
   checkEditorState(editor, {
+    ply: 4,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6 *", "Nf6"],
         currentMove: 0,
-        selected: true,
         comment: "Hi",
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      comment: "Hi",
-    },
   });
 
   // add comment to the root node
-  setMovesSan(editor, []);
+  editor.setMoves([]);
   editor.setComment("Hello from the root");
   checkEditorState(editor, {
+    ply: 0,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6 *", "Nf6"],
         currentMove: 0,
         comment: "Hi",
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      comment: "Hello from the root",
-    },
   });
 });
 
 test("nags", () => {
   // add nag
   const editor = new Editor(testRootNode());
-  setMovesSan(editor, ["e4"]);
+  moveSan(editor, "e4");
   editor.toggleNag(Nag.GoodMove);
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4 !"],
         currentMove: 0,
-        selected: true,
         nags: [Nag.GoodMove],
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      nags: [Nag.GoodMove],
-    },
   });
 
   // test mutually exclusive nags
   editor.toggleNag(Nag.DubiousMove);
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4 ?!"],
         currentMove: 0,
         nags: [Nag.DubiousMove],
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      nags: [Nag.DubiousMove],
-    },
   });
 
   // Remove
   editor.toggleNag(Nag.DubiousMove);
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
@@ -816,13 +558,14 @@ test("nags", () => {
 
 test("shapes", () => {
   const editor = new Editor(testRootNode());
-  setMovesSan(editor, ["e4"]);
+  moveSan(editor, "e4");
   editor.toggleShape({
     color: "green",
     from: parseSquare("e4"),
     to: parseSquare("e4"),
   });
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4 *"],
@@ -834,40 +577,25 @@ test("shapes", () => {
             to: parseSquare("e4"),
           },
         ],
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      shapes: [
-        {
-          color: "green",
-          from: parseSquare("e4"),
-          to: parseSquare("e4"),
-        },
-      ],
-    },
   });
 
   editor.toggleShape({
@@ -876,33 +604,28 @@ test("shapes", () => {
     to: parseSquare("e4"),
   });
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
@@ -910,42 +633,34 @@ test("shapes", () => {
 
 test("priority", () => {
   const editor = new Editor(testRootNode());
-  setMovesSan(editor, ["e4"]);
+  moveSan(editor, "e4");
   editor.setPriority(Priority.TrainLast);
   checkEditorState(editor, {
+    ply: 1,
     line: [
       {
         moves: ["e4 -"],
         currentMove: 0,
         priority: Priority.TrainLast,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["e5", "e6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Nf3 *"],
         currentMove: 0,
         comment: "Hello",
-        padding: 0,
       },
       {
         moves: ["Nc6", "Nf6"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["Bc4"],
         currentMove: 0,
-        padding: 0,
       },
     ],
-    currentNode: {
-      priority: Priority.TrainLast,
-    },
   });
 });
 
@@ -956,27 +671,23 @@ test("reorder moves", () => {
   position.play(parseSan(position, "e4"));
   editor.reorderMoves([parseSan(position, "e6"), parseSan(position, "e5")]);
   checkEditorState(editor, {
+    ply: 2,
     line: [
       {
         moves: ["e4"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["e6", "e5"],
         currentMove: 0,
-        selected: true,
-        padding: 0,
       },
       {
         moves: ["d4", "Nf3"],
         currentMove: 0,
-        padding: 0,
       },
       {
         moves: ["d5"],
         currentMove: 0,
-        padding: 0,
       },
     ],
   });
@@ -993,6 +704,177 @@ test("setTrainingColor", () => {
   expect(editor.view.color).toEqual("white");
 });
 
+test("undo moves", () => {
+  const editor = new Editor(testRootNode());
+  moveSan(editor, "d4");
+  editor.undo();
+  checkEditorState(editor, {
+    ply: 0,
+    line: [
+      {
+        moves: ["e4"],
+        currentMove: 0,
+      },
+      {
+        moves: ["e5", "e6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Nf3 *"],
+        currentMove: 0,
+        comment: "Hello",
+      },
+      {
+        moves: ["Nc6", "Nf6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Bc4"],
+        currentMove: 0,
+      },
+    ],
+  });
+
+  moveSan(editor, "d4");
+  moveSan(editor, "d5");
+  editor.setMoves([]);
+  editor.undo();
+  checkEditorState(editor, {
+    ply: 0,
+    line: [
+      {
+        moves: ["e4"],
+        currentMove: 0,
+      },
+      {
+        moves: ["e5", "e6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Nf3 *"],
+        currentMove: 0,
+        comment: "Hello",
+      },
+      {
+        moves: ["Nc6", "Nf6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Bc4"],
+        currentMove: 0,
+      },
+    ],
+  });
+
+  editor.redo();
+  checkEditorState(editor, {
+    ply: 2,
+    line: [
+      {
+        moves: ["e4", "d4"],
+        currentMove: 1,
+      },
+      {
+        moves: ["d5"],
+        currentMove: 0,
+      },
+    ],
+  });
+
+  editor.undo();
+  checkEditorState(editor, {
+    ply: 0,
+    line: [
+      {
+        moves: ["e4"],
+        currentMove: 0,
+      },
+      {
+        moves: ["e5", "e6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Nf3 *"],
+        currentMove: 0,
+        comment: "Hello",
+      },
+      {
+        moves: ["Nc6", "Nf6"],
+        currentMove: 0,
+      },
+      {
+        moves: ["Bc4"],
+        currentMove: 0,
+      },
+    ],
+  });
+});
+
+test("undo moves are not merged if the user moves in-between", () => {
+  const editor = new Editor(testRootNode());
+  moveSan(editor, "d4");
+  editor.moveBackward();
+  editor.moveForward();
+  moveSan(editor, "d5");
+  editor.undo(); // this should only undo `d5`, since the user moved after `d4`
+
+  checkEditorState(editor, {
+    ply: 1,
+    line: [
+      {
+        moves: ["e4", "d4"],
+        currentMove: 1,
+      },
+    ],
+  });
+
+  // setMoves also breaks the move chain
+  moveSan(editor, "d5");
+  setMovesSan(editor, []);
+  setMovesSan(editor, ["d4", "d5"]);
+  moveSan(editor, "c4");
+  editor.undo();
+
+  checkEditorState(editor, {
+    ply: 2,
+    line: [
+      {
+        moves: ["e4", "d4"],
+        currentMove: 1,
+      },
+      {
+        moves: ["d5"],
+        currentMove: 0,
+      },
+    ],
+  });
+
+  // undo/redo also breaks the move chain
+  moveSan(editor, "c4");
+  editor.undo();
+  editor.redo();
+  moveSan(editor, "e6");
+  editor.undo();
+
+  checkEditorState(editor, {
+    ply: 3,
+    line: [
+      {
+        moves: ["e4", "d4"],
+        currentMove: 1,
+      },
+      {
+        moves: ["d5"],
+        currentMove: 0,
+      },
+      {
+        moves: ["c4"],
+        currentMove: 0,
+      },
+    ],
+  });
+});
+
 test("undo/redo", () => {
   const editor = new Editor(buildNode({}));
 
@@ -1001,21 +883,20 @@ test("undo/redo", () => {
 
   // Add some lines, and remember the node tree after each
   const export0 = editor.rootNode.export();
-  setMovesSan(editor, ["e4", "e5", "Nf3", "Nc6"]);
-  editor.addLine();
+  moveSan(editor, "e4", "e5", "Nf3", "Nc6");
   const export1 = editor.rootNode.export();
-  setMovesSan(editor, ["e4", "e5", "Nf3", "Nf6"]);
-  editor.addLine();
+  editor.moveBackward();
+  moveSan(editor, "Nf6");
   const export2 = editor.rootNode.export();
-  setMovesSan(editor, ["e4", "e6"]);
-  editor.addLine();
+  setMovesSan(editor, ["e4"]);
+  moveSan(editor, "e6");
   const export3 = editor.rootNode.export();
   // Delete a single line
-  editor.deleteLine();
+  editor.deleteNode();
   const export4 = editor.rootNode.export();
   // Delete a tree of lines
   setMovesSan(editor, ["e4", "e5", "Nf3"]);
-  editor.deleteLine();
+  editor.deleteNode();
   const export5 = editor.rootNode.export();
 
   expect(editor.view.canUndo).toBeTruthy();
@@ -1048,15 +929,15 @@ test("undo/redo", () => {
   checkUndo(export4, true, true);
   checkUndo(export3, true, true);
   checkRedo(export4, true, true);
-  setMovesSan(editor, ["e4", "e6"]);
+  setMovesSan(editor, ["e4"]);
   checkRedo(export5, true, false);
   checkUndo(export4, true, true);
-  setMovesSan(editor, ["e4", "e5"]);
+  setMovesSan(editor, []);
   checkUndo(export3, true, true);
   checkUndo(export2, true, true);
   checkUndo(export1, true, true);
   checkUndo(export0, false, true);
-  setMovesSan(editor, ["e4", "Nf6"]);
+  setMovesSan(editor, ["e4"]);
   checkRedo(export1, true, true);
   checkRedo(export2, true, true);
   setMovesSan(editor, ["e4", "e6"]);
@@ -1085,8 +966,7 @@ test("noop actions", () => {
       d4: {},
     }),
   );
-  setMovesSan(editor, ["e4"]);
-  editor.addLine();
+  moveSan(editor, "e4");
   expect(editor.view.canUndo).toBeFalsy();
 
   editor.setComment("Hi");
@@ -1096,10 +976,6 @@ test("noop actions", () => {
   const position = editor.rootNode.initialPosition.clone();
   position.play(parseSan(position, "e4"));
   editor.reorderMoves([parseSan(position, "e5")]);
-  expect(editor.view.canUndo).toBeFalsy();
-
-  setMovesSan(editor, ["d4", "d5"]);
-  editor.deleteLine();
   expect(editor.view.canUndo).toBeFalsy();
 
   editor.setTrainingColor("white");
