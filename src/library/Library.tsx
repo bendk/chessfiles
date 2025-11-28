@@ -365,7 +365,7 @@ export function Library(props: LibraryProps) {
         </Match>
         <Match when={!currentBook()}>
           <StandardLayout page="files" setPage={props.setPage}>
-            <div class="text-lg pb-4">
+            <div class="text-lg pb-4 flex items-center">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (
                   <>
@@ -383,13 +383,15 @@ export function Library(props: LibraryProps) {
                             setBulkMode(false);
                           }}
                         >
+                          {component().icon}
                           {component().filename}
                         </button>
                       </Match>
                       <Match
                         when={index == props.storage.dirComponents().length - 1}
                       >
-                        <span>{component().filename}</span>
+                        {component().icon}
+                        {component().filename}
                       </Match>
                     </Switch>
                   </>

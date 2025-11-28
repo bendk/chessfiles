@@ -60,7 +60,7 @@ export function Chooser(props: ChooserProps) {
             {props.subtitle}
           </h2>
         </Show>
-        <div class="text-lg pt-2 pb-1 flex text-zinc-700 dark:text-zinc-300">
+        <div class="text-lg pt-2 pb-2 flex items-center text-zinc-700 dark:text-zinc-300">
           <Index each={storage.dirComponents()}>
             {(component, index) => (
               <>
@@ -73,11 +73,13 @@ export function Chooser(props: ChooserProps) {
                       class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
                       onClick={() => storage.setDir(component().path)}
                     >
+                      {component().icon}
                       {component().filename}
                     </button>
                   </Match>
                   <Match when={index == storage.dirComponents().length - 1}>
-                    <span>{component().filename}</span>
+                    {component().icon}
+                    {component().filename}
                   </Match>
                 </Switch>
               </>
