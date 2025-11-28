@@ -11,6 +11,8 @@ import type { DrawShape } from "chessground/draw";
 import type { Api as ChessgroundApi } from "chessground/api";
 import type { Key } from "chessground/types";
 import { Chessground } from "chessground";
+import ArrowBigLeft from "lucide-solid/icons/arrow-left";
+import ArrowBigRight from "lucide-solid/icons/arrow-right";
 import { createSignal, createEffect, onCleanup, onMount, Show } from "solid-js";
 
 import "./chessground.base.css";
@@ -66,6 +68,7 @@ interface BoardProps {
   onMove: (move: Move) => void;
   shapes?: readonly Shape[];
   enableShapes?: boolean;
+  arrows?: boolean;
   toggleShape?: (shape: Shape) => void;
   onMoveBackwards?: () => void;
   onMoveForwards?: () => void;
@@ -80,6 +83,7 @@ interface PendingPromotionState {
 export function Board(props: BoardProps) {
   let outerDiv!: HTMLDivElement;
   let innerDiv!: HTMLDivElement;
+  let arrowDiv: HTMLDivElement|undefined = undefined;
   let board: ChessgroundApi | undefined;
   const [shapeFromSquare, setShapeFromSquare] = createSignal<Key | undefined>(
     undefined,
@@ -224,9 +228,18 @@ export function Board(props: BoardProps) {
   }
 
   function resizeInnerDiv() {
-    const boardSize = Math.min(outerDiv.clientWidth, outerDiv.clientHeight);
+    const width = outerDiv.clientWidth;
+    let height = outerDiv.clientHeight;
+    if (arrowDiv) {
+      height -= arrowDiv.clientHeight;
+    }
+    const boardSize = Math.min(width, height);
+
     innerDiv.style.width = `${boardSize}px`;
     innerDiv.style.height = `${boardSize}px`;
+    if (arrowDiv) {
+      arrowDiv.style.width = `${boardSize}px`;
+    }
   }
   createEffect(resizeInnerDiv);
   onMount(() => {
@@ -240,11 +253,10 @@ export function Board(props: BoardProps) {
   return (
     <div
       ref={outerDiv}
-      class="h-full w-full aspect-square relative flex justify-center items-center"
+      class="flex flex-col justify-center items-center"
     >
       <div
         ref={innerDiv}
-        class="w-full h-full"
         classList={{
           "opacity-50": pendingPromotionState() !== undefined,
         }}
@@ -302,6 +314,16 @@ export function Board(props: BoardProps) {
         {(state) => (
           <PromotionSelector onSelect={onPromotionSelect} {...state()} />
         )}
+      </Show>
+      <Show when={props.arrows}>
+        <div class="p-2 w-full flex justify-between" ref={arrowDiv}>
+          <button class="cursor-pointer" onClick={props.onMoveBackwards}>
+            <ArrowBigLeft size={40} />
+          </button>
+          <button class="cursor-pointer" onClick={props.onMoveForwards}>
+            <ArrowBigRight size={40} />
+          </button>
+        </div>
       </Show>
     </div>
   );

@@ -174,12 +174,16 @@ export function Editor(props: EditorProps) {
                 onSetInitialPosition={() => setMode("set-initial-position")}
               />
             </div>
-            <BoardView
-              view={view()}
+            <Board
+              chess={view().position}
+              lastMove={view().lastMove}
+              enableShapes={view().ply > 0 && !view().currentNode.isDraft}
+              shapes={view().currentNode.shapes}
               onMove={onMove}
               toggleShape={toggleShape}
-              moveBackwards={moveBackwards}
-              moveForwards={moveForwards}
+              onMoveBackwards={moveBackwards}
+              onMoveForwards={moveForwards}
+              arrows
             />
             <div>
               <RightSidebar />
@@ -282,15 +286,8 @@ function BoardView(props: BoardViewProps) {
         shapes={props.view.currentNode.shapes}
         onMoveBackwards={props.moveBackwards}
         onMoveForwards={props.moveForwards}
+        arrows
       />
-      <div class="p-2 flex justify-between">
-        <button class="cursor-pointer" onClick={props.moveBackwards}>
-          <ArrowBigLeft size={40} />
-        </button>
-        <button class="cursor-pointer" onClick={props.moveForwards}>
-          <ArrowBigRight size={40} />
-        </button>
-      </div>
     </div>
   );
 }
