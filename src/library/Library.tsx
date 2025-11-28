@@ -10,7 +10,7 @@ import Trash from "lucide-solid/icons/trash-2";
 import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
 import { normalizeNewFilename, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
-import type { Page, StatusTracker } from "~/components";
+import type { AppControls, StatusTracker } from "~/components";
 import { Button, Chooser, Dialog, StandardLayout } from "~/components";
 import { CreateBook } from "./CreateBook";
 import { CreateFolder } from "./CreateFolder";
@@ -22,7 +22,7 @@ import { RenameFile } from "./RenameFile";
 export interface LibraryProps {
   storage: AppStorage;
   status: StatusTracker;
-  setPage: (page: Page) => void;
+  controls: AppControls;
   initialPath?: string;
 }
 
@@ -364,7 +364,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
-          <StandardLayout page="files" setPage={props.setPage}>
+          <StandardLayout page="files" controls={props.controls}>
             <div class="text-lg pb-4 flex items-center">
               <Index each={props.storage.dirComponents()}>
                 {(component, index) => (

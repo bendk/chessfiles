@@ -1,14 +1,14 @@
 import { Match, Switch, createEffect, createSignal } from "solid-js";
 import type { AppStorage } from "~/lib/storage";
 import type { Training as TrainingObj } from "~/lib/training";
-import type { Page, StatusTracker } from "~/components";
+import type { AppControls, StatusTracker } from "~/components";
 import { TrainingList } from "./List";
 import { TrainingSession } from "./Session";
 
 export interface TrainingProps {
   storage: AppStorage;
   status: StatusTracker;
-  setPage: (page: Page) => void;
+  controls: AppControls;
   initialTraining?: TrainingObj;
 }
 
@@ -19,7 +19,7 @@ export function Training(props: TrainingProps) {
   // If we loaded a training session directly from home, then exited that session, go back to home
   createEffect(() => {
     if (props.initialTraining !== undefined && currentTraining() === null) {
-      props.setPage({ name: "home" });
+      props.controls.setPage({ name: "home" });
     }
   });
 
@@ -32,7 +32,7 @@ export function Training(props: TrainingProps) {
           openTraining={async (meta) => {
             setCurrentTraining(await props.storage.loadTraining(meta));
           }}
-          setPage={props.setPage}
+          controls={props.controls}
         />
       </Match>
       <Match when={currentTraining()} keyed>

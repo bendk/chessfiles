@@ -7,7 +7,7 @@ import * as dropbox from "~/lib/auth/dropbox";
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
-import type { Page, StatusTracker } from "~/components";
+import type { StatusTracker, AppControls } from "~/components";
 import Database from "lucide-solid/icons/database";
 import {
   Button,
@@ -21,12 +21,12 @@ import {
 export interface HomeProps {
   storage: AppStorage;
   status: StatusTracker;
-  setPage: (page: Page) => void;
+  controls: AppControls;
 }
 
 export function Home(props: HomeProps) {
   function openStorageEngine(name: string) {
-    props.setPage({
+    props.controls.setPage({
       name: "files",
       initialPath: `/${name}`,
     });
@@ -42,7 +42,7 @@ export function Home(props: HomeProps) {
   function openTraining(meta: TrainingMeta) {
     props.status.perform("opening training", async () => {
       const training = await props.storage.loadTraining(meta);
-      props.setPage({
+      props.controls.setPage({
         name: "training",
         initialTraining: training,
       });
@@ -89,7 +89,7 @@ export function Home(props: HomeProps) {
         </Dialog>
       </Match>
       <Match when={true}>
-        <StandardLayout page="home" setPage={props.setPage}>
+        <StandardLayout page="home" controls={props.controls}>
           <div class="flex gap-20 grow h-full pb-8">
             <div class="flex flex-col gap-12 grow">
               <div>

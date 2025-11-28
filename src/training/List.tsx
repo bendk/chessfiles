@@ -9,7 +9,7 @@ import {
   createResource,
   createSignal,
 } from "solid-js";
-import type { MenuItem, Page, StatusTracker } from "~/components";
+import type { AppControls, MenuItem, StatusTracker } from "~/components";
 import {
   Button,
   Checkbox,
@@ -32,7 +32,7 @@ export interface TrainingListProps {
   storage: AppStorage;
   status: StatusTracker;
   openTraining: (meta: TrainingMeta) => Promise<void>;
-  setPage: (page: Page) => void;
+  controls: AppControls;
 }
 
 type DialogInfo =
@@ -198,7 +198,7 @@ export function TrainingList(props: TrainingListProps) {
           />
         </Match>
         <Match when={true}>
-          <StandardLayout page="training" setPage={props.setPage}>
+          <StandardLayout page="training" controls={props.controls}>
             <Switch>
               <Match when={dialog()?.type == "finished"}>
                 <Dialog

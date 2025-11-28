@@ -55,7 +55,7 @@ export function Menu(props: MenuProps) {
       >
         <ArkMenu.Trigger
           disabled={props.disabled}
-          class={`cursor-pointer ${props.class ?? ""}`}
+          class={`cursor-pointer outline-0 ${props.class ?? ""}`}
           classList={{
             "not-group-hover:invisible": props.hover,
           }}

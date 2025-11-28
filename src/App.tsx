@@ -2,9 +2,8 @@ import { createSignal, createEffect, Match, Switch } from "solid-js";
 import { completeLogin } from "~/lib/auth";
 import { AppStorage } from "./lib/storage";
 import { Library } from "./library";
-import { Settings } from "./settings/Settings";
+import type { Training as TrainingData } from "./lib/training";
 import { Training } from "./training/Training";
-import type { Page } from "./components";
 import { Home, Status, StatusTracker } from "./components";
 
 function themeFromLocalStorage(): string {
@@ -20,6 +19,18 @@ function themeFromLocalStorage(): string {
   }
 }
 
+export interface AppControls {
+  setPage: (page: Page) => void;
+  theme: () => string;
+  setTheme: (theme: string) => void;
+}
+
+export interface Page {
+  name: string;
+  initialPath?: string;
+  initialTraining?: TrainingData;
+}
+
 function App() {
   if (completeLogin()) {
     return <></>;
@@ -31,9 +42,7 @@ function App() {
   const [page, setPage] = createSignal<Page>({ name: "home" });
   const [theme, setTheme] = createSignal(themeFromLocalStorage());
 
-  if (window.location.hash.startsWith("#settings")) {
-    setPage({ name: "settings" });
-  }
+  const controls = { setPage, theme, setTheme };
 
   createEffect(() => {
     document.documentElement.classList.toggle("dark", theme() == "dark");
@@ -44,13 +53,13 @@ function App() {
     <div class="text-md flex flex-col bg-gray-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 min-h-screen outline-hidden">
       <Switch>
         <Match when={page().name == "home"}>
-          <Home storage={storage} status={status} setPage={setPage} />
+          <Home storage={storage} status={status} controls={controls} />
         </Match>
         <Match when={page().name == "files"}>
           <Library
             storage={storage}
             status={status}
-            setPage={setPage}
+            controls={controls}
             initialPath={page().initialPath}
           />
         </Match>
@@ -58,17 +67,8 @@ function App() {
           <Training
             storage={storage}
             status={status}
-            setPage={setPage}
+            controls={controls}
             initialTraining={page().initialTraining}
-          />
-        </Match>
-        <Match when={page().name == "settings"}>
-          <Settings
-            storage={storage}
-            status={status}
-            theme={theme()}
-            setTheme={setTheme}
-            setPage={setPage}
           />
         </Match>
       </Switch>

@@ -12,7 +12,7 @@ export { Slider } from "./Slider";
 export { Status, StatusError, StatusTracker } from "./Status";
 export { Table, TableCell, TableGripperCell, TableMenuCell } from "./Table";
 export { Chooser } from "./library/Chooser";
-export type { Page } from "./Page";
+export type { AppControls, Page } from "./App";
 
 import LoaderIcon from "lucide-solid/icons/loader-2";
 
