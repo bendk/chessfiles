@@ -281,6 +281,7 @@ export function Library(props: LibraryProps) {
           }
           onClose={unsetDialog}
           dirMode
+          validate={(path) => path != "/" && path != props.storage.dir()}
           selectDirText="Move here"
         />
       );
@@ -298,6 +299,7 @@ export function Library(props: LibraryProps) {
           }
           onClose={unsetDialog}
           dirMode
+          validate={(path) => path != "/" && path != props.storage.dir()}
           selectDirText="Copy here"
         />
       );

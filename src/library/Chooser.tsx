@@ -14,6 +14,7 @@ export interface ChooserProps {
   onClose?: () => void;
   onSelect: (path: string) => void;
   dirMode?: boolean;
+  validate?: (path: string) => boolean;
   selectDirText?: string;
   error?: string | undefined;
 }
@@ -83,45 +84,49 @@ export function Chooser(props: ChooserProps) {
             )}
           </Index>
         </div>
-        <div class="min-h-0 pb-20 overflow-y-auto">
-          <Table
-            each={files()}
-            columns={1}
-            idMap={(item) => item.filename}
-            onClick={onClick}
-            emptyText="No files"
-          >
-            {(item) => (
-              <>
-                <TableCell grow item={item} class="flex items-center gap-2">
-                  <Switch>
-                    <Match when={item.value.type == "file"}>
-                      <BookIcon size={20} />
-                    </Match>
-                    <Match when={item.value.type == "dir"}>
-                      <FolderIcon size={20} />
-                    </Match>
-                    <Match when={item.value.type == "engine"}>
-                      <Database size={20} />
-                    </Match>
-                  </Switch>
-                  {item.value.filename}
-                </TableCell>
-              </>
-            )}
-          </Table>
-        </div>
-        <div class="text-red-500">{props.error}</div>
-        <div class="flex justify-between items-end pt-4 gap-4 pb-4">
-          <Show when={props.dirMode}>
-            <Button
-              class="text-xl"
-              text={props.selectDirText ?? "Select"}
-              onClick={() => props.onSelect(storage.dir())}
-              disabled={storage.dir() == "/"}
-            />
-          </Show>
-          <Button class="text-xl" text="Cancel" onClick={props.onClose} />
+        <div class="min-h-0 pb-4 basis-0 grow flex gap-10">
+          <div class="min-h-0 grow overflow-y-auto">
+            <Table
+              each={files()}
+              columns={1}
+              idMap={(item) => item.filename}
+              onClick={onClick}
+              emptyText="No files"
+            >
+              {(item) => (
+                <>
+                  <TableCell grow item={item} class="flex items-center gap-2">
+                    <Switch>
+                      <Match when={item.value.type == "file"}>
+                        <BookIcon size={20} />
+                      </Match>
+                      <Match when={item.value.type == "dir"}>
+                        <FolderIcon size={20} />
+                      </Match>
+                      <Match when={item.value.type == "engine"}>
+                        <Database size={20} />
+                      </Match>
+                    </Switch>
+                    {item.value.filename}
+                  </TableCell>
+                </>
+              )}
+            </Table>
+          </div>
+          <div class="flex flex-col gap-4">
+            <Show when={props.error}>
+              <div class="text-red-500">{props.error}</div>
+            </Show>
+            <Show when={props.dirMode}>
+              <Button
+                class="text-xl"
+                text={props.selectDirText ?? "Select"}
+                onClick={() => props.onSelect(storage.dir())}
+                disabled={props.validate?.(storage.dir()) === false}
+              />
+            </Show>
+            <Button class="text-xl" text="Cancel" onClick={props.onClose} />
+          </div>
         </div>
       </div>
     </>
