@@ -1,19 +1,17 @@
-import { createSignal, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import { Field } from "@ark-ui/solid";
 import { Book, BookType, RootNode } from "~/lib/node";
 import { filenameValid } from "~/lib/storage";
 import type { AppStorage } from "~/lib/storage";
-import { Button, RadioGroup } from "~/components";
+import { Dialog, RadioGroup } from "~/components";
 
-interface CreateBookProps {
-  title: string;
-  submitText: string;
+interface CreateBookDialogProps {
   storage: AppStorage;
   onClose: () => void;
   onCreate: (name: string, book: Book) => Promise<boolean>;
 }
 
-export function CreateBook(props: CreateBookProps) {
+export function CreateBookDialog(props: CreateBookDialogProps) {
   const [name, setName] = createSignal("");
   const [error, setError] = createSignal("");
   const [bookType, setBookType] = createSignal<string | null>("normal");
@@ -24,6 +22,15 @@ export function CreateBook(props: CreateBookProps) {
       onCreate();
     }
   }
+
+  createEffect(() => {
+    if (disabled() && name() != "") {
+      setError("Invalid name");
+    } else {
+      setError("");
+    }
+  });
+
   async function onCreate() {
     if (disabled()) {
       return;
@@ -65,13 +72,16 @@ export function CreateBook(props: CreateBookProps) {
     setName("");
   }
   return (
-    <div class="px-4 py-4">
-      <div class="flex justify-between">
-        <h1 class="text-3xl truncate text-ellipsis">{props.title}</h1>
-        <Button text="Cancel" onClick={props.onClose} />
-      </div>
+    <Dialog
+      title="Create new book"
+      submitText="Create Book"
+      onSubmit={onCreate}
+      disabled={disabled()}
+      closeText="Cancel"
+      onClose={props.onClose}
+    >
       <div class="flex flex-col gap-8 pb-16">
-        <Field.Root class="flex flex-col gap-1 pt-8" invalid={error() != ""}>
+        <Field.Root class="flex flex-col gap-1" invalid={error() != ""}>
           <Field.Label>Name</Field.Label>
           <Field.Input
             value={name()}
@@ -112,11 +122,6 @@ export function CreateBook(props: CreateBookProps) {
           </RadioGroup.Root>
         </Show>
       </div>
-      <Button
-        disabled={disabled()}
-        text={props.submitText}
-        onClick={onCreate}
-      />
-    </div>
+    </Dialog>
   );
 }

@@ -8,10 +8,10 @@ import {
   Switch,
 } from "solid-js";
 
-import { Button, Progress } from "~/components";
+import { Button, Dialog, Progress } from "~/components";
 import type { OperationCallbacks } from "~/lib/storage";
 
-export interface OperationProgressProps {
+export interface ProgressDialogProps {
   title: string;
   operation: (callbacks: OperationCallbacks) => Promise<void>;
   onClose: () => void;
@@ -19,7 +19,7 @@ export interface OperationProgressProps {
 
 type ConflictChoice = "overwrite" | "overwrite-all" | "skip" | "skip-all";
 
-export function OperationProgress(props: OperationProgressProps) {
+export function ProgressDialog(props: ProgressDialogProps) {
   const [canceled, setCanceled] = createSignal(false);
   const [error, setError] = createSignal("");
   const [importLog, setImportLog] = createSignal<string[]>([]);
@@ -95,65 +95,58 @@ export function OperationProgress(props: OperationProgressProps) {
   });
 
   return (
-    <>
-      <h1 class="flex justify-between text-3xl px-8 py-2 bg-sky-300 dark:bg-sky-700">
-        {props.title}
-      </h1>
-      <div class="px-4 py-4">
-        <div class="flex flex-col">
-          <ul class="h-40 overflow-auto mb-8" ref={importLogElt}>
-            <Index each={importLog()}>{(log) => <li>{log()}</li>}</Index>
-          </ul>
-          <div class="grow" />
-          <Show when={conflictPath() != ""}>
-            <div class="text-amber-600 dark:text-amber-300">
-              {conflictPath()}
+    <Dialog title={props.title}>
+      <div class="flex flex-col">
+        <ul class="h-40 overflow-auto mb-8" ref={importLogElt}>
+          <Index each={importLog()}>{(log) => <li>{log()}</li>}</Index>
+        </ul>
+        <div class="grow" />
+        <Show when={conflictPath() != ""}>
+          <div class="text-amber-600 dark:text-amber-300">{conflictPath()}</div>
+          <div class="flex pt-2 justify-between">
+            <div class="flex gap-4">
+              <Button
+                text="Overwrite"
+                onClick={() => handleConflictChoice("overwrite")}
+              />
+              <Button
+                text="Skip"
+                onClick={() => handleConflictChoice("skip")}
+              />
             </div>
-            <div class="flex pt-2 justify-between">
-              <div class="flex gap-4">
-                <Button
-                  text="Overwrite"
-                  onClick={() => handleConflictChoice("overwrite")}
-                />
-                <Button
-                  text="Skip"
-                  onClick={() => handleConflictChoice("skip")}
-                />
-              </div>
-              <div class="flex gap-4">
-                <Button
-                  text="Overwrite All"
-                  onClick={() => handleConflictChoice("overwrite-all")}
-                />
-                <Button
-                  text="Skip all"
-                  onClick={() => handleConflictChoice("skip-all")}
-                />
-              </div>
+            <div class="flex gap-4">
+              <Button
+                text="Overwrite All"
+                onClick={() => handleConflictChoice("overwrite-all")}
+              />
+              <Button
+                text="Skip all"
+                onClick={() => handleConflictChoice("skip-all")}
+              />
             </div>
-          </Show>
-          <Show when={error()}>
-            <div class="text-red-500">{error()}</div>
-          </Show>
-          <Progress value={progress()} />
-          <div class="flex justify-start">
-            <Switch>
-              <Match when={progress() < 100 && !canceled()}>
-                <Button
-                  text="Cancel"
-                  onClick={() => {
-                    setCanceled(true);
-                    setError("Canceled");
-                  }}
-                />
-              </Match>
-              <Match when={true}>
-                <Button text="Finish" onClick={props.onClose} />
-              </Match>
-            </Switch>
           </div>
+        </Show>
+        <Show when={error()}>
+          <div class="text-red-500">{error()}</div>
+        </Show>
+        <Progress value={progress()} />
+        <div class="flex justify-start">
+          <Switch>
+            <Match when={progress() < 100 && !canceled()}>
+              <Button
+                text="Cancel"
+                onClick={() => {
+                  setCanceled(true);
+                  setError("Canceled");
+                }}
+              />
+            </Match>
+            <Match when={true}>
+              <Button text="Finish" onClick={props.onClose} />
+            </Match>
+          </Switch>
         </div>
       </div>
-    </>
+    </Dialog>
   );
 }

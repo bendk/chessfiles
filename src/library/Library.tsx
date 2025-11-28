@@ -11,12 +11,12 @@ import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
 import { normalizeNewFilename, joinPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
 import type { AppControls, StatusTracker } from "~/components";
-import { Button, Chooser, Dialog, StandardLayout } from "~/components";
-import { CreateBook } from "./CreateBook";
-import { CreateFolder } from "./CreateFolder";
+import { Button, ChooserDialog, Dialog, StandardLayout } from "~/components";
+import { CreateBookDialog } from "./CreateBookDialog";
+import { CreateFolderDialog } from "./CreateFolderDialog";
 import { BooksList } from "./BooksList";
 import { BookEditor } from "./BookEditor";
-import { OperationProgress } from "./OperationProgress";
+import { ProgressDialog } from "./ProgressDialog";
 import { RenameFile } from "./RenameFile";
 
 export interface LibraryProps {
@@ -249,27 +249,23 @@ export function Library(props: LibraryProps) {
       return null;
     } else if (d.type == "create-book") {
       return (
-        <CreateBook
-          title="Create New Book"
+        <CreateBookDialog
           storage={props.storage.clone()}
-          submitText="Create Book"
           onClose={unsetDialog}
           onCreate={onCreateBook}
         />
       );
     } else if (d.type == "create-folder") {
       return (
-        <CreateFolder
-          title="Create New Folder"
+        <CreateFolderDialog
           storage={props.storage.clone()}
-          submitText="Create Folder"
           onClose={unsetDialog}
           onCreate={onCreateFolder}
         />
       );
     } else if (d.type == "chooser" && d.operation == "move") {
       return (
-        <Chooser
+        <ChooserDialog
           storage={props.storage.clone()}
           sources={d.files}
           title="Move files"
@@ -287,7 +283,7 @@ export function Library(props: LibraryProps) {
       );
     } else if (d.type == "chooser" && d.operation == "copy") {
       return (
-        <Chooser
+        <ChooserDialog
           storage={props.storage.clone()}
           sources={d.files}
           title="Copy files"
@@ -338,7 +334,7 @@ export function Library(props: LibraryProps) {
       );
     } else if (d.type == "operation-progress") {
       return (
-        <OperationProgress
+        <ProgressDialog
           title={d.title}
           onClose={unsetDialog}
           operation={d.operation}
@@ -351,7 +347,6 @@ export function Library(props: LibraryProps) {
   return (
     <>
       <Switch>
-        <Match when={renderedDialog()}>{renderedDialog()}</Match>
         <Match when={currentBook()} keyed>
           {(currentBook) => (
             <BookEditor
@@ -364,6 +359,7 @@ export function Library(props: LibraryProps) {
           )}
         </Match>
         <Match when={!currentBook()}>
+          {renderedDialog()}
           <StandardLayout page="files" controls={props.controls}>
             <div class="text-lg pb-4 flex items-center">
               <Index each={props.storage.dirComponents()}>

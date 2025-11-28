@@ -13,7 +13,7 @@ import type { AppControls, MenuItem, StatusTracker } from "~/components";
 import {
   Button,
   Checkbox,
-  Chooser,
+  ChooserDialog,
   Dialog,
   Progress,
   RadioGroup,
@@ -37,10 +37,10 @@ export interface TrainingListProps {
 
 type DialogInfo =
   | { type: "finished"; meta: TrainingMeta }
+  | { type: "new-session" }
   | { type: "settings" };
 
 export function TrainingList(props: TrainingListProps) {
-  const [showChooser, setShowChooser] = createSignal(false);
   const [chooserError, setChooserError] = createSignal<string | undefined>();
   const [trainingSettings, setTrainingSettings] =
     createSignal<TrainingSettings | null>(null);
@@ -165,10 +165,10 @@ export function TrainingList(props: TrainingListProps) {
   }
 
   return (
-    <>
+    <StandardLayout page="training" controls={props.controls}>
       <Switch>
-        <Match when={showChooser()} keyed>
-          <Chooser
+        <Match when={dialog()?.type == "new-session"} keyed>
+          <ChooserDialog
             title="Select book to train"
             storage={props.storage.clone()}
             error={chooserError()}
@@ -184,195 +184,181 @@ export function TrainingList(props: TrainingListProps) {
                     );
                     return;
                   }
-                  setShowChooser(false);
+                  setDialog(null);
                   throw e;
                 }
                 await props.openTraining(training.meta);
-                setShowChooser(false);
+                setDialog(null);
               });
             }}
             onClose={() => {
               setChooserError(undefined);
-              setShowChooser(false);
+              setDialog(null);
             }}
           />
         </Match>
-        <Match when={true}>
-          <StandardLayout page="training" controls={props.controls}>
-            <Switch>
-              <Match when={dialog()?.type == "finished"}>
-                <Dialog
-                  onSubmit={restartFininshedMeta}
-                  onClose={() => setDialog(null)}
-                  title="Training is finished"
-                  submitText="Restart Training"
-                >
-                  <div>You've already finished this training</div>
-                </Dialog>
-              </Match>
-              <Match when={dialog()?.type == "settings"}>
-                <Dialog
-                  onClose={() => setDialog(null)}
-                  closeText="Close"
-                  title="Training Settings"
-                >
-                  <Show when={trainingSettings()} keyed>
-                    {(settings) => (
-                      <div class="flex flex-col gap-4">
-                        <Checkbox
-                          label="Randomize lines"
-                          checked={settings.shuffle}
-                          onChange={updateTrainingShuffle}
-                        />
 
-                        <RadioGroup.Root
-                          value={settings.skipAfter.toString()}
-                          onValueChange={updateTrainingRetrainLimit}
-                        >
-                          <RadioGroup.Label
-                            text="Retrain limit"
-                            help="Skip moves after getting them correct this many times in a row"
-                          />
-                          <RadioGroup.Item text="2 moves" value="2" />
-                          <RadioGroup.Item text="3 moves" value="3" />
-                          <RadioGroup.Item text="4 moves" value="4" />
-                          <RadioGroup.Item
-                            text="Always retrain moves"
-                            value="0"
-                          />
-                        </RadioGroup.Root>
+        <Match when={dialog()?.type == "finished"}>
+          <Dialog
+            onSubmit={restartFininshedMeta}
+            onClose={() => setDialog(null)}
+            title="Training is finished"
+            submitText="Restart Training"
+          >
+            <div>You've already finished this training</div>
+          </Dialog>
+        </Match>
+        <Match when={dialog()?.type == "settings"}>
+          <Dialog
+            onClose={() => setDialog(null)}
+            closeText="Close"
+            title="Training Settings"
+          >
+            <Show when={trainingSettings()} keyed>
+              {(settings) => (
+                <div class="flex flex-col gap-4">
+                  <Checkbox
+                    label="Randomize lines"
+                    checked={settings.shuffle}
+                    onChange={updateTrainingShuffle}
+                  />
 
-                        <RadioGroup.Root
-                          value={settings.moveDelay.toString()}
-                          onValueChange={updateTrainingMoveDelay}
-                        >
-                          <RadioGroup.Label text="Opponent Move Delay" />
-                          <RadioGroup.Item text="None" value="0" />
-                          <RadioGroup.Item text="0.25 seconds" value="0.25" />
-                          <RadioGroup.Item text="0.5 seconds" value="0.5" />
-                          <RadioGroup.Item text="1 second" value="1" />
-                        </RadioGroup.Root>
-                      </div>
-                    )}
-                  </Show>
-                </Dialog>
-              </Match>
-              <Match when={trainingListing.loading}>
-                <Loader class="animate-spin duration-1000" size={32} />
-              </Match>
-              <Match when={trainingListing.error}>
-                <div class="text-2xl flex gap-2">
-                  Error loading training data
+                  <RadioGroup.Root
+                    value={settings.skipAfter.toString()}
+                    onValueChange={updateTrainingRetrainLimit}
+                  >
+                    <RadioGroup.Label
+                      text="Retrain limit"
+                      help="Skip moves after getting them correct this many times in a row"
+                    />
+                    <RadioGroup.Item text="2 moves" value="2" />
+                    <RadioGroup.Item text="3 moves" value="3" />
+                    <RadioGroup.Item text="4 moves" value="4" />
+                    <RadioGroup.Item text="Always retrain moves" value="0" />
+                  </RadioGroup.Root>
+
+                  <RadioGroup.Root
+                    value={settings.moveDelay.toString()}
+                    onValueChange={updateTrainingMoveDelay}
+                  >
+                    <RadioGroup.Label text="Opponent Move Delay" />
+                    <RadioGroup.Item text="None" value="0" />
+                    <RadioGroup.Item text="0.25 seconds" value="0.25" />
+                    <RadioGroup.Item text="0.5 seconds" value="0.5" />
+                    <RadioGroup.Item text="1 second" value="1" />
+                  </RadioGroup.Root>
                 </div>
-              </Match>
-              <Match when={trainingListing.state == "ready"}>
-                <div class="flex items-start gap-8 w-full">
-                  <div class="flex-1">
-                    <h3 class="text-2xl text-left text-zinc-400 pb-4">
-                      Sessions
-                    </h3>
-                    <Switch>
-                      <Match when={trainingListing()?.metas.length == 0}>
-                        <p class="text-lg pt-1">
-                          Press "New Training Session" to start training.
-                        </p>
-                      </Match>
-                      <Match when={true}>
-                        <Table
-                          each={trainingListing()?.metas ?? []}
-                          columns={4}
-                          onClick={(meta) => onMenuAction(meta, "open")}
-                          menu={menu}
-                          onMenuSelect={onMenuAction}
-                          headers={["Name", "Progress", "Last trained", ""]}
-                        >
-                          {(item) => (
-                            <>
-                              <TableCell grow item={item}>
-                                {item.value.name}
-                              </TableCell>
-                              <TableCell item={item}>
-                                <Progress
-                                  value={
-                                    (100 * item.value.linesTrained) /
-                                    item.value.totalLines
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell item={item}>
-                                {trainingTimeAgo(
-                                  item.value.lastTrained,
-                                  currentTimestamp,
-                                )}
-                              </TableCell>
-                              <TableMenuCell item={item} />
-                            </>
+              )}
+            </Show>
+          </Dialog>
+        </Match>
+        <Match when={trainingListing.loading}>
+          <Loader class="animate-spin duration-1000" size={32} />
+        </Match>
+        <Match when={trainingListing.error}>
+          <div class="text-2xl flex gap-2">Error loading training data</div>
+        </Match>
+        <Match when={trainingListing.state == "ready"}>
+          <div class="flex items-start gap-8 w-full">
+            <div class="flex-1">
+              <h3 class="text-2xl text-left text-zinc-400 pb-4">Sessions</h3>
+              <Switch>
+                <Match when={trainingListing()?.metas.length == 0}>
+                  <p class="text-lg pt-1">
+                    Press "New Training Session" to start training.
+                  </p>
+                </Match>
+                <Match when={true}>
+                  <Table
+                    each={trainingListing()?.metas ?? []}
+                    columns={4}
+                    onClick={(meta) => onMenuAction(meta, "open")}
+                    menu={menu}
+                    onMenuSelect={onMenuAction}
+                    headers={["Name", "Progress", "Last trained", ""]}
+                  >
+                    {(item) => (
+                      <>
+                        <TableCell grow item={item}>
+                          {item.value.name}
+                        </TableCell>
+                        <TableCell item={item}>
+                          <Progress
+                            value={
+                              (100 * item.value.linesTrained) /
+                              item.value.totalLines
+                            }
+                          />
+                        </TableCell>
+                        <TableCell item={item}>
+                          {trainingTimeAgo(
+                            item.value.lastTrained,
+                            currentTimestamp,
                           )}
-                        </Table>
-                      </Match>
-                    </Switch>
-                  </div>
-                  <div class="flex-1">
-                    <Show when={trainingListing()?.activity}>
-                      <h3 class="text-2xl text-left text-zinc-400 pb-4">
-                        Activity
-                      </h3>
-                      <Table
-                        each={trainingListing()?.activity ?? []}
-                        columns={4}
-                        headers={[
-                          "Name",
-                          "Lines trained",
-                          "Accuracy",
-                          "Last trained",
-                        ]}
-                      >
-                        {(item) => (
-                          <>
-                            <TableCell grow item={item}>
-                              {item.value.name}
-                            </TableCell>
-                            <TableCell item={item}>
-                              {item.value.linesTrained}
-                            </TableCell>
-                            <TableCell item={item}>
-                              <Progress
-                                value={
-                                  (100 * item.value.correctCount) /
-                                  (item.value.correctCount +
-                                    item.value.incorrectCount)
-                                }
-                              />
-                            </TableCell>
-                            <TableCell item={item}>
-                              {trainingTimeAgo(
-                                item.value.timestamp,
-                                currentTimestamp,
-                              )}
-                            </TableCell>
-                          </>
+                        </TableCell>
+                        <TableMenuCell item={item} />
+                      </>
+                    )}
+                  </Table>
+                </Match>
+              </Switch>
+            </div>
+            <div class="flex-1">
+              <Show when={trainingListing()?.activity}>
+                <h3 class="text-2xl text-left text-zinc-400 pb-4">Activity</h3>
+                <Table
+                  each={trainingListing()?.activity ?? []}
+                  columns={4}
+                  headers={[
+                    "Name",
+                    "Lines trained",
+                    "Accuracy",
+                    "Last trained",
+                  ]}
+                >
+                  {(item) => (
+                    <>
+                      <TableCell grow item={item}>
+                        {item.value.name}
+                      </TableCell>
+                      <TableCell item={item}>
+                        {item.value.linesTrained}
+                      </TableCell>
+                      <TableCell item={item}>
+                        <Progress
+                          value={
+                            (100 * item.value.correctCount) /
+                            (item.value.correctCount +
+                              item.value.incorrectCount)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell item={item}>
+                        {trainingTimeAgo(
+                          item.value.timestamp,
+                          currentTimestamp,
                         )}
-                      </Table>
-                    </Show>
-                  </div>
-                </div>
-                <div class="flex pt-16 gap-8">
-                  <Button
-                    text="Session"
-                    icon=<Plus />
-                    onClick={() => setShowChooser(true)}
-                  />
-                  <Button
-                    text="Settings"
-                    icon=<IconSettings />
-                    onClick={() => setDialog({ type: "settings" })}
-                  />
-                </div>
-              </Match>
-            </Switch>
-          </StandardLayout>
+                      </TableCell>
+                    </>
+                  )}
+                </Table>
+              </Show>
+            </div>
+          </div>
+          <div class="flex pt-16 gap-8">
+            <Button
+              text="Session"
+              icon=<Plus />
+              onClick={() => setDialog({ type: "new-session" })}
+            />
+            <Button
+              text="Settings"
+              icon=<IconSettings />
+              onClick={() => setDialog({ type: "settings" })}
+            />
+          </div>
         </Match>
       </Switch>
-    </>
+    </StandardLayout>
   );
 }
