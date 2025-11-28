@@ -1,4 +1,3 @@
-import FolderTree from "lucide-solid/icons/folder-tree";
 import type { JSXElement } from "solid-js";
 
 export abstract class ChessfilesStorage {
@@ -80,7 +79,6 @@ export function normalizeNewFilename(
 export interface PathComponent {
   filename: string;
   path: string;
-  icon?: JSXElement;
 }
 
 export function pathComponents(path: string): PathComponent[] {
@@ -89,7 +87,6 @@ export function pathComponents(path: string): PathComponent[] {
     {
       filename: "",
       path: "/",
-      icon: FolderTree({}),
     },
   ];
   for (const filename of normalizePath(path).split("/")) {

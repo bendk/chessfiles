@@ -1,6 +1,7 @@
 import { createSignal, createMemo, Index, Show, Switch, Match } from "solid-js";
 import BookPlus from "lucide-solid/icons/book-plus";
 import BulkMode from "lucide-solid/icons/list-todo";
+import FolderTree from "lucide-solid/icons/folder-tree";
 import Copy from "lucide-solid/icons/copy";
 import FolderPlus from "lucide-solid/icons/folder-plus";
 import MoveRight from "lucide-solid/icons/move-right";
@@ -379,15 +380,17 @@ export function Library(props: LibraryProps) {
                             setBulkMode(false);
                           }}
                         >
-                          {component().icon}
-                          {component().filename}
+                          <Show when={index > 0} fallback={<FolderTree />}>
+                            {component().filename}
+                          </Show>
                         </button>
                       </Match>
                       <Match
                         when={index == props.storage.dirComponents().length - 1}
                       >
-                        {component().icon}
-                        {component().filename}
+                        <Show when={index > 0} fallback={<FolderTree />}>
+                          {component().filename}
+                        </Show>
                       </Match>
                     </Switch>
                   </>

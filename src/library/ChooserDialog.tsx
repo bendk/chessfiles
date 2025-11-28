@@ -1,6 +1,7 @@
 import BookIcon from "lucide-solid/icons/book";
 import Database from "lucide-solid/icons/database";
 import FolderIcon from "lucide-solid/icons/folder";
+import FolderTree from "lucide-solid/icons/folder-tree";
 import { Index, Match, Show, Switch } from "solid-js";
 import { Dialog, Table, TableCell } from "~/components";
 import type { DirEntry } from "~/lib/storage";
@@ -34,7 +35,7 @@ export function ChooserDialog(props: ChooserDialogProps) {
 
   function onClick(item: DirEntry) {
     if (item.type === "file") {
-      props.onSelect(props.storage.absPath(item.filename));
+      props.onSelect(storage.absPath(item.filename));
     } else {
       storage.setDir(item.filename);
     }
@@ -78,13 +79,15 @@ export function ChooserDialog(props: ChooserDialogProps) {
                     class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
                     onClick={() => storage.setDir(component().path)}
                   >
-                    {component().icon}
-                    {component().filename}
+                    <Show when={index > 0} fallback={<FolderTree />}>
+                      {component().filename}
+                    </Show>
                   </button>
                 </Match>
                 <Match when={index == storage.dirComponents().length - 1}>
-                  {component().icon}
-                  {component().filename}
+                  <Show when={index > 0} fallback={<FolderTree />}>
+                    {component().filename}
+                  </Show>
                 </Match>
               </Switch>
             </>

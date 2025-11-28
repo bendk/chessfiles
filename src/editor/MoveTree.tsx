@@ -29,9 +29,9 @@ function Node(props: NodeProps) {
               return "text-zinc-400";
             }
             if (props.node.selected) {
-              return "text-sky-600 dark:text-sky-300";
+              return "text-sky-600 dark:text-sky-300 underline";
             } else {
-              return "text-zinc-700 dark:text-zinc-100";
+              return "text-sky-600 dark:text-sky-300";
             }
           };
           const isDraft = () =>
