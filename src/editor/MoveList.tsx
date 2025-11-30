@@ -115,13 +115,12 @@ function childContext(
   moveLink.text = `${moveNum}${moveSan}${priorityString}${nagTextString}${commentString}`;
   moveLink.href = "#";
   if (context.nodesInLine.has(childNode)) {
-    moveLink.classList.add("text-sky-600");
-    moveLink.classList.add("dark:text-sky-300");
+    moveLink.classList.add("text-highlight-1");
     if (childNode === context.selectedNode) {
       moveLink.classList.add("underline");
     }
   } else {
-    moveLink.classList.add("text-zinc-400");
+    moveLink.classList.add("text-fg-2");
   }
   moveLink.addEventListener("click", () => context.setMoves(moves));
 
@@ -153,9 +152,6 @@ export function MoveList(props: MoveListProps) {
       <div class="text-lg/[25px]">
         <button
           class="cursor-pointer translate-y-1 mr-2"
-          classList={{
-            "text-sky-500": props.view.ply == 0,
-          }}
           onClick={() => props.setMoves([])}
         >
           <Book size={20} />

@@ -73,12 +73,12 @@ export function Home(props: HomeProps) {
           >
             <Switch>
               <Match when={dropboxConnected()}>
-                <div class="flex items-center gap-1 text-green-500">
+                <div class="flex items-center gap-1 text-success">
                   <CloudCheck /> Dropbox account connected
                 </div>
               </Match>
               <Match when={!dropboxConnected()}>
-                <div class="flex items-center gap-1 text-zinc-500">
+                <div class="flex items-center gap-1 text-fg-2">
                   <CloudOff /> Dropbox account not connected
                 </div>
               </Match>
@@ -152,8 +152,8 @@ export function Home(props: HomeProps) {
             <h2 class="text-lg">Accounts:</h2>
             <div
               classList={{
-                "text-green-500": dropboxConnected(),
-                "text-zinc-500": !dropboxConnected(),
+                "text-success": dropboxConnected(),
+                "text-fg-2": !dropboxConnected(),
               }}
             >
               <Button
@@ -163,7 +163,7 @@ export function Home(props: HomeProps) {
                 onClick={() => setDialog("dropbox")}
               />
             </div>
-            <div class="flex items-start text-zinc-500">
+            <div class="flex items-start text-fg-2">
               <Button icon={<CloudOff />} text="Lichess" style="flat" />
             </div>
           </div>

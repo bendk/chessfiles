@@ -261,7 +261,7 @@ export function TrainingList(props: TrainingListProps) {
         <Match when={trainingListing.state == "ready"}>
           <div class="flex items-start gap-8 w-full">
             <div class="flex-1">
-              <h3 class="text-2xl text-left text-zinc-400 pb-4">Sessions</h3>
+              <h3 class="text-2xl text-left text-fg-2 pb-4">Sessions</h3>
               <Switch>
                 <Match when={trainingListing()?.metas.length == 0}>
                   <p class="text-lg pt-1">
@@ -305,7 +305,7 @@ export function TrainingList(props: TrainingListProps) {
             </div>
             <div class="flex-1">
               <Show when={trainingListing()?.activity}>
-                <h3 class="text-2xl text-left text-zinc-400 pb-4">Activity</h3>
+                <h3 class="text-2xl text-left text-fg-2 pb-4">Activity</h3>
                 <Table
                   each={trainingListing()?.activity ?? []}
                   columns={4}

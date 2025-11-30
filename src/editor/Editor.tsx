@@ -146,7 +146,7 @@ export function Editor(props: EditorProps) {
             //   - mod(100vw, 8px) so that it's divisible by 8 (all other terms are already divisible)
           }
           <div class="grid grid-cols-[320px_minmax(0,1fr)_320px] grid-rows-[auto_minmax(0,calc(100vw-640px+52px-mod(1vw,8px))))_minmax(200px,1fr)] h-screen">
-            <div class="col-span-full text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300 px-2 py-4 mb-2">
+            <div class="col-span-full header px-2 py-4 mb-2">
               <Header
                 name={props.name}
                 bookType={props.bookType}
@@ -188,7 +188,7 @@ export function Editor(props: EditorProps) {
             <div class="pt-2 px-2">
               <RightSidebar />
             </div>
-            <div class="col-span-full bg-slate-100 dark:bg-zinc-800 p-2">
+            <div class="col-span-full p-2 footer">
               <MoveView
                 bookType={props.bookType}
                 rootNode={props.rootNode}
@@ -282,30 +282,24 @@ function MoveView(props: MoveViewProps) {
       <div class="flex justify-start pb-2">
         <SegmentGroup.Root
           value={moveView()}
-          class="flex relative dark:bg-zinc-800 border-1 border-zinc-500 rounded-md"
+          class="flex relative"
           onValueChange={(details) => setMoveView(details.value ?? "list")}
         >
-          <SegmentGroup.Indicator
-            class="bg-sky-400 dark:bg-sky-500 opacity-30"
-            classList={{
-              "rounded-l-md": moveView() == "list",
-              "rounded-r-md": moveView() == "tree",
-            }}
-            style="left: var(--left); top: var(--top); width: var(--width); height: var(--height)"
-          />
-          <SegmentGroup.Item value="list" class="px-2 py-1 cursor-pointer">
-            <SegmentGroup.ItemText>
-              <List size={20} />
-            </SegmentGroup.ItemText>
-            <SegmentGroup.ItemControl />
-            <SegmentGroup.ItemHiddenInput />
+          <SegmentGroup.Item value="list">
+            <SegmentGroup.ItemControl class="cursor-pointer data-[state=checked]:bg-highlight-2 px-2 py-1 border-1 border-fg-2 rounded-l-md">
+              <SegmentGroup.ItemText>
+                <List size={20} />
+              </SegmentGroup.ItemText>
+              <SegmentGroup.ItemHiddenInput />
+            </SegmentGroup.ItemControl>
           </SegmentGroup.Item>
-          <SegmentGroup.Item value="tree" class="px-2 py-1 cursor-pointer">
-            <SegmentGroup.ItemText>
-              <ListTree size={20} />
-            </SegmentGroup.ItemText>
-            <SegmentGroup.ItemControl />
-            <SegmentGroup.ItemHiddenInput />
+          <SegmentGroup.Item value="tree">
+            <SegmentGroup.ItemControl class="cursor-pointer data-[state=checked]:bg-highlight-2 px-2 py-1 border-1 border-fg-2 border-l-0 rounded-r-md">
+              <SegmentGroup.ItemText>
+                <ListTree size={20} />
+              </SegmentGroup.ItemText>
+              <SegmentGroup.ItemHiddenInput />
+            </SegmentGroup.ItemControl>
           </SegmentGroup.Item>
         </SegmentGroup.Root>
       </div>

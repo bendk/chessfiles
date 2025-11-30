@@ -101,7 +101,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
                   evt.currentTarget.blur();
                 }
               }}
-              class="border-1 border-zinc-400 dark:border-zinc-700 rounded-md px-2 py-1 outline-0"
+              class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
               rows="5"
             />
           </Field.Root>
@@ -129,7 +129,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
         <div class="flex flex-col gap-4 h-full">
           <h2 class="text-2xl">Notes</h2>
           <textarea
-            class="border-1 border-zinc-400 dark:border-zinc-700 rounded-sm w-full p-2"
+            class="border-1 border-fg-3 rounded-sm w-full p-2"
             value={props.view.currentNode.comment}
             onInput={(evt) => props.setDraftComment(evt.target.value)}
             onChange={props.commitDraftComment}
@@ -221,7 +221,7 @@ function HeaderField(props: HeaderFieldProps) {
             evt.currentTarget.blur();
           }
         }}
-        class="border-1 border-zinc-400 dark:border-zinc-700 rounded-md px-2 py-1 outline-0"
+        class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
       />
     </Field.Root>
   );
@@ -329,31 +329,31 @@ function DateField(props: DateFieldProps) {
               evt.currentTarget.blur();
             }
           }}
-          class="border-1 border-zinc-700 rounded-md px-2 py-1 outline-0"
+          class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
         />
         <DatePicker.Trigger class="text-3xl cursor-pointer">
           📅
         </DatePicker.Trigger>
       </DatePicker.Control>
-      <div class="text-rose-500 pl-1 pt-0.5">{error()}</div>
+      <div class="text-error pl-1 pt-0.5">{error()}</div>
 
       <Portal>
         <DatePicker.Positioner>
-          <DatePicker.Content class="bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 p-4 border-1 border-zinc-400 dark:border-zinc-700">
+          <DatePicker.Content class="bg-bg-2 text-fg-1 p-4 border-1 border-fg-3">
             <DatePicker.View view="day">
               <DatePicker.Context>
                 {(context) => (
                   <>
                     <DatePicker.ViewControl class="flex items-center w-full pb-4">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <PrevIcon />
                       </DatePicker.PrevTrigger>
                       <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-4 rounded-md">
+                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
                           <DatePicker.RangeText />
                         </DatePicker.ViewTrigger>
                       </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <NextIcon />
                       </DatePicker.NextTrigger>
                     </DatePicker.ViewControl>
@@ -378,7 +378,7 @@ function DateField(props: DateFieldProps) {
                               <Index each={week()}>
                                 {(day) => (
                                   <DatePicker.TableCell value={day()}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 rounded-md">
+                                    <DatePicker.TableCellTrigger class="p-2 text-fg-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
                                       {day().day}
                                     </DatePicker.TableCellTrigger>
                                   </DatePicker.TableCell>
@@ -399,15 +399,15 @@ function DateField(props: DateFieldProps) {
                 {(context) => (
                   <>
                     <DatePicker.ViewControl class="flex items-center w-full pb-6">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <PrevIcon />
                       </DatePicker.PrevTrigger>
                       <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-4 rounded-md">
+                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
                           <DatePicker.RangeText />
                         </DatePicker.ViewTrigger>
                       </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <NextIcon />
                       </DatePicker.NextTrigger>
                     </DatePicker.ViewControl>
@@ -425,7 +425,7 @@ function DateField(props: DateFieldProps) {
                               <Index each={months()}>
                                 {(month) => (
                                   <DatePicker.TableCell value={month().value}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 rounded-md">
+                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
                                       {month().label}
                                     </DatePicker.TableCellTrigger>
                                   </DatePicker.TableCell>
@@ -446,15 +446,15 @@ function DateField(props: DateFieldProps) {
                 {(context) => (
                   <>
                     <DatePicker.ViewControl class="flex items-center w-full pb-6">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <PrevIcon />
                       </DatePicker.PrevTrigger>
                       <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-4 rounded-md">
+                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
                           <DatePicker.RangeText />
                         </DatePicker.ViewTrigger>
                       </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 py-2 px-2 rounded-md">
+                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
                         <NextIcon />
                       </DatePicker.NextTrigger>
                     </DatePicker.ViewControl>
@@ -467,7 +467,7 @@ function DateField(props: DateFieldProps) {
                               <Index each={years()}>
                                 {(year) => (
                                   <DatePicker.TableCell value={year().value}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:text-white hover:bg-sky-400 dark:hover:bg-sky-800 rounded-md">
+                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
                                       {year().label}
                                     </DatePicker.TableCellTrigger>
                                   </DatePicker.TableCell>

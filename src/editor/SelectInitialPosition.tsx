@@ -72,12 +72,13 @@ export function SelectInitialPosition(props: SelectInitialPositionProps) {
         <Button text="Exit" onClick={props.onExit} />
       </div>
       <div class="text-xl truncate text-ellipsis">{props.name}</div>
-      <div class="flex mt-8 bg-white dark:bg-zinc-600 rounded-md">
+      <div class="flex mt-8 bg-bg-3 border-1 border-fg-3 rounded-md">
         <BoardButton
           value="hand"
           api={api()}
           selection={selection()}
           setSelection={setSelection}
+          end="left"
         />
         <BoardButton
           value={{ color: "white", role: "king" }}
@@ -120,15 +121,17 @@ export function SelectInitialPosition(props: SelectInitialPositionProps) {
           api={api()}
           selection={selection()}
           setSelection={setSelection}
+          end="right"
         />
       </div>
       <div class="w-200 h-200 mt-2" ref={ref} />
-      <div class="flex mt-2 bg-white dark:bg-zinc-600 rounded-md">
+      <div class="flex mt-2 bg-bg-3 border-1 border-fg-3 rounded-md">
         <BoardButton
           value="hand"
           api={api()}
           selection={selection()}
           setSelection={setSelection}
+          end="left"
         />
         <BoardButton
           value={{ color: "black", role: "king" }}
@@ -171,6 +174,7 @@ export function SelectInitialPosition(props: SelectInitialPositionProps) {
           api={api()}
           selection={selection()}
           setSelection={setSelection}
+          end="right"
         />
       </div>
 
@@ -200,6 +204,7 @@ interface BoardButtonProps {
   value: Selection;
   api: Api | null;
   selection: Selection;
+  end?: "left" | "right";
   setSelection: (selection: Selection) => void;
 }
 
@@ -207,11 +212,12 @@ function BoardButton(props: BoardButtonProps) {
   const [readyToDrag, setReadyToDrag] = createSignal(false);
   return (
     <button
-      class="cursor-pointer w-25 h-25 text-black flex items-center justify-center rounded-l-md"
+      class="cursor-pointer w-25 h-25 text-fg flex items-center justify-center"
       classList={{
-        "hover:bg-sky-400 hover:dark:bg-sky-500":
-          props.selection != props.value,
-        "bg-zinc-400": props.selection == props.value,
+        "rounded-l-md": props.end == "left",
+        "rounded-r-md": props.end == "right",
+        "hover:bg-highlight-1": props.selection != props.value,
+        "bg-selection": props.selection == props.value,
       }}
       onClick={() => props.setSelection(props.value)}
       onDblClick={() => {

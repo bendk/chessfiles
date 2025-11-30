@@ -5,7 +5,7 @@ import IconSun from "lucide-solid/icons/sun";
 import IconTodo from "lucide-solid/icons/list-todo";
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
-import { MenuButton } from "~/components";
+import { Button } from "~/components";
 import type { AppControls } from "~/components";
 
 interface NavbarLinkProps {
@@ -22,8 +22,8 @@ function NavbarLink(props: NavbarLinkProps) {
     <a
       class="flex gap-1 items-center mx-3 pb-0.5 text-lg cursor-pointer font-medium"
       classList={{
-        "border-b-2 border-sky-500": current(),
-        "hover:text-sky-300": !current(),
+        "border-b-2 border-highlight-1": current(),
+        "hover:text-highlight-1": !current(),
         "px-2": props.text === undefined,
       }}
       aria-current={current() ? "page" : undefined}
@@ -42,7 +42,7 @@ export interface NavbarProps {
 
 export function Navbar(props: NavbarProps) {
   return (
-    <nav class="text-zinc-200 bg-zinc-800 dark:bg-slate-800 dark:text-zinc-300 h-16 py-4 px-10 flex items-center justify-between py-4 px-10">
+    <nav class="header h-16 py-4 px-10 flex items-center justify-between py-4 px-10">
       <div class="flex gap-2 items-center">
         <NavbarLink
           name="home"
@@ -67,30 +67,22 @@ export function Navbar(props: NavbarProps) {
         />
       </div>
       <div class="flex items-center gap-2">
-        <MenuButton
+        <Button
           style="flat"
           icon={
             props.controls.theme() == "light" ? (
-              <IconSun class="text-white" />
+              <IconSun class="text-yellow-500" />
             ) : (
-              <IconMoon class="text-white" strokeWidth={1.5} fill="black" />
+              <IconMoon strokeWidth={1.5} fill="black" />
             )
           }
-          items={[
-            {
-              icon: <IconSun class="text-white" />,
-              value: "light",
-              selected: props.controls.theme() == "light",
-            },
-            {
-              icon: (
-                <IconMoon class="text-white" strokeWidth={1.5} fill="black" />
-              ),
-              value: "dark",
-              selected: props.controls.theme() == "dark",
-            },
-          ]}
-          onSelect={props.controls.setTheme}
+          onClick={() => {
+            if (props.controls.theme() == "light") {
+              props.controls.setTheme("dark");
+            } else {
+              props.controls.setTheme("light");
+            }
+          }}
         />
       </div>
     </nav>

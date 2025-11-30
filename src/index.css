@@ -15,4 +15,65 @@ html {
   --text-3xl--line-height: 1.2;
 }
 
+/*
+ * Color pallete for the app
+ *
+ * Lower numbers indicate more contrast and more emphasis.
+ */
+
+:root {
+  --color-fg-1: var(--color-zinc-800);
+  --color-fg-2: var(--color-zinc-500);
+  --color-fg-3: var(--color-zinc-300);
+  --color-bg-1: var(--color-white);
+  --color-bg-2: var(--color-zinc-100);
+  --color-bg-3: var(--color-zinc-300);
+  --color-highlight-1: var(--color-sky-500);
+  --color-highlight-2: var(--color-sky-200);
+  --color-success: var(--color-green-500);
+  --color-error: var(--color-red-500);
+  --color-warning: var(--color-amber-600);
+  --color-shadow: var(--color-zinc-800);
+  --color-selection: var(--color-slate-500);
+}
+
+.dark {
+  --color-fg-1: var(--color-zinc-300);
+  --color-fg-2: var(--color-zinc-400);
+  --color-fg-3: var(--color-zinc-600);
+  --color-bg-1: var(--color-zinc-900);
+  --color-bg-2: var(--color-zinc-800);
+  --color-bg-3: var(--color-zinc-600);
+  --color-highlight-1: var(--color-sky-300);
+  --color-highlight-2: var(--color-sky-700);
+  --color-warning: var(--color-amber-300);
+}
+
+@theme inline {
+  --color-fg-1: var(--color-fg-1);
+  --color-fg-2: var(--color-fg-2);
+  --color-fg-3: var(--color-fg-3);
+  --color-bg-1: var(--color-bg-1);
+  --color-bg-2: var(--color-bg-2);
+  --color-bg-3: var(--color-bg-3);
+  --color-highlight-2: var(--color-highlight-2);
+  --color-highlight-1: var(--color-highlight-1);
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+  --color-warning: var(--color-warning);
+  --color-selection: var(--color-selection);
+}
+
+.header {
+  @apply border-b-1 border-fg-3 bg-bg-2 dark:bg-slate-700 dark:text-fg-1;
+}
+
+.footer {
+  @apply border-t-1 border-fg-3 bg-bg-2 dark:text-fg-1 dark:bg-zinc-800;
+}
+
+.shadow {
+  @apply shadow-lg shadow-zinc-500 dark:shadow-zinc-950;
+}
+
 @source inline("col-span-2 col-span-3 col-span-4");

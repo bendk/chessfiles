@@ -32,10 +32,10 @@ export function Label(props: LabelProps) {
   return (
     <ArkRadioGroup.Label>
       <div class="flex flex-col pb-2">
-        <div class="dark:text-zinc-200 text-xl">{props.text}</div>
+        <div class="text-xl">{props.text}</div>
         <Show when={props.help} keyed>
           {(help_text) => (
-            <div class="dark:text-zinc-400 pb-0.5">{help_text}</div>
+            <div class="text-fg-2 pb-0.5">{help_text}</div>
           )}
         </Show>
       </div>
@@ -59,16 +59,16 @@ export function Item(props: ItemProps) {
         classList={{
           "cursor-pointer": props.disabled !== true,
           "cursor-not-allowed": props.disabled === true,
-          "text-zinc-400": props.disabled,
+          "text-fg-2": props.disabled,
         }}
         value={props.value}
       >
-        <ArkRadioGroup.ItemControl class="w-3.5 h-3.5 ml-1 data-[state=checked]:bg-sky-500 border-1 rounded-full" />
+        <ArkRadioGroup.ItemControl class="w-3.5 h-3.5 ml-1 data-[state=checked]:bg-selection border-1 rounded-full" />
         <ArkRadioGroup.ItemText>{props.text}</ArkRadioGroup.ItemText>
         <ArkRadioGroup.ItemHiddenInput />
       </ArkRadioGroup.Item>
       <Show when={props.help} keyed>
-        {(text) => <div class="text-zinc-400 pl-6 pb-1">{text}</div>}
+        {(text) => <div class="text-fg-2 pl-6 pb-1">{text}</div>}
       </Show>
     </div>
   );

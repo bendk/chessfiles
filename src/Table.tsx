@@ -120,11 +120,10 @@ export function Table<T>(props: TableProps<T>) {
             <div
               ref={sortable?.ref}
               style={sortable ? transformStyle(sortable.transform) : undefined}
-              class={`col-span-${props.columns} grid grid-cols-subgrid group border-zinc-400 dark:border-zinc-600 items-center`}
+              class={`col-span-${props.columns} grid grid-cols-subgrid group border-fg-3 items-center`}
               classList={{
-                "hover:bg-zinc-200 dark:hover:bg-zinc-700":
-                  !otherItemActive(tableItem),
-                "bg-zinc-200 dark:bg-zinc-700": thisItemActive(tableItem),
+                "hover:bg-highlight-2": !otherItemActive(tableItem),
+                "bg-highlight-2": thisItemActive(tableItem),
                 "transition-transform delay-20 ease-in-out":
                   otherItemActive(tableItem),
                 "border-b-1": index() != props.each.length - 1,
@@ -140,7 +139,7 @@ export function Table<T>(props: TableProps<T>) {
 
   return (
     <div
-      class={`grid w-full border-1 rounded-md border-zinc-400 dark:border-zinc-600 justify-center ${props.class ?? ""}`}
+      class={`grid w-full border-1 rounded-md border-fg-3 justify-center ${props.class ?? ""}`}
       classList={{
         "cursor-grab": activeItem()?.type == "reorder",
       }}
@@ -150,7 +149,7 @@ export function Table<T>(props: TableProps<T>) {
         {(headers) => (
           <Index each={headers}>
             {(header) => (
-              <div class="px-2 py-3 border-b-1 border-zinc-400 dark:border-zinc-600 font-normal text-left">
+              <div class="px-2 py-3 border-b-1 border-fg-3 font-normal text-left">
                 {header()}
               </div>
             )}
@@ -233,8 +232,7 @@ export function TableCell<T>(props: TableCellProps<T>) {
         <button
           class={`text-left w-full py-3 text-lg px-2 ${props.class}`}
           classList={{
-            "cursor-pointer hover:text-sky-600 dark:hover:text-sky-300":
-              props.item.activeState() === null,
+            "cursor-pointer": props.item.activeState() === null,
             "cursor-grab": props.item.activeState()?.type == "reorder",
           }}
           onClick={() =>
@@ -278,7 +276,7 @@ export interface TableMenuCellProps<T> {
 export function TableMenuCell<T>(props: TableMenuCellProps<T>) {
   return (
     <div
-      class="flex justify-center px-2 hover:text-sky-500 dark:hover:text-sky-300"
+      class="flex justify-center px-2 hover:text-highlight-1"
       classList={{
         "cursor-grab": props.item.activeState()?.type == "reorder",
       }}
@@ -311,9 +309,9 @@ export function TableGripperCell<T>(props: TableGripperCellProps<T>) {
     <div
       class="opacity-0"
       classList={{
-        "group-hover:opacity-100 hover:text-sky-500 dark:hover:text-sky-300 cursor-grab ml-2":
+        "group-hover:opacity-100 hover:text-highlight-1 cursor-grab ml-2":
           !otherItemActive(props.item),
-        "text-sky-500 dark:text-sky-300": thisItemActive(props.item),
+        "text-highlight-1": thisItemActive(props.item),
       }}
     >
       <Grip

@@ -30,12 +30,12 @@ function Node(props: NodeProps) {
         props.editorNode.parentMoves.map((move) => {
           const textColor = () => {
             if (!moveEquals(move.move, props.editorNode.node.move)) {
-              return "text-zinc-400";
+              return "text-fg-2";
             }
             if (props.plyIsCurrent) {
-              return "text-sky-600 dark:text-sky-300 underline";
+              return "text-highlight-1 underline";
             } else {
-              return "text-sky-600 dark:text-sky-300";
+              return "text-highlight-1";
             }
           };
           return (
@@ -73,9 +73,6 @@ export function MoveTree(props: MoveTreeProps) {
       <div class="flex text-lg/[25px] items-start">
         <button
           class="cursor-pointer translate-y-1"
-          classList={{
-            "text-sky-500": props.view.ply == 0,
-          }}
           onClick={() => props.setMoves([])}
         >
           <Book size={20} />

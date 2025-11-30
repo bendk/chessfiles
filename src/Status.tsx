@@ -113,7 +113,7 @@ export function Status(props: StatusProps) {
                 props.status.remove();
               }
             }}
-            class="absolute z-200 top-3 left-0 right-0 mx-auto flex flex-col bg-white dark:bg-zinc-900 border-1 border-zinc-600 w-120 shadow-md shadow-zinc-800 dark:shadow-zinc-950 py-2 px-2 transition-opacity"
+            class="absolute z-200 top-3 left-0 right-0 mx-auto flex flex-col bg-bg-1 border-1 border-fg-3 w-120 shadow py-2 px-2 transition-opacity"
             classList={{
               "opacity-100": status().fadeOut === undefined,
               "opacity-0": status().fadeOut !== undefined,
@@ -127,10 +127,10 @@ export function Status(props: StatusProps) {
                   <LoaderCircle size={24} class="animate-spin" />
                 </Match>
                 <Match when={status().type == "success"}>
-                  <Check size={24} class="text-green-500" />
+                  <Check size={24} class="text-success" />
                 </Match>
                 <Match when={status().type == "error"}>
-                  <Alert size={24} class="text-red-500" />
+                  <Alert size={24} class="text-error" />
                 </Match>
               </Switch>
               <div class="flex flex-col grow">
@@ -138,7 +138,7 @@ export function Status(props: StatusProps) {
                   <div
                     class="font-bold text-lg"
                     classList={{
-                      "text-red-500": status().type == "error",
+                      "text-error": status().type == "error",
                     }}
                   >
                     {status().title}
@@ -146,14 +146,14 @@ export function Status(props: StatusProps) {
                   <Show when={status().type == "error"}>
                     <button
                       onClick={() => props.status?.dismiss()}
-                      class="cursor-pointer text-red-500 hover:text-zinc-800 hover:dark:text-zinc-300"
+                      class="cursor-pointer text-fg-2 hover:text-highlight-1"
                     >
                       <X />
                     </button>
                   </Show>
                 </div>
                 <Show when={status().description} keyed>
-                  {(desc) => <div class="text-zinc-400">{desc}</div>}
+                  {(desc) => <div class="pt-0.5 text-fg-2">{desc}</div>}
                 </Show>
               </div>
             </div>

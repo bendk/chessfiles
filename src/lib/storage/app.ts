@@ -309,6 +309,9 @@ export class AppStorage {
       if (callbacks.canceled ? callbacks.canceled() : false) {
         break;
       }
+
+      currentWork += this.workForStep(step);
+
       if (step.type == "ensure-dir") {
         const [storage, storagePath] = this.resolvePath(step.path);
         if (!(await storage.exists(storagePath))) {
@@ -413,9 +416,10 @@ export class AppStorage {
         throw Error(`performOperation: invalid step ${step}`);
       }
 
-      currentWork += this.workForStep(step);
       callbacks.progress?.(currentWork, totalWork);
     }
+
+    callbacks.progress?.(totalWork, totalWork);
   }
 
   /**

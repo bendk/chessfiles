@@ -54,7 +54,7 @@ export function ChooserDialog(props: ChooserDialogProps) {
     >
       <Show when={sources() != null}>
         <div class="pb-8">
-          <h2 class="text-lg text-zinc-400 truncate text-ellipsis">
+          <h2 class="text-lg text-fg-2 truncate text-ellipsis">
             Source files
           </h2>
           {sources()}
@@ -62,11 +62,11 @@ export function ChooserDialog(props: ChooserDialogProps) {
       </Show>
 
       <Show when={props.subtitle !== undefined}>
-        <h2 class="text-lg text-zinc-400 truncate text-ellipsis">
+        <h2 class="text-lg text-fg-2 truncate text-ellipsis">
           {props.subtitle}
         </h2>
       </Show>
-      <div class="text-lg pt-2 pb-2 flex items-center text-zinc-700 dark:text-zinc-300">
+      <div class="text-lg pt-2 pb-2 flex items-center text-fg-1">
         <Index each={storage.dirComponents()}>
           {(component, index) => (
             <>
@@ -76,7 +76,7 @@ export function ChooserDialog(props: ChooserDialogProps) {
               <Switch>
                 <Match when={index < storage.dirComponents().length - 1}>
                   <button
-                    class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
+                    class="cursor-pointer hover:text-highlight-1"
                     onClick={() => storage.setDir(component().path)}
                   >
                     <Show when={index > 0} fallback={<FolderTree />}>
@@ -125,7 +125,7 @@ export function ChooserDialog(props: ChooserDialogProps) {
         </div>
       </div>
       <Show when={props.error}>
-        <div class="text-red-500">{props.error}</div>
+        <div class="text-error">{props.error}</div>
       </Show>
     </Dialog>
   );

@@ -102,7 +102,7 @@ export function ProgressDialog(props: ProgressDialogProps) {
         </ul>
         <div class="grow" />
         <Show when={conflictPath() != ""}>
-          <div class="text-amber-600 dark:text-amber-300">{conflictPath()}</div>
+          <div class="text-warning">{conflictPath()}</div>
           <div class="flex pt-2 justify-between">
             <div class="flex gap-4">
               <Button
@@ -127,7 +127,7 @@ export function ProgressDialog(props: ProgressDialogProps) {
           </div>
         </Show>
         <Show when={error()}>
-          <div class="text-red-500">{error()}</div>
+          <div class="text-error">{error()}</div>
         </Show>
         <Progress value={progress()} />
         <div class="flex justify-start">

@@ -48,9 +48,9 @@ export function RenameFile(props: RenameFileProps) {
           value={newFilename()}
           onKeyPress={onKeyPress}
           onInput={(e) => setNewFilename(e.currentTarget.value)}
-          class="border-1 border-zinc-700 rounded-md px-2 py-1 outline-0"
+          class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
         />
-        <Field.ErrorText class="text-rose-500">{error()}</Field.ErrorText>
+        <Field.ErrorText class="text-error">{error()}</Field.ErrorText>
       </Field.Root>
     </Dialog>
   );

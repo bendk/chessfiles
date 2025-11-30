@@ -23,6 +23,7 @@ import "./chessground.cburnett.css";
 
 interface PromotionSelectorProps {
   color: "white" | "black";
+  squareSize: number;
   from: number;
   to: number;
   onSelect: (role: Role) => void;
@@ -31,33 +32,33 @@ interface PromotionSelectorProps {
 function PromotionSelector(props: PromotionSelectorProps) {
   return (
     <div
-      class="absolute shadow-lg shadow-zinc-800 bg-zinc-300 flex"
+      class="absolute bg-bg-3 shadow flex"
       classList={{
         "flex-col": props.color == "white",
         "flex-col-reverse": props.color == "black",
       }}
       style={{
-        width: "12.5%",
-        height: "50%",
+        width: `${props.squareSize}px`,
+        height: `${props.squareSize * 4}px`,
         left: `${12.5 * squareFile(props.to)}%`,
         top: props.color == "white" ? 0 : "50%",
         "z-index": 100,
       }}
     >
       <button
-        class={`piece-queen-${props.color} h-[25%] bg-cover hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+        class={`piece-queen-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
         onClick={() => props.onSelect("queen")}
       ></button>
       <button
-        class={`piece-rook-${props.color} h-[25%] bg-cover hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+        class={`piece-rook-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
         onClick={() => props.onSelect("rook")}
       ></button>
       <button
-        class={`piece-bishop-${props.color} h-[25%] bg-cover hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+        class={`piece-bishop-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
         onClick={() => props.onSelect("bishop")}
       ></button>
       <button
-        class={`piece-knight-${props.color} h-[25%] bg-cover hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+        class={`piece-knight-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
         onClick={() => props.onSelect("knight")}
       ></button>
     </div>
@@ -89,6 +90,7 @@ export function Board(props: BoardProps) {
   let innerDiv!: HTMLDivElement;
   let arrowDiv: HTMLDivElement | undefined;
   let board: ChessgroundApi | undefined;
+  const [squareSize, setSquareSize] = createSignal(50);
   const [shapeFromSquare, setShapeFromSquare] = createSignal<Key | undefined>(
     undefined,
     {
@@ -244,6 +246,7 @@ export function Board(props: BoardProps) {
     if (arrowDiv) {
       arrowDiv.style.width = `${boardSize}px`;
     }
+    setSquareSize(Math.floor(boardSize / 8));
   }
   createEffect(resizeInnerDiv);
   onMount(() => {
@@ -255,7 +258,7 @@ export function Board(props: BoardProps) {
   });
 
   return (
-    <div ref={outerDiv} class="flex flex-col justify-center items-center">
+    <div ref={outerDiv} class="flex flex-col justify-center items-center relative">
       <div
         ref={innerDiv}
         classList={{
@@ -313,7 +316,11 @@ export function Board(props: BoardProps) {
       />
       <Show when={pendingPromotionState()}>
         {(state) => (
-          <PromotionSelector onSelect={onPromotionSelect} {...state()} />
+          <PromotionSelector
+            onSelect={onPromotionSelect}
+            squareSize={squareSize()}
+            {...state()}
+          />
         )}
       </Show>
       <Show when={props.withArrows || props.withDeleteNode}>
@@ -321,21 +328,21 @@ export function Board(props: BoardProps) {
           <Show when={props.withArrows}>
             <Button
               style="flat"
-              icon={<ArrowBigLeft size={40} />}
+              icon={<ArrowBigLeft size={40} strokeWidth={1.5} />}
               onClick={props.onMoveBackwards}
             />
           </Show>
           <Show when={props.withDeleteNode}>
             <Button
               style="flat"
-              icon={<Delete size={40} />}
+              icon={<Delete size={40} strokeWidth={1.5} />}
               onClick={props.onDeleteNode}
             />
           </Show>
           <Show when={props.withArrows}>
             <Button
               style="flat"
-              icon={<ArrowBigRight size={40} />}
+              icon={<ArrowBigRight size={40} strokeWidth={1.5} />}
               onClick={props.onMoveForwards}
             />
           </Show>

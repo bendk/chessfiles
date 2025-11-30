@@ -374,7 +374,7 @@ export function Library(props: LibraryProps) {
                         when={index < props.storage.dirComponents().length - 1}
                       >
                         <button
-                          class="hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer"
+                          class="cursor-pointer hover:text-highlight-1"
                           onClick={() => {
                             props.storage.setDir(component().path);
                             setBulkMode(false);

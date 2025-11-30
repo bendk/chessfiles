@@ -146,7 +146,7 @@ export function TrainingSession(props: TrainingSessionProps) {
             <Show when={s.wrongMoves.length > 0}>
               <h2>
                 Incorrect tries:
-                <span class="ml-1 text-red-500">
+                <span class="ml-1 text-error">
                   <Index each={s.wrongMoves}>
                     {(move, index) =>
                       index != s.wrongMoves.length - 1 ? `${move()}, ` : move()
@@ -171,7 +171,7 @@ export function TrainingSession(props: TrainingSessionProps) {
             <Show when={s.wrongMoves.length > 0}>
               <h2>
                 Incorrect tries:
-                <span class="ml-1 text-red-500">
+                <span class="ml-1 text-error">
                   <Index each={s.wrongMoves}>
                     {(move, index) =>
                       index != s.wrongMoves.length - 1 ? `${move()}, ` : move()
@@ -212,9 +212,9 @@ export function TrainingSession(props: TrainingSessionProps) {
                   const san = makeSanAndPlay(pos, e.move);
                   const text = prefix + san;
                   if (e.score == "correct") {
-                    return <span class="text-green-500">{text} </span>;
+                    return <span class="text-success">{text} </span>;
                   } else if (e.score == "incorrect") {
-                    return <span class="text-red-500">{text} </span>;
+                    return <span class="text-error">{text} </span>;
                   } else {
                     return <span>{text} </span>;
                   }
@@ -265,11 +265,11 @@ export function TrainingSession(props: TrainingSessionProps) {
               <h3 class="text-2xl">Moves this session</h3>
               <div class="flex justify-between">
                 <span>Correct:</span>
-                <span class="text-green-500">{activity().correctCount}</span>
+                <span class="text-success">{activity().correctCount}</span>
               </div>
               <div class="flex justify-between">
                 <span>Incorrect:</span>
-                <span class="text-red-500">{activity().incorrectCount}</span>
+                <span class="text-error">{activity().incorrectCount}</span>
               </div>
             </div>
           </div>

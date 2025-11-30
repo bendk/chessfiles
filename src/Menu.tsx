@@ -65,7 +65,7 @@ export function Menu(props: MenuProps) {
       </Show>
       <ArkMenu.Positioner>
         <ArkMenu.Content
-          class={`text-zinc-800 dark:text-zinc-300 bg-white dark:bg-zinc-800 border-1 dark:border-zinc-700 shadow-md shadow-zinc-800 dark:shadow-zinc-950 outline-0 flex flex-col z-200 ${props.textSize ?? "text-lg"}`}
+          class={`bg-bg-2 text-fg-1 border-1 border-fg-3 shadow outline-0 flex flex-col z-200 ${props.textSize ?? "text-lg"}`}
           classList={{
             "grid grid-col-2 grid-rows-8 grid-flow-col": props.style == "nags",
           }}
@@ -80,16 +80,8 @@ export function Menu(props: MenuProps) {
                       disabled={item.disabled}
                       class={`flex items-center cursor-pointer gap-2 px-4 py-2 ${item.cssClass ?? ""}`}
                       classList={{
-                        "dark:bg-slate-700": item.selected,
-                        "bg-slate-500": item.selected,
-                        "text-zinc-100":
-                          item.selected && item.disabled !== true,
-                        "text-zinc-500": item.disabled === true,
-                        "dark:text-white":
-                          item.selected && item.disabled !== true,
-                        "hover:bg-sky-400": item.disabled !== true,
-                        "hover:text-white": item.disabled !== true,
-                        "dark:hover:bg-sky-700": item.disabled !== true,
+                        "bg-selection": item.selected,
+                        "hover:bg-highlight-2": item.disabled !== true,
                       }}
                     >
                       {item.icon}
@@ -98,7 +90,7 @@ export function Menu(props: MenuProps) {
                   )}
                 </Match>
                 <Match when={item() === undefined}>
-                  <div class="h-px bg-zinc-500"></div>
+                  <div class="h-px bg-fg-3"></div>
                 </Match>
               </Switch>
             )}
@@ -154,7 +146,6 @@ export function MenuButton(props: MenuButtonProps) {
         class={buttonClass(
           buttonStyle,
           props.disabled ?? false,
-          props.selected ?? false,
           props.textSize,
         )}
         classList={{

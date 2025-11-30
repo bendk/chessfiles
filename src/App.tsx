@@ -50,7 +50,7 @@ function App() {
   });
 
   return (
-    <div class="text-md flex flex-col bg-gray-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 min-h-screen outline-hidden">
+    <div class="text-md flex flex-col bg-bg-1 text-fg-1 min-h-screen outline-hidden">
       <Switch>
         <Match when={page().name == "home"}>
           <Home storage={storage} status={status} controls={controls} />
