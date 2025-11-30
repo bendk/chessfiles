@@ -324,6 +324,7 @@ export class RootNode extends Node {
       new Map(this.headers),
       this.comment,
     );
+    clone.id = this.id;
     clone.initialMoves = this.initialMoves;
     clone.shapes = this.shapes;
     return clone;
