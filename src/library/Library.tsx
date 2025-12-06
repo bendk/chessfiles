@@ -273,14 +273,16 @@ export function Library(props: LibraryProps) {
           title="Move files"
           subtitle="Select destination"
           onSelect={async (destDir) => {
+            let title = "Moving files";
             if (d.files.length == 1) {
               const destPath = joinPath(destDir, d.files[0].filename);
               if (await props.storage.exists(destPath)) {
                 setError(`${destPath} already exists`);
                 return;
               }
+              title = `Moving ${d.files[0].filename}`;
             }
-            performOperation("Moving files", d.files.length, (callbacks) =>
+            performOperation(title, d.files.length, (callbacks) =>
               props.storage.move(d.files, destDir, callbacks),
             )
           }}
@@ -303,14 +305,16 @@ export function Library(props: LibraryProps) {
           title="Copy files"
           subtitle="Select destination"
           onSelect={async (destDir) => {
+            let title = "Copying files";
             if (d.files.length == 1) {
               const destPath = joinPath(destDir, d.files[0].filename);
               if (await props.storage.exists(destPath)) {
                 setError(`${destPath} already exists`);
                 return;
               }
+              title = `Copying ${d.files[0].filename}`;
             }
-            performOperation("Copying files", d.files.length, (callbacks) =>
+            performOperation(title, d.files.length, (callbacks) =>
               props.storage.copy(d.files, destDir, callbacks),
             )
           }}
@@ -327,11 +331,15 @@ export function Library(props: LibraryProps) {
     } else if (d.type == "confirm-delete") {
       return (
         <Dialog
-          onSubmit={() =>
-            performOperation("Deleting files", d.files.length, (callbacks) =>
+          onSubmit={() => {
+            let title = "Deleting files";
+            if (d.files.length == 1) {
+              title = `Deleting ${d.files[0].filename}`;
+            }
+            performOperation(title, d.files.length, (callbacks) =>
               props.storage.delete(d.files, callbacks),
             )
-          }
+          }}
           onClose={unsetDialog}
           title="Confirm delete"
           submitText="Delete"

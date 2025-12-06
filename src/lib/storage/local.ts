@@ -8,6 +8,7 @@ import {
   FileExistsError,
   FileNotFoundError,
 } from "./base";
+import { delay } from "~/lib/util";
 
 interface DirEntryLocal extends DirEntry {
   id: string;
@@ -94,10 +95,14 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 
   async createFile(path: string, content: string) {
+    // Adding a 0ms delay makes the status dialog work better
+    await delay(0);
     await this.createEntry(path, "file", content);
   }
 
   async writeFile(path: string, content: string) {
+    // Adding a 0ms delay makes the status dialog work better
+    await delay(0);
     const entry = this.lookup(path, "file");
     this.localStorage.setItem(entryKey(entry), content);
   }
@@ -129,6 +134,8 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 
   async move(from: string, to: string) {
+    // Adding a 0ms delay makes the status dialog work better
+    await delay(0);
     const [fromDir, fromFilename] = splitPath(normalizePath(from));
     const fromEntry = this.lookup(fromDir, "dir");
     const fromDirEntries = this.readDirEntry(fromEntry);
@@ -173,6 +180,8 @@ export class ChessfilesStorageLocal extends ChessfilesStorage {
   }
 
   async remove(path: string) {
+    // Adding a 0ms delay makes the status dialog work better
+    await delay(0);
     const [dir, filename] = splitPath(normalizePath(path));
     this.removeEntryRecursive(this.lookup(path));
 
