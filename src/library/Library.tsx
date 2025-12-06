@@ -265,38 +265,62 @@ export function Library(props: LibraryProps) {
         />
       );
     } else if (d.type == "chooser" && d.operation == "move") {
+      const [error, setError] = createSignal("");
       return (
         <ChooserDialog
           storage={props.storage.clone()}
           sources={d.files}
           title="Move files"
           subtitle="Select destination"
-          onSelect={(destDir) =>
+          onSelect={async (destDir) => {
+            if (d.files.length == 1) {
+              const destPath = joinPath(destDir, d.files[0].filename);
+              if (await props.storage.exists(destPath)) {
+                setError(`${destPath} already exists`);
+                return;
+              }
+            }
             performOperation("Moving files", d.files.length, (callbacks) =>
               props.storage.move(d.files, destDir, callbacks),
             )
-          }
+          }}
           onClose={unsetDialog}
           dirMode
-          validate={(path) => path != "/" && path != props.storage.dir()}
+          error={error()}
+          validate={(path) => {
+            setError("");
+            return path != "/" && path != props.storage.dir();
+          }}
           selectDirText="Move here"
         />
       );
     } else if (d.type == "chooser" && d.operation == "copy") {
+      const [error, setError] = createSignal("");
       return (
         <ChooserDialog
           storage={props.storage.clone()}
           sources={d.files}
           title="Copy files"
           subtitle="Select destination"
-          onSelect={(destDir) =>
+          onSelect={async (destDir) => {
+            if (d.files.length == 1) {
+              const destPath = joinPath(destDir, d.files[0].filename);
+              if (await props.storage.exists(destPath)) {
+                setError(`${destPath} already exists`);
+                return;
+              }
+            }
             performOperation("Copying files", d.files.length, (callbacks) =>
               props.storage.copy(d.files, destDir, callbacks),
             )
-          }
+          }}
           onClose={unsetDialog}
           dirMode
-          validate={(path) => path != "/" && path != props.storage.dir()}
+          error={error()}
+          validate={(path) => {
+            setError("");
+            return path != "/" && path != props.storage.dir();
+          }}
           selectDirText="Copy here"
         />
       );
