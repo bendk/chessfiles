@@ -54,9 +54,7 @@ export function ChooserDialog(props: ChooserDialogProps) {
     >
       <Show when={sources() != null}>
         <div class="pb-8">
-          <h2 class="text-lg text-fg-2 truncate text-ellipsis">
-            Source files
-          </h2>
+          <h2 class="text-lg text-fg-2 truncate text-ellipsis">Source files</h2>
           {sources()}
         </div>
       </Show>

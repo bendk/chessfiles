@@ -1,7 +1,7 @@
 import * as pgn from "chessops/pgn";
 
 import { Chess } from "chessops/chess";
-import type { Color } from "chessops/types";
+import type { Color, Piece } from "chessops/types";
 import { type NormalMove as Move } from "chessops/types";
 import {
   parseSan as chessParseSan,
@@ -35,7 +35,16 @@ export {
   setupEquals,
   Chess,
 };
-export type { Color, Move, PgnGame, PgnChildNode, PgnNode, Shape, ShapeColor };
+export type {
+  Color,
+  Move,
+  Piece,
+  PgnGame,
+  PgnChildNode,
+  PgnNode,
+  Shape,
+  ShapeColor,
+};
 export { chessgroundDests } from "chessops/compat";
 export { makeFen, parseFen, EMPTY_BOARD_FEN, INITIAL_FEN } from "chessops/fen";
 export type { Role } from "chessops/types";

@@ -34,9 +34,7 @@ export function Label(props: LabelProps) {
       <div class="flex flex-col pb-2">
         <div class="text-xl">{props.text}</div>
         <Show when={props.help} keyed>
-          {(help_text) => (
-            <div class="text-fg-2 pb-0.5">{help_text}</div>
-          )}
+          {(help_text) => <div class="text-fg-2 pb-0.5">{help_text}</div>}
         </Show>
       </div>
     </ArkRadioGroup.Label>

@@ -284,7 +284,7 @@ export function Library(props: LibraryProps) {
             }
             performOperation(title, d.files.length, (callbacks) =>
               props.storage.move(d.files, destDir, callbacks),
-            )
+            );
           }}
           onClose={unsetDialog}
           dirMode
@@ -316,7 +316,7 @@ export function Library(props: LibraryProps) {
             }
             performOperation(title, d.files.length, (callbacks) =>
               props.storage.copy(d.files, destDir, callbacks),
-            )
+            );
           }}
           onClose={unsetDialog}
           dirMode
@@ -338,7 +338,7 @@ export function Library(props: LibraryProps) {
             }
             performOperation(title, d.files.length, (callbacks) =>
               props.storage.delete(d.files, callbacks),
-            )
+            );
           }}
           onClose={unsetDialog}
           title="Confirm delete"

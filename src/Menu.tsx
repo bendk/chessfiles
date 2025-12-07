@@ -82,6 +82,7 @@ export function Menu(props: MenuProps) {
                       classList={{
                         "bg-selection": item.selected,
                         "hover:bg-highlight-2": item.disabled !== true,
+                        "text-fg-2": item.disabled,
                       }}
                     >
                       {item.icon}

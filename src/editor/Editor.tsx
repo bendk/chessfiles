@@ -15,6 +15,7 @@ import { Button, Dialog } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
 import { Board } from "./Board";
+import { Engine } from "./Engine";
 import { MoveList } from "./MoveList";
 import { MoveTree } from "./MoveTree";
 
@@ -24,7 +25,6 @@ interface EditorProps {
   name: string;
   onSave: () => Promise<boolean>;
   onExit: () => void;
-  fen?: string;
 }
 
 export function Editor(props: EditorProps) {
@@ -129,7 +129,6 @@ export function Editor(props: EditorProps) {
           <SelectInitialPosition
             name={props.name}
             onSelect={(fen) => {
-              console.log("select: ", fen);
               editor.setInitialPosition(fen);
               setView(editor.view);
               setMode("");
@@ -186,7 +185,11 @@ export function Editor(props: EditorProps) {
               withDeleteNode
             />
             <div class="pt-2 px-2">
-              <RightSidebar />
+              <Engine
+                currentPly={view().initialPly + view().ply}
+                position={view().position}
+                onMove={onMove}
+              />
             </div>
             <div class="col-span-full p-2 footer">
               <MoveView
@@ -319,9 +322,4 @@ function MoveView(props: MoveViewProps) {
       </div>
     </div>
   );
-}
-
-function RightSidebar() {
-  // Maybe engine/db lines go here?
-  return <div />;
 }

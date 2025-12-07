@@ -11,6 +11,7 @@ export { Navbar } from "./Navbar";
 export { Slider } from "./Slider";
 export { Status, StatusError, StatusTracker } from "./Status";
 export { Table, TableCell, TableGripperCell, TableMenuCell } from "./Table";
+export { ToggleSwitch } from "./ToggleSwitch";
 export { ChooserDialog } from "./library/ChooserDialog";
 export type { AppControls, Page } from "./App";
 

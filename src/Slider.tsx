@@ -24,7 +24,10 @@ export function Slider(props: SliderProps) {
         <ArcSlider.Track>
           <ArcSlider.Range />
         </ArcSlider.Track>
-        <ArcSlider.Thumb class="w-4.5 h-4.5 bg-highlight-2 rounded-md" index={0}>
+        <ArcSlider.Thumb
+          class="w-4.5 h-4.5 bg-highlight-2 rounded-md"
+          index={0}
+        >
           <ArcSlider.HiddenInput />
         </ArcSlider.Thumb>
       </ArcSlider.Control>
