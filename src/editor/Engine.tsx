@@ -5,6 +5,7 @@ import ListTree from "lucide-solid/icons/list-tree";
 import type { Chess, Move } from "~/lib/chess";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { EngineSettings } from "~/lib/engine";
+import { abbreviateCount } from "~/lib/util";
 import {
   getEngineSettings,
   setEngineSettings,
@@ -40,8 +41,8 @@ export function Engine(props: EngineProps) {
 
   engine.setMaxDepth(14);
   engine.setObserver((analysis) => {
-    setNodes(nodeText(analysis.nodes));
-    setNps(nodeText(analysis.nps));
+    setNodes(abbreviateCount(analysis.nodes));
+    setNps(abbreviateCount(analysis.nps));
     // Sometimes stockfish sends us more lines than requested, probably because they're already
     // cached.
     const trimmedLines = analysis.lines.slice(0, settings().lines);
@@ -50,7 +51,7 @@ export function Engine(props: EngineProps) {
       trimmedLines.map((line) => {
         let score;
         if (line.scoreType == "mate") {
-          score = `#{line.score}`;
+          score = `#${line.score}`;
         } else {
           score = `${line.score >= 0 ? "+" : "-"}${(line.score / 100).toFixed(2)}`;
         }
@@ -73,29 +74,15 @@ export function Engine(props: EngineProps) {
     );
   });
 
-  function nodeText(count: number) {
-    if (count < 1_000) {
-      return count.toString();
-    } else if (count < 1_000_000) {
-      return `${(count / 1_000).toFixed(1)}k`;
-    } else if (count < 1_000_000_000) {
-      return `${(count / 1_000_000).toFixed(1)}m`;
-    } else {
-      return `${(count / 1_000_000_000).toFixed(1)}g`;
-    }
-  }
-
   // Update the engine search/position based on the settings and current position
   createEffect(() => {
     const s = settings();
     if (s.enable) {
-      localStorage.setItem("engine-enabled", "yes");
       engine.setSearchLines(s.lines);
       engine.setMaxDepth(s.maxDepth);
       engine.search(props.position);
     } else {
       engine.stop();
-      localStorage.setItem("engine-enabled", "no");
     }
   });
 
@@ -173,7 +160,7 @@ export function Engine(props: EngineProps) {
               updateSettings({ ...settings(), enable: checked })
             }
           />
-          <h3 class="text-xl">Engine</h3>
+          <h3>Engine</h3>
         </div>
         <Show when={settings().enable}>
           <div class="flex items-center">
@@ -193,39 +180,37 @@ export function Engine(props: EngineProps) {
         </Show>
       </div>
       <div>
-        <div class="grid grid-cols-[auto_1fr] text-sm">
-          <Index each={lines()}>
-            {(line) => (
-              <>
-                <div class="py-0.5 pr-4 border-t-1 border-fg-3">
-                  {line().score}
-                </div>
-                <button
-                  class="py-0.5 border-t-1 border-fg-3 group cursor-pointer truncate"
-                  onClick={() => props.onMove(line().firstMove)}
-                >
-                  <Index each={line().moves}>
-                    {(move, index) => (
-                      <span
-                        classList={{
-                          "group-hover:text-highlight-1": index == 0,
-                        }}
-                      >
-                        {move() + " "}
-                      </span>
-                    )}
-                  </Index>
-                </button>
-              </>
-            )}
-          </Index>
-          <Show when={settings().enable}>
-            <div class="border-t-1 border-fg-3 col-span-full flex justify-between">
+        <Show when={settings().enable}>
+          <div class="grid grid-cols-[auto_1fr] text-sm">
+            <Index each={lines()}>
+              {(line) => (
+                <>
+                  <div class="pr-4 border-t-1 border-fg-3">{line().score}</div>
+                  <button
+                    class="text-left border-t-1 border-fg-3 group cursor-pointer truncate"
+                    onClick={() => props.onMove(line().firstMove)}
+                  >
+                    <Index each={line().moves}>
+                      {(move, index) => (
+                        <span
+                          classList={{
+                            "group-hover:text-highlight-1": index == 0,
+                          }}
+                        >
+                          {move() + " "}
+                        </span>
+                      )}
+                    </Index>
+                  </button>
+                </>
+              )}
+            </Index>
+            <div class="border-t-1 pt-1 border-fg-3 col-span-full flex justify-between">
               <div>nodes searched: {nodes()}</div>
               <div>nps: {nps()}</div>
             </div>
-          </Show>
-        </div>
+          </div>
+        </Show>
       </div>
     </div>
   );

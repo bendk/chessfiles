@@ -15,6 +15,7 @@ import { Button, Dialog } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
 import { Board } from "./Board";
+import { Book } from "./Book";
 import { Engine } from "./Engine";
 import { MoveList } from "./MoveList";
 import { MoveTree } from "./MoveTree";
@@ -184,12 +185,13 @@ export function Editor(props: EditorProps) {
               withArrows
               withDeleteNode
             />
-            <div class="pt-2 px-2">
+            <div class="pt-2 px-2 flex flex-col gap-8">
               <Engine
                 currentPly={view().initialPly + view().ply}
                 position={view().position}
                 onMove={onMove}
               />
+              <Book position={view().position} onMove={onMove} />
             </div>
             <div class="col-span-full p-2 footer">
               <MoveView

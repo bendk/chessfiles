@@ -72,6 +72,25 @@ export function parseSquare(square: string): number {
   return parsed;
 }
 
+const uciPieceMap: Map<
+  string | undefined,
+  "queen" | "rook" | "bishop" | "knight" | undefined
+> = new Map([
+  ["q", "queen"],
+  ["r", "rook"],
+  ["b", "bishop"],
+  ["n", "knight"],
+  [undefined, undefined],
+]);
+
+export function parseUciMove(move: string): Move {
+  return {
+    from: parseSquare(move.slice(0, 2)),
+    to: parseSquare(move.slice(2, 4)),
+    promotion: uciPieceMap.get(move[4]),
+  };
+}
+
 export function shapeEquals(left: Shape, right: Shape): boolean {
   return (
     left.to == right.to && left.from == right.from && left.color == right.color

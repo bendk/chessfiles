@@ -3,7 +3,7 @@ import Stockfish from "@lichess-org/stockfish-web/sf171-79";
 import stockfishUrl from "@lichess-org/stockfish-web/sf171-79?url";
 import stockfishWasmUrl from "@lichess-org/stockfish-web/sf171-79.wasm?url";
 import type { Move, Chess } from "~/lib/chess";
-import { makeFen, parseSquare } from "~/lib/chess";
+import { makeFen, parseUciMove } from "~/lib/chess";
 
 // - Downloaded from https://tests.stockfishchess.org/api/nn/nn-1c0000000000.nnue
 // - Got the link from the README https://github.com/lichess-org/stockfish-web
@@ -257,25 +257,6 @@ function matchIntRegex(re: RegExp, data: string): number | undefined {
   } else {
     return undefined;
   }
-}
-
-const uciPieceMap: Map<
-  string | undefined,
-  "queen" | "rook" | "bishop" | "knight" | undefined
-> = new Map([
-  ["q", "queen"],
-  ["r", "rook"],
-  ["b", "bishop"],
-  ["n", "knight"],
-  [undefined, undefined],
-]);
-
-function parseUciMove(move: string): Move {
-  return {
-    from: parseSquare(move.slice(0, 2)),
-    to: parseSquare(move.slice(2, 4)),
-    promotion: uciPieceMap.get(move[4]),
-  };
 }
 
 function getStockfish(): Promise<StockfishClient> {
