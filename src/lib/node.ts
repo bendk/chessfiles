@@ -295,6 +295,11 @@ export class RootNode extends Node {
   setInitialPosition(fen: string, children: ChildNode[]) {
     this.initialPosition = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
     this.children = children;
+    if (fen != INITIAL_FEN) {
+      this.headers.set("FEN", fen);
+    } else {
+      this.headers.delete("FEN");
+    }
   }
 
   static import(game: PgnGame): RootNode {
