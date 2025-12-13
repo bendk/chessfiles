@@ -2,7 +2,7 @@ import { createRoot } from "solid-js";
 import { afterAll, describe, test, expect, vi } from "vitest";
 import * as dropbox from "~/lib/auth/dropbox";
 import { AppStorage, ChessfilesStorageLocal, joinPath } from ".";
-import { MockLocalStorage } from "./meta.test";
+import { MockLocalStorage } from "./testutils";
 
 /**
  * Test the `copy` and `move` functions
