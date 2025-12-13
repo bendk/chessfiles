@@ -1,6 +1,7 @@
 import BookIcon from "lucide-solid/icons/book";
 import {
   createEffect,
+  createMemo,
   createSignal,
   Index,
   Match,
@@ -11,6 +12,7 @@ import {
 import type { Chess, Move } from "~/lib/chess";
 import { abbreviateCount } from "~/lib/util";
 import type { OpeningBookSettings, OpeningBookLookup } from "~/lib/openingBook";
+import type { TablebaseSettings, TablebaseLookup } from "~/lib/tablebase";
 import {
   getOpeningBookSettings,
   isOpeningBookKind,
@@ -19,6 +21,11 @@ import {
   lookupOpeningPosition,
   ALL_OPENING_BOOK_KINDS,
 } from "~/lib/openingBook";
+import {
+  getTablebaseSettings,
+  setTablebaseSettings,
+  lookupTablebasePosition,
+} from "~/lib/tablebase";
 import type { MenuItem } from "~/components";
 import { MenuButton, ToggleSwitch } from "~/components";
 
@@ -28,6 +35,25 @@ export interface BookProps {
 }
 
 export function Book(props: BookProps) {
+  const pieceCount = createMemo(
+    () =>
+      props.position.board["white"].size() +
+      props.position.board["black"].size(),
+  );
+
+  return (
+    <Switch>
+      <Match when={pieceCount() <= 8}>
+        <Tablebase {...props} />
+      </Match>
+      <Match when={true}>
+        <OpeningBook {...props} />
+      </Match>
+    </Switch>
+  );
+}
+
+export function OpeningBook(props: BookProps) {
   const [settings, setSettings] = createSignal(getOpeningBookSettings());
   const [lookup, setLookup] = createSignal<OpeningBookLookup | null>(null);
 
@@ -180,6 +206,149 @@ export function Book(props: BookProps) {
                 </div>
               </Show>
             </Show>
+          )}
+        </Show>
+      </Show>
+    </div>
+  );
+}
+
+export function Tablebase(props: BookProps) {
+  const [settings, setSettings] = createSignal(getTablebaseSettings());
+  const [lookup, setLookup] = createSignal<TablebaseLookup | null>(null);
+
+  function updateSettings(settings: TablebaseSettings) {
+    setSettings(settings);
+    setTablebaseSettings(settings);
+  }
+
+  createEffect(async () => {
+    setLookup(null);
+    setLookup(await lookupTablebasePosition(settings().kind, props.position));
+  });
+
+  const dtzTooltip =
+    "Rounded distance to Zeroing under the 50-move rule: The number of half-moves until the next capture, pawn move, or checkmate";
+  const dtmTooltip = "Depth to mate: The number of half-moves until mate";
+
+  return (
+    <div class="flex flex-col">
+      <h3 class="flex items-center gap-2">
+        <ToggleSwitch
+          checked={settings().enable}
+          onChange={(checked) =>
+            updateSettings({ ...settings(), enable: checked })
+          }
+        />
+        Lichess Tablebase
+      </h3>
+      <Show when={settings().enable}>
+        <Show when={lookup()} keyed>
+          {(lookup) => (
+            <div class="mt-1 grid grid-cols-[1fr_auto_auto] text-sm gap-x-2 gap-y-2">
+              <Show when={lookup.winningMoves.length > 0}>
+                <div class="grid grid-cols-subgrid gap-y-1 col-span-full">
+                  <h3 class="py-1 px-2 rounded-sm col-span-full bg-bg-3">
+                    Winning
+                  </h3>
+                  <Index each={lookup.winningMoves}>
+                    {(item) => (
+                      <>
+                        <button
+                          class="cursor-pointer text-left hover:text-highlight-1 text-left"
+                          onClick={() => props.onMove(item().move)}
+                        >
+                          {item().san}
+                        </button>
+                        <div
+                          class="bg-bg-2 px-2 py-0.5 rounded-sm"
+                          title={dtzTooltip}
+                        >
+                          DTZ {item().dtz}
+                        </div>
+                        <div
+                          class="bg-bg-2 px-2 py-0.5 rounded-sm"
+                          title={dtmTooltip}
+                        >
+                          DTM {item().dtm}
+                        </div>
+                      </>
+                    )}
+                  </Index>
+                </div>
+              </Show>
+              <Show when={lookup.drawingMoves.length > 0}>
+                <div class="grid grid-cols-subgrid gap-y-1 col-span-3">
+                  <h3 class="py-1 px-2 rounded-sm col-span-full bg-bg-3">
+                    Drawing
+                  </h3>
+                  <Index each={lookup.drawingMoves}>
+                    {(item) => (
+                      <>
+                        <button
+                          class="cursor-pointer text-left hover:text-highlight-1"
+                          onClick={() => props.onMove(item().move)}
+                        >
+                          {item().san}
+                        </button>
+                        <div class="col-span-2"></div>
+                      </>
+                    )}
+                  </Index>
+                </div>
+              </Show>
+              <Show when={lookup.losingMoves.length > 0}>
+                <div class="grid grid-cols-subgrid gap-y-1 col-span-3">
+                  <h3 class="py-1 px-2 rounded-sm col-span-full bg-bg-3">
+                    Losing
+                  </h3>
+                  <Index each={lookup.losingMoves}>
+                    {(item) => (
+                      <>
+                        <button
+                          class="cursor-pointer text-left hover:text-highlight-1"
+                          onClick={() => props.onMove(item().move)}
+                        >
+                          {item().san}
+                        </button>
+                        <div
+                          class="bg-bg-2 px-2 py-0.5 rounded-sm"
+                          title={dtzTooltip}
+                        >
+                          DTZ {item().dtz}
+                        </div>
+                        <div
+                          class="bg-bg-2 px-2 py-0.5 rounded-sm"
+                          title={dtmTooltip}
+                        >
+                          DTM {item().dtm}
+                        </div>
+                      </>
+                    )}
+                  </Index>
+                </div>
+              </Show>
+              <Show when={lookup.unknownMoves.length > 0}>
+                <div class="grid grid-cols-subgrid gap-y-1 col-span-3">
+                  <h3 class="py-1 px-2 rounded-sm col-span-full bg-bg-3">
+                    Unknown
+                  </h3>
+                  <Index each={lookup.unknownMoves}>
+                    {(item) => (
+                      <>
+                        <button
+                          class="cursor-pointer text-left hover:text-highlight-1"
+                          onClick={() => props.onMove(item().move)}
+                        >
+                          {item().san}
+                        </button>
+                        <div class="col-span-2"></div>
+                      </>
+                    )}
+                  </Index>
+                </div>
+              </Show>
+            </div>
           )}
         </Show>
       </Show>

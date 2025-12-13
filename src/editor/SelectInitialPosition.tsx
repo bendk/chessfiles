@@ -81,59 +81,6 @@ export function SelectInitialPosition(props: SelectInitialPositionProps) {
           end="left"
         />
         <BoardButton
-          value={{ color: "white", role: "king" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value={{ color: "white", role: "queen" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value={{ color: "white", role: "rook" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value={{ color: "white", role: "knight" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value={{ color: "white", role: "bishop" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value={{ color: "white", role: "pawn" }}
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-        />
-        <BoardButton
-          value="trash"
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-          end="right"
-        />
-      </div>
-      <div class="w-200 h-200 mt-2" ref={ref} />
-      <div class="flex mt-2 bg-bg-3 border-1 border-fg-3 rounded-md">
-        <BoardButton
-          value="hand"
-          api={api()}
-          selection={selection()}
-          setSelection={setSelection}
-          end="left"
-        />
-        <BoardButton
           value={{ color: "black", role: "king" }}
           api={api()}
           selection={selection()}
@@ -165,6 +112,59 @@ export function SelectInitialPosition(props: SelectInitialPositionProps) {
         />
         <BoardButton
           value={{ color: "black", role: "pawn" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value="trash"
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+          end="right"
+        />
+      </div>
+      <div class="w-200 h-200 mt-2" ref={ref} />
+      <div class="flex mt-2 bg-bg-3 border-1 border-fg-3 rounded-md">
+        <BoardButton
+          value="hand"
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+          end="left"
+        />
+        <BoardButton
+          value={{ color: "white", role: "king" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value={{ color: "white", role: "queen" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value={{ color: "white", role: "rook" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value={{ color: "white", role: "knight" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value={{ color: "white", role: "bishop" }}
+          api={api()}
+          selection={selection()}
+          setSelection={setSelection}
+        />
+        <BoardButton
+          value={{ color: "white", role: "pawn" }}
           api={api()}
           selection={selection()}
           setSelection={setSelection}
