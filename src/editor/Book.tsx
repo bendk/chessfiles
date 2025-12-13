@@ -83,7 +83,7 @@ export function OpeningBook(props: BookProps) {
   });
 
   return (
-    <div class="flex flex-col">
+    <div class="flex flex-col grow">
       <div class="flex items-center justify-between pb-1">
         <h3 class="flex items-center gap-2">
           <ToggleSwitch
@@ -126,7 +126,7 @@ export function OpeningBook(props: BookProps) {
                           class="bg-gray-100 text-black text-center basis-0 min-w-0 text-clip"
                           style={`flex-grow: ${move().whiteWinCount}`}
                         >
-                          <Show when={move().whiteWinRatio > 0.3}>
+                          <Show when={move().whiteWinRatio > 0.2}>
                             {(
                               (move().whiteWinCount * 100) /
                               move().gameCount
@@ -138,7 +138,7 @@ export function OpeningBook(props: BookProps) {
                           class="bg-gray-500 text-black text-center basis-0 min-w-0 text-clip"
                           style={`flex-grow: ${move().drawCount}`}
                         >
-                          <Show when={move().drawRatio > 0.3}>
+                          <Show when={move().drawRatio > 0.2}>
                             {(
                               (move().drawCount * 100) /
                               move().gameCount
@@ -150,7 +150,7 @@ export function OpeningBook(props: BookProps) {
                           class="bg-gray-800 text-gray-200 text-center basis-0 min-w-0 text-clip"
                           style={`flex-grow: ${move().blackWinCount}`}
                         >
-                          <Show when={move().blackWinRatio > 0.3}>
+                          <Show when={move().blackWinRatio > 0.2}>
                             {(
                               (move().blackWinCount * 100) /
                               move().gameCount
@@ -168,7 +168,7 @@ export function OpeningBook(props: BookProps) {
               </div>
               <Show when={lookup.topGames.length > 0}>
                 <h3 class="pt-4 pb-1 text-fg-2">Top games</h3>
-                <div class="grid grid-cols-[auto_1fr_auto_auto_auto] text-sm">
+                <div class="overflow-auto grid grid-cols-[auto_1fr_auto_auto_auto] text-sm basis-0 grow">
                   <Index each={lookup.topGames}>
                     {(item) => (
                       <a

@@ -123,6 +123,14 @@ export function Editor(props: EditorProps) {
     props.onExit();
   }
 
+  // Calculated from:  header: 76, footer: 200, controls: 52
+  const boardMaxHeight = "100vh - 328px";
+
+  // Calculated from:  left-sidebar: 320, right-sidebar: 400px
+  const boardMaxWidth = "100vw - 720px";
+
+  const boardSize = `width: calc(min(${boardMaxHeight}, ${boardMaxWidth}))`;
+
   return (
     <>
       <Switch>
@@ -145,8 +153,8 @@ export function Editor(props: EditorProps) {
             //   + 52px for the controls
             //   - mod(100vw, 8px) so that it's divisible by 8 (all other terms are already divisible)
           }
-          <div class="grid grid-cols-[320px_minmax(0,1fr)_320px] grid-rows-[auto_minmax(0,calc(100vw-640px+52px-mod(1vw,8px))))_minmax(200px,1fr)] h-screen">
-            <div class="col-span-full header px-2 py-4 mb-2">
+          <div class="flex flex-col h-screen">
+            <div class="col-span-full header px-2 py-4 h-[76px]">
               <Header
                 name={props.name}
                 bookType={props.bookType}
@@ -158,42 +166,46 @@ export function Editor(props: EditorProps) {
                 onExit={onExit}
               />
             </div>
-            <div class="pt-4 pl-4 pr-2">
-              <CurrentNodeControls
-                isRoot={view().ply == 0}
-                bookType={props.bookType}
-                view={view()}
-                editor={editor}
-                setView={setView}
-                setDraftComment={setDraftComment}
-                commitDraftComment={commitDraftComment}
-                toggleNag={toggleNag}
-                setPriority={setPriority}
-                onSetInitialPosition={() => setMode("set-initial-position")}
-              />
+            <div class="flex grow justify-center">
+              <div class="pt-4 pl-4 pr-2 basis-[320px] shrink-0">
+                <CurrentNodeControls
+                  isRoot={view().ply == 0}
+                  bookType={props.bookType}
+                  view={view()}
+                  editor={editor}
+                  setView={setView}
+                  setDraftComment={setDraftComment}
+                  commitDraftComment={commitDraftComment}
+                  toggleNag={toggleNag}
+                  setPriority={setPriority}
+                  onSetInitialPosition={() => setMode("set-initial-position")}
+                />
+              </div>
+              <div class="shrink-0 flex" style={boardSize}>
+                <Board
+                  chess={view().position}
+                  lastMove={view().lastMove}
+                  enableShapes={view().ply > 0}
+                  shapes={view().currentNode.shapes}
+                  onMove={onMove}
+                  toggleShape={toggleShape}
+                  onMoveBackwards={moveBackwards}
+                  onMoveForwards={moveForwards}
+                  onDeleteNode={deleteNode}
+                  withArrows
+                  withDeleteNode
+                />
+              </div>
+              <div class="pt-2 px-2 pr-4 flex flex-col gap-8 max-w-[800px] grow">
+                <Engine
+                  currentPly={view().initialPly + view().ply}
+                  position={view().position}
+                  onMove={onMove}
+                />
+                <Book position={view().position} onMove={onMove} />
+              </div>
             </div>
-            <Board
-              chess={view().position}
-              lastMove={view().lastMove}
-              enableShapes={view().ply > 0}
-              shapes={view().currentNode.shapes}
-              onMove={onMove}
-              toggleShape={toggleShape}
-              onMoveBackwards={moveBackwards}
-              onMoveForwards={moveForwards}
-              onDeleteNode={deleteNode}
-              withArrows
-              withDeleteNode
-            />
-            <div class="pt-2 px-2 flex flex-col gap-8">
-              <Engine
-                currentPly={view().initialPly + view().ply}
-                position={view().position}
-                onMove={onMove}
-              />
-              <Book position={view().position} onMove={onMove} />
-            </div>
-            <div class="col-span-full p-2 footer">
+            <div class="col-span-full footer h-[200px] p-2">
               <MoveView
                 bookType={props.bookType}
                 rootNode={props.rootNode}

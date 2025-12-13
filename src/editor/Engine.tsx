@@ -160,7 +160,7 @@ export function Engine(props: EngineProps) {
               updateSettings({ ...settings(), enable: checked })
             }
           />
-          <h3>Engine</h3>
+          <h3>Stockfish 17.1</h3>
         </div>
         <Show when={settings().enable}>
           <div class="flex items-center">
@@ -189,6 +189,7 @@ export function Engine(props: EngineProps) {
                   <button
                     class="text-left border-t-1 border-fg-3 group cursor-pointer truncate"
                     onClick={() => props.onMove(line().firstMove)}
+                    title={line().moves.join(" ")}
                   >
                     <Index each={line().moves}>
                       {(move, index) => (

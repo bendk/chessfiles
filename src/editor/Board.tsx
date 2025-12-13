@@ -260,7 +260,7 @@ export function Board(props: BoardProps) {
   return (
     <div
       ref={outerDiv}
-      class="flex flex-col justify-center items-center relative"
+      class="flex flex-col w-full h-full justify-start items-center relative"
     >
       <div
         ref={innerDiv}
