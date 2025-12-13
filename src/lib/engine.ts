@@ -275,11 +275,6 @@ function getStockfish(): Promise<StockfishClient> {
       fetch(nnueUrl).then((resp) => {
         resp.bytes().then((buf) => {
           sf.setNnueBuffer(buf);
-          const uci = sf.uci.bind(sf);
-          sf.uci = (command: string) => {
-            console.log(command);
-            uci(command);
-          };
           resolve(sf);
         });
       });

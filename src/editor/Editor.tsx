@@ -10,7 +10,7 @@ import type { Priority, RootNode } from "~/lib/node";
 import { BookType } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
 import { Editor as EditorBackend } from "~/lib/editor";
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { createSignal, onCleanup, onMount, Match, Show, Switch } from "solid-js";
 import { Button, Dialog } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
@@ -130,6 +130,17 @@ export function Editor(props: EditorProps) {
   const boardMaxWidth = "100vw - 720px";
 
   const boardSize = `width: calc(min(${boardMaxHeight}, ${boardMaxWidth}))`;
+
+  onMount(() => {
+    window.onbeforeunload = () => {
+      if (editor.view.canUndo) {
+        return "Are you sure you want to leave, there are unsaved changes";
+      }
+    }
+  });
+  onCleanup(() => {
+    window.onbeforeunload = null;
+  });
 
   return (
     <>
