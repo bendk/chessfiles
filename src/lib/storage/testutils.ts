@@ -1,4 +1,3 @@
-
 export class MockLocalStorage {
   private data: Map<string, string> = new Map();
 
@@ -30,4 +29,3 @@ export class MockLocalStorage {
     this.data.clear();
   }
 }
-

@@ -331,7 +331,6 @@ export class RootNode extends Node {
     );
     clone.id = this.id;
     clone.initialMoves = this.initialMoves;
-    clone.shapes = this.shapes;
     return clone;
   }
 }
@@ -413,6 +412,7 @@ export class ChildNode extends Node {
     clone.comment = this.comment;
     clone.nags = this.nags;
     clone.priority = this.priority;
+    clone.shapes = this.shapes;
     return clone;
   }
 }

@@ -58,12 +58,15 @@ export class Training {
     sourceBookPath: string,
     sourceBook: Book,
     trainingDir: string,
+    trainingFilename?: string,
   ): Training {
     const bookFilename = filename(sourceBookPath);
-    const trainingBookPath = joinPath(trainingDir, `${uuidv4()}.pgn`);
+    const trainingBookPath = joinPath(
+      trainingDir,
+      trainingFilename ?? `${uuidv4()}.pgn`,
+    );
     const name = bookFilename.split(".")[0];
     const meta = {
-      id: uuidv4(),
       name,
       sourceBookPath,
       trainingBookPath,
@@ -78,7 +81,11 @@ export class Training {
       lastTrained: Date.now(),
       currentLine: [],
     };
-    return new Training(settings, meta, sourceBook.rootNodes);
+    return new Training(
+      settings,
+      meta,
+      sourceBook.rootNodes.map((n) => n.clone()),
+    );
   }
 
   restart(book: Book): Training {

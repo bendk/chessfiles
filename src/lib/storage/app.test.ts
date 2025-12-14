@@ -1,269 +1,700 @@
 import { createRoot } from "solid-js";
-import { afterAll, describe, test, expect, vi } from "vitest";
-import * as dropbox from "~/lib/auth/dropbox";
-import { AppStorage, ChessfilesStorageLocal, joinPath } from ".";
+import { afterAll, describe, test, expect } from "vitest";
+import type { ChessfilesStorage } from ".";
+import { AppStorage, ChessfilesStorageLocal, filename, joinPath } from ".";
 import { MockLocalStorage } from "./testutils";
+import type { LibraryActivity } from "~/lib/activity";
+import { newLibraryActivity, newTrainingActivity } from "~/lib/activity";
+import { Book, BookType, RootNode } from "~/lib/node";
+import { defaultTrainingSettings, Training } from "~/lib/training";
+
+class TestStorageEngines {
+  local: ChessfilesStorageLocal;
+
+  constructor(
+    private s1: ChessfilesStorageLocal,
+    private s2: ChessfilesStorageLocal,
+  ) {
+    this.local = this.s1;
+  }
+
+  allStorageEngines(): [string, ChessfilesStorage][] {
+    return [
+      ["s1", this.s1],
+      ["s2", this.s2],
+    ];
+  }
+}
+
+class TestChessfilesStorageLocal extends ChessfilesStorageLocal {
+  constructor() {
+    super(new MockLocalStorage());
+  }
+
+  async checkTrainingFilenames(expected: string[]) {
+    const entries = await this.listDir("/ChessfilesTraining");
+    expect(entries.map((e) => e.filename)).toEqual(expected);
+  }
+}
+
+function testBook(name: string): Book {
+  const node = RootNode.fromInitialPosition();
+  node.headers.set("test-name", name);
+  return new Book(BookType.Normal, [node]);
+}
+
+function testTraining(
+  bookPath: string,
+  book: Book,
+  trainingFilename: string,
+): Training {
+  let trainingDir;
+  if (bookPath.startsWith("/s1")) {
+    trainingDir = `/s1/ChessfilesTraining/`;
+  } else if (bookPath.startsWith("/s2")) {
+    trainingDir = `/s2/ChessfilesTraining/`;
+  } else {
+    throw Error(`invalid book path: ${bookPath}`);
+  }
+
+  return Training.create(
+    defaultTrainingSettings(),
+    bookPath,
+    book,
+    trainingDir,
+    trainingFilename,
+  );
+}
+
+class TestAppStorage extends AppStorage {
+  s1: ChessfilesStorageLocal;
+  s2: ChessfilesStorageLocal;
+
+  constructor(useEngines?: [ChessfilesStorageLocal, ChessfilesStorageLocal]) {
+    const [s1, s2] = useEngines ?? [
+      new TestChessfilesStorageLocal(),
+      new TestChessfilesStorageLocal(),
+    ];
+    const engines = new TestStorageEngines(s1, s2);
+    super(engines, "/");
+    this.s1 = s1;
+    this.s2 = s2;
+  }
+
+  async checkFiles(
+    dir: string,
+    expectedEntries: Record<string, string>,
+  ): Promise<void> {
+    await this.checkDirListing(dir, expectedEntries);
+    for (const [filename, contents] of Object.entries(expectedEntries)) {
+      if (contents == "dir" || contents == "engine") {
+        continue;
+      }
+      await this.checkFileContents(joinPath(dir, filename), contents);
+    }
+  }
+
+  async checkDirListing(
+    path: string,
+    expectedEntries: Record<string, string>,
+  ): Promise<void> {
+    const expectedFileTypes = new Map(
+      Object.entries(expectedEntries).map(([name, contents]) => {
+        if (contents == "dir") {
+          return [name, "dir"];
+        } else if (contents == "engine") {
+          return [name, "engine"];
+        } else {
+          return [name, "file"];
+        }
+      }),
+    );
+    const appStorageListDir = new Map(
+      (await this.listDir(path)).map((e) => [e.filename, e.type]),
+    );
+    expect(appStorageListDir).toEqual(expectedFileTypes);
+
+    if (path.startsWith("/s1")) {
+      path = path.slice(3);
+      const engineListDir = new Map(
+        (await this.s1.listDir(path))
+          .filter(
+            (e) =>
+              e.filename != "ChessfilesData.json" &&
+              e.filename != "ChessfilesTraining",
+          )
+          .map((e) => [e.filename, e.type]),
+      );
+      expect(engineListDir).toEqual(expectedFileTypes);
+    } else if (path.startsWith("/s2")) {
+      path = path.slice(3);
+      const engineListDir = new Map(
+        (await this.s2.listDir(path))
+          .filter(
+            (e) =>
+              e.filename != "ChessfilesData.json" &&
+              e.filename != "ChessfilesTraining",
+          )
+          .map((e) => [e.filename, e.type]),
+      );
+      expect(engineListDir).toEqual(expectedFileTypes);
+    } else if (path == "/") {
+      // Nothing to check here
+    } else {
+      throw Error(`Invalid path: ${path}`);
+    }
+  }
+
+  async checkFileContents(path: string, expected: string): Promise<void> {
+    expect(await this.readFile(path)).toEqual(expected);
+
+    if (path.startsWith("/s1")) {
+      path = path.slice(3);
+      expect(await this.s1.readFile(path)).toEqual(expected);
+    } else if (path.startsWith("/s2")) {
+      path = path.slice(3);
+      expect(await this.s2.readFile(path)).toEqual(expected);
+    } else {
+      throw Error(`Invalid path: ${path}`);
+    }
+  }
+
+  async checkTraining(expected: { s1: Training[]; s2: Training[] }) {
+    expect(new Set((await this.listTraining()).metas)).toEqual(
+      new Set(expected.s1.concat(expected.s2).map((training) => training.meta)),
+    );
+    await this.checkFiles(
+      "/s1/ChessfilesTraining",
+      Object.fromEntries(
+        expected.s1.map((training) => [
+          filename(training.meta.trainingBookPath),
+          training.exportPgn(),
+        ]),
+      ),
+    );
+    await this.checkFiles(
+      "/s2/ChessfilesTraining",
+      Object.fromEntries(
+        expected.s2.map((training) => [
+          filename(training.meta.trainingBookPath),
+          training.exportPgn(),
+        ]),
+      ),
+    );
+  }
+}
 
 /**
  * Test the `copy` and `move` functions
  */
-describe("copy and move", () => {
-  const spy = vi.spyOn(dropbox, "isAuthorized");
-  spy.mockReturnValue(true);
+describe("AppStorage", () => {
   let solidDispose: (() => void) | null = null;
 
   afterAll(() => {
-    spy.mockRestore();
     if (solidDispose) {
       solidDispose();
       solidDispose = null;
     }
   });
 
-  function createStorage(): [
-    ChessfilesStorageLocal,
-    ChessfilesStorageLocal,
-    AppStorage,
-  ] {
+  function testAppStorage(
+    useEngines?: [ChessfilesStorageLocal, ChessfilesStorageLocal],
+  ): TestAppStorage {
     return createRoot((dispose) => {
       solidDispose = dispose;
-      const local = new ChessfilesStorageLocal(new MockLocalStorage());
-      const dropbox = new ChessfilesStorageLocal(new MockLocalStorage());
-      const app = new AppStorage({ local, dropbox }, "/Local Storage");
-      return [local, dropbox, app];
+      return new TestAppStorage(useEngines);
     });
   }
 
-  async function checkFiles(
-    s: ChessfilesStorageLocal,
-    dir: string,
-    expectedEntries: Record<string, string>,
-  ): Promise<void> {
-    for (const actual of await s.listDir(dir)) {
-      if (actual.filename == "ChessfilesTraining") {
-        continue;
-      }
-      const expected = expectedEntries[actual.filename];
-      delete expectedEntries[actual.filename];
-      expect(
-        expected,
-        `did not expected dir entry: ${JSON.stringify(actual)}`,
-      ).not.toBe(undefined);
-      if (expected == "dir") {
-        expect(
-          actual.type,
-          `expected ${JSON.stringify(actual)} to be a directory`,
-        ).toEqual("dir");
-      } else {
-        expect(
-          actual.type,
-          `expected ${JSON.stringify(actual)} to be a file`,
-        ).toEqual("file");
-        expect(
-          await s.readFile(joinPath(dir, actual.filename)),
-          `expected ${JSON.stringify(actual)} contents to be ${expected}`,
-        ).toEqual(expected);
-      }
-    }
-    expect(expectedEntries).toEqual({});
-  }
-
-  test("move single file", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createFile("/foo.pgn", "foo-data");
-    await app.move(
-      [
-        {
-          filename: "foo.pgn",
-          type: "file",
-        },
-      ],
-      "/Dropbox/",
-      {},
-    );
-    await checkFiles(local, "/", {});
-    await checkFiles(dropbox, "/", {
-      "foo.pgn": "foo-data",
+  test("initial load", async () => {
+    const storage = testAppStorage();
+    expect(await storage.listActivity()).toEqual([]);
+    await storage.checkTraining({ s1: [], s2: [] });
+    await storage.checkFiles("/", {
+      s1: "engine",
+      s2: "engine",
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      ["/Local Storage/foo.pgn", "/Dropbox/foo.pgn"],
-    ]);
   });
 
-  test("copy single file", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
+  test("load with stored data", async () => {
+    const book = testBook("MyBook");
+    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
+    const activity = newLibraryActivity("MyBook.pgn", 1);
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [training.meta],
+        activity: [activity],
+      }),
     );
-    await local.createFile("/foo.pgn", "foo-data");
-    await app.copy(
+    await s1.createDir("/ChessfilesTraining");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      training.exportPgn(),
+    );
+    const storage = testAppStorage([s1, s2]);
+    expect(await storage.listActivity()).toEqual([activity]);
+    await storage.checkTraining({ s1: [training], s2: [] });
+  });
+
+  test("merge engine data", async () => {
+    const book1 = testBook("MyBook");
+    const activity1 = newLibraryActivity("MyBook.pgn", 1);
+    const training1 = testTraining("/s1/MyBook.pgn", book1, "training-1.pgn");
+    const book2 = testBook("MyOtherBook");
+    const activity2 = newLibraryActivity("MyOtherBook.pgn", 2);
+    const training2 = testTraining(
+      "/s2/MyOtherBook.pgn",
+      book2,
+      "training-2.pgn",
+    );
+    const s1 = new TestChessfilesStorageLocal();
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [training1.meta],
+        activity: [activity1],
+      }),
+    );
+    await s1.createDir("/ChessfilesTraining");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      training1.exportPgn(),
+    );
+    const s2 = new TestChessfilesStorageLocal();
+    await s2.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [training2.meta],
+        activity: [activity2],
+      }),
+    );
+    await s2.createDir("/ChessfilesTraining");
+    await s2.createFile(
+      "/ChessfilesTraining/training-2.pgn",
+      training2.exportPgn(),
+    );
+
+    const storage = testAppStorage([s1, s2]);
+    expect(await storage.listActivity()).toEqual([activity2, activity1]);
+    await storage.checkTraining({ s1: [training1], s2: [training2] });
+  });
+
+  test("invalid training meta", async () => {
+    const book = testBook("MyBook");
+    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [
+          training.meta,
+          // TrainingMeta entry that doesn't have a corresponding PGN file on disk
+          {
+            trainingBookPath: "/s1/ChessfilesTraining/training-2.pgn",
+            sourceBookPath: "/s1/does-not-exist.pgn",
+            name: "MyBook2",
+            correctCount: 1,
+            incorrectCount: 2,
+            linesTrained: 3,
+            totalLines: 4,
+            lastTrained: 1,
+          },
+        ],
+      }),
+    );
+    await s1.createDir("/ChessfilesTraining");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      training.exportPgn(),
+    );
+    // Training file with no corresponding TrainingMeta
+    await s1.createFile(
+      "/ChessfilesTraining/training-with-no-meta.pgn",
+      "Fake training data",
+    );
+
+    const storage = testAppStorage([s1, s2]);
+    await storage.checkTraining({ s1: [training], s2: [] });
+  });
+
+  test("saving books", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    const storage = testAppStorage([s1, s2]);
+    const book = testBook("MyBook");
+
+    // initial creation
+    await storage.writeBook("/s2/MyBook.pgn", book);
+    await storage.checkFiles("/s2", {
+      "MyBook.pgn": book.export(),
+    });
+    const activity = await storage.listActivity();
+    expect(activity.length).toEqual(1);
+    expect(activity[0].type).toEqual("library");
+    expect((activity[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
+
+    // updates
+    book.rootNodes.push(RootNode.fromInitialPosition());
+    await storage.writeBook("/s2/MyBook.pgn", book);
+    await storage.checkFiles("/s2", {
+      "MyBook.pgn": book.export(),
+    });
+    const activity2 = await storage.listActivity();
+    expect(activity2.length).toEqual(2);
+    expect(activity2[0].type).toEqual("library");
+    expect((activity2[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
+  });
+
+  test("saving training", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s2.createFile("/MyBook.pgn", "test data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    // Initial creation
+    const training = await storage.createTraining("/s2/MyBook.pgn");
+    await storage.checkFiles("/s2/ChessfilesTraining", {
+      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
+    });
+
+    expect(await storage.listActivity()).toEqual([]);
+    const activity = {
+      ...newTrainingActivity("MyBook", 1),
+      correctCount: 4,
+      incorrectCount: 1,
+      linesTrained: 2,
+    };
+
+    training.activity = activity;
+
+    // Update
+    await storage.updateTraining(training);
+
+    expect(await storage.listActivity()).toEqual([activity]);
+
+    // Update without any new activity
+    training.activity = newTrainingActivity("MyBook", 1);
+    await storage.updateTraining(training);
+
+    await storage.checkFiles("/s2/ChessfilesTraining", {
+      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
+    });
+
+    expect(await storage.listActivity()).toEqual([activity]);
+  });
+
+  test("remove training", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s2.createFile("/MyBook.pgn", "test data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    // Initial creation
+    const training = await storage.createTraining("/s2/MyBook.pgn");
+    await storage.checkFiles("/s2/ChessfilesTraining", {
+      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
+    });
+
+    await storage.updateTraining(training);
+    await storage.removeTraining(training.meta);
+    await storage.checkTraining({ s1: [], s2: [] });
+    await storage.checkFiles("/s2/ChessfilesTraining", {});
+  });
+
+  test("move single file", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createFile("/MyBook.pgn", "test data");
+
+    const storage = testAppStorage([s1, s2]);
+    const training = await storage.createTraining("/s1/MyBook.pgn");
+
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
-          filename: "foo.pgn",
+          filename: "MyBook.pgn",
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {},
     );
-    await checkFiles(local, "/", {
-      "foo.pgn": "foo-data",
+    await storage.checkFiles("/s1", {});
+    await storage.checkFiles("/s2", {
+      "MyBook.pgn": "test data",
     });
-    await checkFiles(dropbox, "/", {
-      "foo.pgn": "foo-data",
+    // The training data should have moved from s1 to s2
+    await storage.checkTraining({ s1: [], s2: [training] });
+  });
+
+  test("move single file", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createFile("/MyBook.pgn", "test data");
+
+    const storage = testAppStorage([s1, s2]);
+    const training = await storage.createTraining("/s1/MyBook.pgn");
+
+    storage.setDir("/s1");
+    await storage.copy(
+      [
+        {
+          filename: "MyBook.pgn",
+          type: "file",
+        },
+      ],
+      "/s2/",
+      {},
+    );
+    await storage.checkFiles("/s1", {
+      "MyBook.pgn": "test data",
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
+    await storage.checkFiles("/s2", {
+      "MyBook.pgn": "test data",
+    });
+    // The training data should stay with the source file
+    await storage.checkTraining({ s1: [training], s2: [] });
   });
 
   test("move single directory", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await app.move(
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createDir("/My Openings");
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
           filename: "My Openings",
           type: "dir",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {},
     );
-    await checkFiles(local, "/", {});
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s1", {});
+    await storage.checkFiles("/s2", {
       "My Openings": "dir",
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
   });
 
-  test("copy single directory", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await app.copy(
+  test("move single directory", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.createDir("/My Openings");
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.copy(
       [
         {
           filename: "My Openings",
           type: "dir",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {},
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Openings": "dir",
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s2", {
       "My Openings": "dir",
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
   });
 
   test("move multiple files/directories", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    // Data that we move for this test
+    await s1.createDir("/My Openings");
+    const sicilian = testBook("sicilian");
+    const sicilianTraining = testTraining(
+      "/s1/Sicilian.pgn",
+      sicilian,
+      "training-sicilian.pgn",
     );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await app.move(
+    const london = testBook("london");
+    await s1.createFile("/Sicilian.pgn", sicilian.export());
+    await s1.createFile("/My Openings/London.pgn", london.export());
+    await s1.createDir("/ChessfilesTraining/");
+    await s1.createFile(
+      "/ChessfilesTraining/training-sicilian.pgn",
+      sicilianTraining.exportPgn(),
+    );
+
+    // Data doesn't move
+    await s1.createDir("/My Endgames");
+    const kingAndPawn = testBook("king-and-pawn");
+    await s1.createFile("/My Endgames/king-and-pawn.pgn", kingAndPawn.export());
+    const kingsGambit = testBook("kings-gambit");
+    const kingsGambitTraining = testTraining(
+      "/s1/KingsGambit.pgn",
+      kingsGambit,
+      "training-kings-gambit.pgn",
+    );
+    await s1.createFile("/KingsGambit.pgn", kingsGambit.export());
+    await s1.createFile(
+      "/ChessfilesTraining/training-kings-gambit.pgn",
+      kingsGambitTraining.exportPgn(),
+    );
+
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [sicilianTraining.meta, kingsGambitTraining.meta],
+        activity: [],
+      }),
+    );
+
+    const storage = testAppStorage([s1, s2]);
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
           filename: "My Openings",
           type: "dir",
         },
         {
-          filename: "foo.pgn",
+          filename: "Sicilian.pgn",
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {},
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Endgames": "dir",
+      "KingsGambit.pgn": kingsGambit.export(),
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s1/My Endgames", {
+      "king-and-pawn.pgn": kingAndPawn.export(),
+    });
+    await storage.checkFiles("/s2", {
       "My Openings": "dir",
-      "foo.pgn": "foo-data",
+      "Sicilian.pgn": sicilian.export(),
     });
-    await checkFiles(dropbox, "/My Openings", {
-      "foo2.pgn": "foo2-data",
+    await storage.checkFiles("/s2/My Openings", {
+      "London.pgn": london.export(),
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      ["/Local Storage/My Openings/foo2.pgn", "/Dropbox/My Openings/foo2.pgn"],
-      ["/Local Storage/foo.pgn", "/Dropbox/foo.pgn"],
-    ]);
+    sicilianTraining.meta.sourceBookPath = "/s2/Sicilian.pgn";
+    sicilianTraining.meta.trainingBookPath =
+      "/s2/ChessfilesTraining/training-sicilian.pgn";
+    await storage.checkTraining({
+      s1: [kingsGambitTraining],
+      s2: [sicilianTraining],
+    });
   });
 
   test("copy multiple files/directories", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    // Data that we copy for this test
+    await s1.createDir("/My Openings");
+    const sicilian = testBook("sicilian");
+    const sicilianTraining = testTraining(
+      "/s1/Sicilian.pgn",
+      sicilian,
+      "training-sicilian.pgn",
     );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await app.copy(
+    const london = testBook("london");
+    await s1.createFile("/Sicilian.pgn", sicilian.export());
+    await s1.createFile("/My Openings/London.pgn", london.export());
+    await s1.createDir("/ChessfilesTraining/");
+    await s1.createFile(
+      "/ChessfilesTraining/training-sicilian.pgn",
+      sicilianTraining.exportPgn(),
+    );
+
+    // Data doesn't get copied
+    await s1.createDir("/My Endgames");
+    const kingAndPawn = testBook("king-and-pawn");
+    await s1.createFile("/My Endgames/king-and-pawn.pgn", kingAndPawn.export());
+    const kingsGambit = testBook("kings-gambit");
+    const kingsGambitTraining = testTraining(
+      "/s1/KingsGambit.pgn",
+      kingsGambit,
+      "training-kings-gambit.pgn",
+    );
+    await s1.createFile("/KingsGambit.pgn", kingsGambit.export());
+    await s1.createFile(
+      "/ChessfilesTraining/training-kings-gambit.pgn",
+      kingsGambitTraining.exportPgn(),
+    );
+
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [sicilianTraining.meta, kingsGambitTraining.meta],
+        activity: [],
+      }),
+    );
+
+    const storage = testAppStorage([s1, s2]);
+    storage.setDir("/s1");
+    await storage.copy(
       [
         {
           filename: "My Openings",
           type: "dir",
         },
         {
-          filename: "foo.pgn",
+          filename: "Sicilian.pgn",
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {},
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Openings": "dir",
       "My Endgames": "dir",
-      "foo.pgn": "foo-data",
+      "KingsGambit.pgn": kingsGambit.export(),
+      "Sicilian.pgn": sicilian.export(),
     });
-    await checkFiles(local, "/My Openings", {
-      "foo2.pgn": "foo2-data",
+    await storage.checkFiles("/s1/My Openings", {
+      "London.pgn": london.export(),
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s1/My Endgames", {
+      "king-and-pawn.pgn": kingAndPawn.export(),
+    });
+    await storage.checkFiles("/s2", {
       "My Openings": "dir",
-      "foo.pgn": "foo-data",
+      "Sicilian.pgn": sicilian.export(),
     });
-    await checkFiles(dropbox, "/My Openings", {
-      "foo2.pgn": "foo2-data",
+    await storage.checkFiles("/s2/My Openings", {
+      "London.pgn": london.export(),
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
+    await storage.checkTraining({
+      s1: [kingsGambitTraining, sicilianTraining],
+      s2: [],
+    });
   });
 
   test("move path conflict: overwrite", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await dropbox.createFile("/foo.pgn", "dropbox-foo-data");
-    await app.move(
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    await s1.createDir("/My Openings");
+    await s1.createDir("/My Endgames");
+    await s1.createFile("/foo.pgn", "foo-data");
+    await s1.createFile("/My Openings/foo2.pgn", "foo2-data");
+    await s2.createFile("/foo.pgn", "s2-foo-data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
           filename: "My Openings",
@@ -274,39 +705,37 @@ describe("copy and move", () => {
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {
         shouldOverwrite: () => Promise.resolve(true),
       },
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Endgames": "dir",
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s2/", {
       "My Openings": "dir",
       "foo.pgn": "foo-data",
     });
-    await checkFiles(dropbox, "/My Openings", {
+    await storage.checkFiles("/s2/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      ["/Local Storage/My Openings/foo2.pgn", "/Dropbox/My Openings/foo2.pgn"],
-      ["/Local Storage/foo.pgn", "/Dropbox/foo.pgn"],
-    ]);
   });
 
   test("copy path conflict: overwrite", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await dropbox.createFile("/foo.pgn", "dropbox-foo-data");
-    await app.copy(
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    await s1.createDir("/My Openings");
+    await s1.createDir("/My Endgames");
+    await s1.createFile("/foo.pgn", "foo-data");
+    await s1.createFile("/My Openings/foo2.pgn", "foo2-data");
+    await s2.createFile("/foo.pgn", "s2-foo-data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.copy(
       [
         {
           filename: "My Openings",
@@ -317,41 +746,42 @@ describe("copy and move", () => {
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {
         shouldOverwrite: () => Promise.resolve(true),
       },
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Openings": "dir",
       "My Endgames": "dir",
       "foo.pgn": "foo-data",
     });
-    await checkFiles(local, "/My Openings", {
+    await storage.checkFiles("/s1/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s2/", {
       "My Openings": "dir",
       "foo.pgn": "foo-data",
     });
-    await checkFiles(dropbox, "/My Openings", {
+    await storage.checkFiles("/s2/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
   });
 
   test("move path conflict: skip", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await dropbox.createFile("/foo.pgn", "dropbox-foo-data");
-    await app.move(
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    await s1.createDir("/My Openings");
+    await s1.createDir("/My Endgames");
+    await s1.createFile("/foo.pgn", "foo-data");
+    await s1.createFile("/My Openings/foo2.pgn", "foo2-data");
+    await s2.createFile("/foo.pgn", "s2-foo-data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
           filename: "My Openings",
@@ -362,39 +792,38 @@ describe("copy and move", () => {
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {
         shouldOverwrite: () => Promise.resolve(false),
       },
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Endgames": "dir",
       "foo.pgn": "foo-data",
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s2/", {
       "My Openings": "dir",
-      "foo.pgn": "dropbox-foo-data",
+      "foo.pgn": "s2-foo-data",
     });
-    await checkFiles(dropbox, "/My Openings", {
+    await storage.checkFiles("/s2/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      ["/Local Storage/My Openings/foo2.pgn", "/Dropbox/My Openings/foo2.pgn"],
-    ]);
   });
 
   test("copy path conflict: skip", async () => {
-    const [local, dropbox, app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
-    );
-    await local.createDir("/My Openings");
-    await local.createDir("/My Endgames");
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createFile("/My Openings/foo2.pgn", "foo2-data");
-    await dropbox.createFile("/foo.pgn", "dropbox-foo-data");
-    await app.copy(
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    await s1.createDir("/My Openings");
+    await s1.createDir("/My Endgames");
+    await s1.createFile("/foo.pgn", "foo-data");
+    await s1.createFile("/My Openings/foo2.pgn", "foo2-data");
+    await s2.createFile("/foo.pgn", "s2-foo-data");
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.copy(
       [
         {
           filename: "My Openings",
@@ -405,91 +834,121 @@ describe("copy and move", () => {
           type: "file",
         },
       ],
-      "/Dropbox/",
+      "/s2/",
       {
         shouldOverwrite: () => Promise.resolve(false),
       },
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       "My Openings": "dir",
       "My Endgames": "dir",
       "foo.pgn": "foo-data",
     });
-    await checkFiles(local, "/My Openings", {
+    await storage.checkFiles("/s1/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    await checkFiles(dropbox, "/", {
+    await storage.checkFiles("/s2/", {
       "My Openings": "dir",
-      "foo.pgn": "dropbox-foo-data",
+      "foo.pgn": "s2-foo-data",
     });
-    await checkFiles(dropbox, "/My Openings", {
+    await storage.checkFiles("/s2/My Openings", {
       "foo2.pgn": "foo2-data",
     });
-    expect(onFilesMoved).not.toHaveBeenCalled();
   });
 
   test("move inside same storage", async () => {
-    const [local, , app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    const book = testBook("MyBook");
+    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
+    await s1.createFile("/MyBook.pgn", book.export());
+    await s1.createDir("/ChessfilesTraining");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      training.exportPgn(),
     );
-    await local.createFile("/foo.pgn", "foo-data");
-    await local.createDir("/directory");
-    await app.move(
+    await s1.createDir("/directory");
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [training.meta],
+        activity: [],
+      }),
+    );
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1");
+    await storage.move(
       [
         {
-          filename: "foo.pgn",
+          filename: "MyBook.pgn",
           type: "file",
         },
       ],
-      "/Local Storage/directory",
+      "/s1/directory",
       {},
     );
-    await checkFiles(local, "/", {
+    await storage.checkFiles("/s1", {
       directory: "dir",
     });
-    await checkFiles(local, "/directory", {
-      "foo.pgn": "foo-data",
+    await storage.checkFiles("/s1/directory", {
+      "MyBook.pgn": book.export(),
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      ["/Local Storage/foo.pgn", "/Local Storage/directory/foo.pgn"],
-    ]);
+    training.meta.sourceBookPath = "/s1/directory/MyBook.pgn";
+    await storage.checkTraining({ s1: [training], s2: [] });
   });
 
   test("move inside source dir", async () => {
-    const [local, , app] = createStorage();
-    const onFilesMoved = vi.spyOn(
-      await app._metaManagerForTesting(),
-      "onFilesMoved",
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+
+    const book = testBook("MyBook");
+    const training = testTraining(
+      "/s1/directory/MyBook.pgn",
+      book,
+      "training-1.pgn",
     );
-    await local.createDir("/My Openings");
-    await local.createFile("/My Openings/foo.pgn", "foo-data");
-    await local.createDir("/Second folder");
-    await app.move(
+    await s1.createDir("/directory");
+    await s1.createDir("/directory/subdirectory");
+    await s1.createFile("/directory/MyBook.pgn", book.export());
+    await s1.createDir("/ChessfilesTraining");
+    await s1.createFile(
+      "/ChessfilesTraining/training-1.pgn",
+      training.exportPgn(),
+    );
+    await s1.createFile(
+      "/ChessfilesData.json",
+      JSON.stringify({
+        trainingMeta: [training.meta],
+        activity: [],
+      }),
+    );
+
+    const storage = testAppStorage([s1, s2]);
+
+    storage.setDir("/s1/directory");
+    await storage.move(
       [
         {
-          filename: "My Openings",
-          type: "dir",
+          filename: "MyBook.pgn",
+          type: "file",
         },
       ],
-      "/Local Storage/Second folder",
+      "/s1/directory/subdirectory",
       {},
     );
-    await checkFiles(local, "/", {
-      "Second folder": "dir",
+    await storage.checkFiles("/s1", {
+      directory: "dir",
     });
-    await checkFiles(local, "/Second folder", {
-      "My Openings": "dir",
+    await storage.checkFiles("/s1/directory", {
+      subdirectory: "dir",
     });
-    await checkFiles(local, "/Second folder/My Openings", {
-      "foo.pgn": "foo-data",
+    await storage.checkFiles("/s1/directory/subdirectory", {
+      "MyBook.pgn": book.export(),
     });
-    expect(onFilesMoved).toHaveBeenCalledWith([
-      [
-        "/Local Storage/My Openings/foo.pgn",
-        "/Local Storage/Second folder/My Openings/foo.pgn",
-      ],
-    ]);
+    training.meta.sourceBookPath = "/s1/directory/subdirectory/MyBook.pgn";
+    await storage.checkTraining({ s1: [training], s2: [] });
   });
 });

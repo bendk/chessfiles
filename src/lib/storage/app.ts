@@ -20,8 +20,29 @@ export interface TrainingListing {
 }
 
 interface StorageEngines {
+  // Local storage, used for storing global objects, like settings
   local: ChessfilesStorage;
-  dropbox: ChessfilesStorage;
+  allStorageEngines: () => [string, ChessfilesStorage][];
+}
+
+class DefaultStorageEngines {
+  local: ChessfilesStorageLocal;
+  dropbox: ChessfilesStorageDropbox;
+
+  constructor() {
+    this.local = new ChessfilesStorageLocal();
+    this.dropbox = new ChessfilesStorageDropbox();
+  }
+
+  allStorageEngines(): [string, ChessfilesStorage][] {
+    const storages: [string, ChessfilesStorage][] = [
+      ["Local Storage", this.local],
+    ];
+    if (dropbox.isAuthorized()) {
+      storages.push(["Dropbox", this.dropbox]);
+    }
+    return storages;
+  }
 }
 
 /**
@@ -44,11 +65,8 @@ export class AppStorage {
   private metaManager: Promise<AppMetaManager>;
 
   constructor(storage?: StorageEngines, initialDir: string = "/") {
-    this.storage = storage ?? {
-      local: new ChessfilesStorageLocal(),
-      dropbox: new ChessfilesStorageDropbox(),
-    };
-    this.metaManager = AppMetaManager.load(this.allStorageEngines());
+    this.storage = storage ?? new DefaultStorageEngines();
+    this.metaManager = AppMetaManager.load(this.storage.allStorageEngines());
     this.status = new StatusTracker();
     [this.dir, this.setDirPath] = createSignal(initialDir);
     this.dirComponents = createMemo(() => pathComponents(this.dir()));
@@ -64,7 +82,7 @@ export class AppStorage {
   async refetchFiles() {
     if (this.dir() == "/") {
       this.setFiles(
-        this.allStorageEngines().map(([name]) => ({
+        this.storage.allStorageEngines().map(([name]) => ({
           filename: name,
           type: "engine",
         })),
@@ -96,19 +114,9 @@ export class AppStorage {
     return [engine, normalizePath(path.substring(name.length + 1))];
   }
 
-  private allStorageEngines(): [string, ChessfilesStorage][] {
-    const storages: [string, ChessfilesStorage][] = [
-      ["Local Storage", this.storage.local],
-    ];
-    if (dropbox.isAuthorized()) {
-      storages.push(["Dropbox", this.storage.dropbox]);
-    }
-    return storages;
-  }
-
   private engineForPath(path: string): [string, ChessfilesStorage] {
     path = joinPath(this.dir(), path);
-    for (const [name, engine] of this.allStorageEngines()) {
+    for (const [name, engine] of this.storage.allStorageEngines()) {
       if (path.startsWith(`/${name}`)) {
         return [name, engine];
       }
@@ -117,7 +125,7 @@ export class AppStorage {
   }
 
   toplevelStorageEngines(): string[] {
-    return this.allStorageEngines().map(([name]) => name);
+    return this.storage.allStorageEngines().map(([name]) => name);
   }
 
   setDir(path: string) {
@@ -129,8 +137,16 @@ export class AppStorage {
   }
 
   async listDir(path: string): Promise<DirEntry[]> {
+    if (path == "/") {
+      return this.storage.allStorageEngines().map(([name]) => ({
+        filename: name,
+        type: "engine",
+      }));
+    }
     const [storage, storagePath] = this.resolvePath(path);
-    return await storage.listDir(storagePath);
+    return (await storage.listDir(storagePath)).filter(
+      (e) => !this.isSpecialFile(storagePath, e),
+    );
   }
 
   async readFile(path: string): Promise<string> {
