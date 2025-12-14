@@ -369,8 +369,10 @@ export class Training {
     ];
 
     const book = new Book(BookType.Training, rootNodes);
-    book.setTrainingCurrentLineData(JSON.stringify(this.currentLine));
-    return book.export();
+    if (book.rootNodes.length > 0) {
+      book.setTrainingCurrentLineData(JSON.stringify(this.currentLine));
+    }
+    return book.export({ trainingHistory: false });
   }
 
   /**

@@ -11,7 +11,7 @@ import { makeFen, parseSan, playSan, Chess } from "./chess";
 import { Book } from "./node";
 import type { RootNode } from "./node";
 import { BookType, Priority } from "./node";
-import { buildNode } from "./node.test";
+import { buildNode } from "./testutils";
 
 function openingRootNode(): RootNode {
   return buildNode({

@@ -12,7 +12,7 @@ import {
   pgnToString,
 } from "./chess";
 import { Priority, type RootNode } from "./node";
-import { buildNode } from "./node.test";
+import { buildNode } from "./testutils";
 import { Editor } from "./editor";
 
 function moveSan(editor: Editor, ...sanStrings: string[]) {

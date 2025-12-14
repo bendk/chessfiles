@@ -27,6 +27,7 @@ export function TrainingSession(props: TrainingSessionProps) {
     equals: false,
   });
   const [needsSave, setNeedsSave] = createSignal(false);
+  const [historySaved, setHistorySaved] = createSignal(false);
 
   async function onExit() {
     props.status.perform("saving training", async () => {
@@ -73,6 +74,7 @@ export function TrainingSession(props: TrainingSessionProps) {
 
   function restartTraining() {
     props.status.perform("restarting training", async () => {
+      setHistorySaved(false);
       try {
         props.training = await props.storage.restartTraining(
           props.training.meta,
@@ -227,6 +229,10 @@ export function TrainingSession(props: TrainingSessionProps) {
       }
 
       case "show-training-summary": {
+        if (!historySaved()) {
+          props.storage.incrementTrainingHistory(props.training.meta);
+        }
+
         return (
           <>
             <h2 class="text-2xl">Training complete</h2>

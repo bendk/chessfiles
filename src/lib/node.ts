@@ -30,13 +30,25 @@ export enum BookType {
   Training = 2,
 }
 
+export interface TrainingHistory {
+  added: number;
+  lastTrained: number;
+  trainingCount: number;
+}
+
 export class Book {
+  trainingHistory: TrainingHistory;
+
   constructor(
     public type: BookType,
     public rootNodes: RootNode[],
-  ) {}
+    trainingHistory?: TrainingHistory,
+  ) {
+    this.trainingHistory = trainingHistory ?? newTrainingHistory();
+  }
 
   static import(pgn: string): Book {
+    const trainingHistory = parseTrainingHistory(pgn);
     const games = parsePgn(pgn);
     let type = BookType.Normal;
     if (
@@ -45,10 +57,13 @@ export class Book {
     ) {
       type = BookType.Opening;
     }
-    return new Book(type, games.map(RootNode.import));
+    return new Book(type, games.map(RootNode.import), trainingHistory);
   }
 
-  export(): string {
+  export(opts?: ExportOptions): string {
+    opts = opts ?? {
+      trainingHistory: true,
+    };
     const games = this.rootNodes.map((node) => node.export());
     if (this.type == BookType.Opening && games.length == 1) {
       // Opening book, set ChessfilesType to be "Opening"
@@ -59,7 +74,13 @@ export class Book {
         game.headers.delete("ChessfilesType");
       }
     }
-    return games.map(pgnToString).join("\n\n");
+    const gameData = games.map(pgnToString).join("\n\n");
+    if (opts.trainingHistory) {
+      const trainingHistoryData = exportTrainingHistory(this.trainingHistory);
+      return `${trainingHistoryData}\n${gameData}`;
+    } else {
+      return gameData;
+    }
   }
 
   /**
@@ -75,6 +96,46 @@ export class Book {
     }
     return this.rootNodes[0].headers.set("TrainingCurrentLine", data);
   }
+
+  incrementTrainingHistory() {
+    this.trainingHistory.lastTrained = new Date().getTime();
+    this.trainingHistory.trainingCount += 1;
+  }
+}
+
+export interface ExportOptions {
+  trainingHistory: boolean;
+}
+
+function exportTrainingHistory(history: TrainingHistory): string {
+  return [
+    `%chessfiles-added ${history.added}\n`,
+    `%chessfiles-last-trained ${history.lastTrained}\n`,
+    `%chessfiles-training-count ${history.trainingCount}\n`,
+  ].join("");
+}
+
+function parseTrainingHistory(pgnData: string): TrainingHistory {
+  const re =
+    /%chessfiles-added\s+([^\s]+)\s*\n%chessfiles-last-trained\s+([^\s]+)\s*\n%chessfiles-training-count\s+([^\s]+)\s*\n/;
+  const m = pgnData.match(re);
+  if (m !== null) {
+    const added = parseInt(m[1]);
+    const lastTrained = parseInt(m[2]);
+    const trainingCount = parseInt(m[3]);
+    if (!isNaN(added) && !isNaN(lastTrained) && !isNaN(trainingCount)) {
+      return { added, lastTrained, trainingCount };
+    }
+  }
+  return newTrainingHistory();
+}
+
+export function newTrainingHistory(): TrainingHistory {
+  return {
+    added: new Date().getTime(),
+    lastTrained: 0,
+    trainingCount: 0,
+  };
 }
 
 /**

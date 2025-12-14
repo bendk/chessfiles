@@ -1,8 +1,8 @@
 import type { ChessfilesStorage, DirEntry, PathComponent } from ".";
-import { filename, joinPath, pathComponents } from ".";
+import { joinPath, pathComponents } from ".";
 import { AppMetaManager } from "./meta";
 import { Book } from "~/lib/node";
-import { newLibraryActivity } from "~/lib/activity";
+import type { TrainingHistory } from "~/lib/node";
 import type { Activity, TrainingActivity } from "~/lib/activity";
 import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
@@ -171,7 +171,13 @@ export class AppStorage {
     const metaManager = await this.metaManager;
     path = joinPath(this.dir(), path);
     await this.writeFile(path, book.export());
-    await metaManager.addActivity(newLibraryActivity(filename(path)), path);
+    await metaManager.onSaveBook(path, book.trainingHistory);
+  }
+
+  async incrementTrainingHistory(meta: TrainingMeta): Promise<void> {
+    const book = await this.readBook(meta.sourceBookPath);
+    book.incrementTrainingHistory();
+    await this.writeBook(meta.sourceBookPath, book);
   }
 
   async exists(path: string): Promise<boolean> {
@@ -285,6 +291,8 @@ export class AppStorage {
     }
     if (fileOpType == "move-file") {
       steps.push({ type: "update-metadata-on-move" });
+    } else if (fileOpType == "copy-file") {
+      steps.push({ type: "update-metadata-on-copy" });
     }
     return steps;
   }
@@ -317,7 +325,7 @@ export class AppStorage {
   ) {
     let currentWork = 0;
     let totalWork = 0;
-    const movedPaths: [string, string][] = [];
+    const changedPaths: [string, string][] = [];
     for (const step of steps) {
       totalWork += this.workForStep(step);
     }
@@ -388,7 +396,7 @@ export class AppStorage {
             await sourceEngine.remove(sourceEnginePath);
           }
         }
-        movedPaths.push([step.sourcePath, step.destPath]);
+        changedPaths.push([step.sourcePath, step.destPath]);
       } else if (step.type == "copy-file") {
         const [sourceEngine, sourceEnginePath] = this.resolvePath(
           step.sourcePath,
@@ -418,10 +426,16 @@ export class AppStorage {
             await destEngine.createFile(destEnginePath, content);
           }
         }
+        changedPaths.push([step.sourcePath, step.destPath]);
       } else if (step.type == "update-metadata-on-move") {
-        if (!dryRun && movedPaths.length > 0) {
+        if (!dryRun && changedPaths.length > 0) {
           const metaManager = await this.metaManager;
-          await metaManager.onFilesMoved(movedPaths);
+          await metaManager.onFilesMoved(changedPaths);
+        }
+      } else if (step.type == "update-metadata-on-copy") {
+        if (!dryRun && changedPaths.length > 0) {
+          const metaManager = await this.metaManager;
+          await metaManager.onFilesCopied(changedPaths);
         }
       } else if (step.type == "update-metadata-on-delete") {
         const metaManager = await this.metaManager;
@@ -480,6 +494,8 @@ export class AppStorage {
     } else if (step.type == "update-metadata-on-delete") {
       return 40;
     } else if (step.type == "update-metadata-on-move") {
+      return 50;
+    } else if (step.type == "update-metadata-on-copy") {
       return 50;
     }
     throw Error(`workForStep: invalid step ${step}`);
@@ -549,6 +565,10 @@ export class AppStorage {
     };
   }
 
+  async listTrainingHistory(): Promise<TrainingHistory[]> {
+    return (await this.metaManager).listTrainingHistory();
+  }
+
   async createTraining(bookPath: string): Promise<Training> {
     const book = await this.readBook(bookPath);
     const settings = await this.readTrainingSettings();
@@ -600,7 +620,7 @@ export class AppStorage {
       training.activity.correctCount > 0 ||
       training.activity.incorrectCount > 0
     ) {
-      metaManager.addActivity(
+      metaManager.addTrainingActivity(
         training.activity,
         training.meta.trainingBookPath,
       );
@@ -619,7 +639,8 @@ type OperationStep =
   | { type: "move-file"; sourcePath: string; destPath: string }
   | { type: "copy-file"; sourcePath: string; destPath: string }
   | { type: "update-metadata-on-delete"; paths: string[] }
-  | { type: "update-metadata-on-move" };
+  | { type: "update-metadata-on-move" }
+  | { type: "update-metadata-on-copy" };
 
 export interface OperationCallbacks {
   shouldOverwrite?: (path: string) => Promise<boolean>;
