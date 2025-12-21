@@ -5,7 +5,8 @@ import Tags from "lucide-solid/icons/tags";
 import type { DateValue } from "@ark-ui/solid";
 import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
-import { BookType, Priority } from "~/lib/node";
+import type { RootNode } from "~/lib/node";
+import { RootNodeType, Priority } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
 import { createSignal, Index, Match, Switch } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -13,7 +14,7 @@ import { Button, MenuButton, RadioGroup } from "~/components";
 
 export interface CurrentNodeControlsProps {
   isRoot: boolean;
-  bookType: BookType;
+  rootNode: RootNode;
   view: EditorView;
   setView: (view: EditorView) => void;
   editor: Editor;
@@ -43,7 +44,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
 
   return (
     <Switch>
-      <Match when={props.isRoot && props.bookType == BookType.Normal}>
+      <Match when={props.isRoot && props.rootNode.type == RootNodeType.Normal}>
         <div class="flex flex-col gap-4">
           <h2 class="text-2xl">Game Info</h2>
           <HeaderField
@@ -111,18 +112,27 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
           />
         </div>
       </Match>
-      <Match when={props.isRoot && props.bookType == BookType.Opening}>
-        <div class="flex flex-col gap-4">
-          <h2 class="text-2xl">Opening Book</h2>
+      <Match
+        when={props.isRoot && props.rootNode.type == RootNodeType.Training}
+      >
+        <div class="flex flex-col gap-8">
+          <div class="italic">
+            Add moves that you want to memorize. Train them later from the
+            Training page.
+          </div>
           <RadioGroup.Root
-            value={props.view.color}
+            value={props.view.color ?? ""}
             onValueChange={setTrainingColor}
           >
-            <RadioGroup.Label text="Training Color" />
+            <RadioGroup.Label text="Color to train" />
             <RadioGroup.Item text="White" value="white" />
             <RadioGroup.Item text="Black" value="black" />
             <RadioGroup.Item text="Both" value="" />
           </RadioGroup.Root>
+          <Button
+            text="Set initial position"
+            onClick={props.onSetInitialPosition}
+          />
         </div>
       </Match>
       <Match when={!props.isRoot}>

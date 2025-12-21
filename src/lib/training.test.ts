@@ -8,13 +8,13 @@ import type {
 import { Training } from "./training";
 import type { Move, Shape } from "./chess";
 import { makeFen, parseSan, playSan, Chess } from "./chess";
-import { Book } from "./node";
+import { Book, RootNodeType } from "./node";
 import type { RootNode } from "./node";
-import { BookType, Priority } from "./node";
+import { Priority } from "./node";
 import { buildNode } from "./testutils";
 
 function openingRootNode(): RootNode {
-  return buildNode({
+  return buildNode(RootNodeType.Training, {
     color: "black",
     e4: {
       shapes: [
@@ -44,7 +44,7 @@ function openingRootNode(): RootNode {
 
 // Toy endgame where the kings start on a1 and a8
 function endgameRootNode(): RootNode {
-  return buildNode({
+  return buildNode(RootNodeType.Training, {
     position: "k7/8/8/8/8/8/8/K7 w - - 0 1",
     color: "black",
     Kb1: {
@@ -58,7 +58,7 @@ function endgameRootNode(): RootNode {
 
 // Another endgame where the kings start on h1 and h8
 function endgameRootNode2(): RootNode {
-  return buildNode({
+  return buildNode(RootNodeType.Training, {
     position: "7k/8/8/8/8/8/8/7K b - - 0 1",
     color: "white",
     Kg8: {
@@ -69,7 +69,7 @@ function endgameRootNode2(): RootNode {
 
 // root node used to test priority order
 function frenchDefenseRootNode() {
-  return buildNode({
+  return buildNode(RootNodeType.Training, {
     position: "rnbqkbnr/ppp2ppp/4p3/3p4/3PP3/2N5/PPP2PPP/R1BQKBNR b KQkq - 1 3",
     dxe4: {
       Nxe4: {},
@@ -106,7 +106,7 @@ function createTraining(
   return Training.create(
     settings,
     "/test book.pgn",
-    new Book(BookType.Normal, rootNodes),
+    new Book(rootNodes),
     "/ChessfilesTraining/test.pgn",
   );
 }
@@ -1325,7 +1325,7 @@ describe("Training", () => {
   });
 
   test("skip after", () => {
-    const rootNode = buildNode({
+    const rootNode = buildNode(RootNodeType.Training, {
       color: "white",
       e4: {
         e5: {

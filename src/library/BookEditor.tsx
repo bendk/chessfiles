@@ -1,6 +1,6 @@
 import { createSignal, Match, Show, Switch } from "solid-js";
 import type { Book } from "~/lib/node";
-import { BookType, RootNode } from "~/lib/node";
+import { RootNode, RootNodeType } from "~/lib/node";
 import { Editor } from "../editor";
 import type { MenuItem, StatusTracker } from "../components";
 import {
@@ -23,7 +23,7 @@ export interface BookEditorProps {
 export function BookEditor(props: BookEditorProps) {
   const [reorderCounter, setReorderCounter] = createSignal(0);
   const [currentRootNode, setCurrentRootNode] = createSignal<RootNode | null>(
-    props.book.type == BookType.Opening ? props.book.rootNodes[0] : null,
+    null,
   );
   const [confirmDeleteData, setConfirmDeleteData] = createSignal<
     [RootNode, number] | null
@@ -70,9 +70,11 @@ export function BookEditor(props: BookEditorProps) {
     }
   }
 
-  function addGame() {
-    const rootNode = RootNode.fromInitialPosition();
-    props.book.rootNodes.push(rootNode);
+  function addGame(type: RootNodeType) {
+    const rootNode = RootNode.fromInitialPosition(type);
+    if (type == RootNodeType.Training) {
+      rootNode.setColor("white");
+    }
     setCurrentRootNode(rootNode);
   }
 
@@ -100,24 +102,16 @@ export function BookEditor(props: BookEditorProps) {
       return false;
     }
     const index = props.book.rootNodes.findIndex((n) => n.id == current.id);
-    if (index == -1) {
-      console.error(
-        "onEditorSave: can't find root node",
-        props.book.rootNodes,
-        current,
-      );
-      return false;
+    if (index > -1) {
+      props.book.rootNodes[index] = current.clone();
+    } else {
+      props.book.rootNodes.push(current.clone());
     }
-    props.book.rootNodes[index] = current.clone();
     return props.onSave();
   }
 
   function onEditorExit() {
-    if (props.book.type == BookType.Opening) {
-      props.onExit();
-    } else {
-      setCurrentRootNode(null);
-    }
+    setCurrentRootNode(null);
   }
 
   return (
@@ -144,13 +138,12 @@ export function BookEditor(props: BookEditorProps) {
           <Editor
             name={props.filename}
             rootNode={rootNode}
-            bookType={props.book.type}
             onSave={onEditorSave}
             onExit={onEditorExit}
           />
         )}
       </Match>
-      <Match when={props.book.type == BookType.Normal}>
+      <Match when={true}>
         <div class="pt-4 px-10">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-3xl">Editing book: {props.filename}</h2>
@@ -178,7 +171,15 @@ export function BookEditor(props: BookEditorProps) {
             </Table>
           </Show>
           <div class="flex pt-8 gap-8">
-            <Button text="Add game" onClick={addGame} />
+            <Button
+              text="Add game"
+              onClick={() => addGame(RootNodeType.Normal)}
+            />
+            <Button
+              title="Training games contains move to memorize.  They can be tested from the training page."
+              text="Add training game"
+              onClick={() => addGame(RootNodeType.Training)}
+            />
           </div>
         </div>
       </Match>

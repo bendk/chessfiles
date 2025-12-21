@@ -1,7 +1,14 @@
 import CloudOff from "lucide-solid/icons/cloud-off";
 import CloudCheck from "lucide-solid/icons/cloud-check";
 import Loader from "lucide-solid/icons/loader-2";
-import { Show, createResource, createSignal, Match, Switch } from "solid-js";
+import {
+  Show,
+  createMemo,
+  createResource,
+  createSignal,
+  Match,
+  Switch,
+} from "solid-js";
 import { activityDescription, activityTimeAgo } from "~/lib/activity";
 import * as dropbox from "~/lib/auth/dropbox";
 import type { AppStorage } from "~/lib/storage";
@@ -48,6 +55,42 @@ export function Home(props: HomeProps) {
       });
     });
   }
+
+  const trainingSection = createMemo(() => {
+    const training = trainingListing();
+    if (training === undefined) {
+      return <Loader class="animate-spin duration-1000" size={32} />;
+    } else if (training.metas.length == 0) {
+      return <div class="italic">No training sessions in progress</div>;
+    } else {
+      return (
+        <Table
+          each={training.metas}
+          columns={4}
+          onClick={openTraining}
+          headers={["Name", "Progress", "Last trained", ""]}
+        >
+          {(item) => (
+            <>
+              <TableCell grow item={item}>
+                {item.value.name}
+              </TableCell>
+              <TableCell item={item}>
+                <Progress
+                  value={
+                    (100 * item.value.linesTrained) / item.value.totalLines
+                  }
+                />
+              </TableCell>
+              <TableCell item={item}>
+                {trainingTimeAgo(item.value.lastTrained, currentTimestamp)}
+              </TableCell>
+            </>
+          )}
+        </Table>
+      );
+    }
+  });
 
   const currentTimestamp = Date.now();
   return (
@@ -110,43 +153,7 @@ export function Home(props: HomeProps) {
           </div>
           <div class="grow min-h-0 flex flex-col">
             <h2 class="text-2xl pb-2">Training</h2>
-            <div class="overflow-y-auto">
-              <Show
-                when={trainingListing()}
-                fallback={
-                  <Loader class="animate-spin duration-1000" size={32} />
-                }
-              >
-                <Table
-                  each={trainingListing()?.metas ?? []}
-                  columns={4}
-                  onClick={openTraining}
-                  headers={["Name", "Progress", "Last trained", ""]}
-                >
-                  {(item) => (
-                    <>
-                      <TableCell grow item={item}>
-                        {item.value.name}
-                      </TableCell>
-                      <TableCell item={item}>
-                        <Progress
-                          value={
-                            (100 * item.value.linesTrained) /
-                            item.value.totalLines
-                          }
-                        />
-                      </TableCell>
-                      <TableCell item={item}>
-                        {trainingTimeAgo(
-                          item.value.lastTrained,
-                          currentTimestamp,
-                        )}
-                      </TableCell>
-                    </>
-                  )}
-                </Table>
-              </Show>
-            </div>
+            <div class="overflow-y-auto">{trainingSection()}</div>
           </div>
           <div class="flex gap-2 items-center">
             <h2 class="text-lg">Accounts:</h2>
@@ -178,10 +185,10 @@ export function Home(props: HomeProps) {
               <Table each={activityListing()?.slice(0, 20) ?? []} columns={2}>
                 {(item) => (
                   <>
-                    <TableCell grow item={item}>
+                    <TableCell grow class="text-md" item={item}>
                       {activityDescription(item.value)}
                     </TableCell>
-                    <TableCell item={item}>
+                    <TableCell class="text-sm" item={item}>
                       {activityTimeAgo(item.value.timestamp, currentTimestamp)}
                     </TableCell>
                   </>

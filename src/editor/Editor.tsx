@@ -7,7 +7,7 @@ import Undo from "lucide-solid/icons/undo";
 import { SegmentGroup } from "@ark-ui/solid";
 import type { Move, Nag, Shape } from "~/lib/chess";
 import type { Priority, RootNode } from "~/lib/node";
-import { BookType } from "~/lib/node";
+import { RootNodeType } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
 import { Editor as EditorBackend } from "~/lib/editor";
 import {
@@ -29,7 +29,6 @@ import { MoveTree } from "./MoveTree";
 
 interface EditorProps {
   rootNode: RootNode;
-  bookType: BookType;
   name: string;
   onSave: () => Promise<boolean>;
   onExit: () => void;
@@ -175,7 +174,7 @@ export function Editor(props: EditorProps) {
             <div class="col-span-full header px-2 py-4 h-[76px]">
               <Header
                 name={props.name}
-                bookType={props.bookType}
+                rootNode={props.rootNode}
                 view={view()}
                 saving={saving()}
                 undo={undo}
@@ -185,10 +184,10 @@ export function Editor(props: EditorProps) {
               />
             </div>
             <div class="flex grow justify-center">
-              <div class="pt-4 pl-4 pr-2 basis-[320px] shrink-0">
+              <div class="pt-4 pl-2 pr-4 basis-[320px] shrink-0">
                 <CurrentNodeControls
                   isRoot={view().ply == 0}
-                  bookType={props.bookType}
+                  rootNode={props.rootNode}
                   view={view()}
                   editor={editor}
                   setView={setView}
@@ -225,7 +224,6 @@ export function Editor(props: EditorProps) {
             </div>
             <div class="col-span-full footer h-[200px] p-2">
               <MoveView
-                bookType={props.bookType}
                 rootNode={props.rootNode}
                 view={view()}
                 setMoves={setMoves}
@@ -250,7 +248,7 @@ export function Editor(props: EditorProps) {
 
 interface HeaderProps {
   name: string;
-  bookType: BookType;
+  rootNode: RootNode;
   view: EditorView;
   saving: boolean;
   undo: () => void;
@@ -262,7 +260,16 @@ interface HeaderProps {
 function Header(props: HeaderProps) {
   return (
     <div class="flex justify-between">
-      <div class="text-3xl truncate text-ellipsis">Editing: {props.name}</div>
+      <div class="text-3xl truncate text-ellipsis">
+        <Switch>
+          <Match when={props.rootNode.type == RootNodeType.Normal}>
+            {props.name}: Editing game
+          </Match>
+          <Match when={props.rootNode.type == RootNodeType.Training}>
+            {props.name}: Training game
+          </Match>
+        </Switch>
+      </div>
       <div class="flex gap-8">
         <div class="flex">
           <Button
@@ -302,7 +309,6 @@ function Header(props: HeaderProps) {
 }
 
 interface MoveViewProps {
-  bookType: BookType;
   rootNode: RootNode;
   view: EditorView;
   setMoves: (moves: readonly Move[]) => void;
@@ -310,7 +316,7 @@ interface MoveViewProps {
 
 function MoveView(props: MoveViewProps) {
   const [moveView, setMoveView] = createSignal(
-    props.bookType == BookType.Opening ? "tree" : "list",
+    props.rootNode.type == RootNodeType.Training ? "tree" : "list",
   );
   return (
     <div class="flex flex-col min-h-full min-w-full">

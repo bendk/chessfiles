@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { type Move, parseSan, Nag } from "./chess";
-import { RootNode, Book, BookType } from "./node";
+import { RootNode, Book, RootNodeType } from "./node";
 import { buildNode } from "./testutils";
 
 export function moveList(root: RootNode, moves: string[]): Move[] {
@@ -17,7 +17,7 @@ export function moveList(root: RootNode, moves: string[]): Move[] {
 
 describe("Node", function () {
   test("getDescendant", () => {
-    const node = buildNode({
+    const node = buildNode(RootNodeType.Normal, {
       e4: {
         e5: {
           Nf3: {
@@ -40,7 +40,7 @@ describe("Node", function () {
   });
 
   test("line counts", () => {
-    const node = buildNode({
+    const node = buildNode(RootNodeType.Normal, {
       e4: {
         e5: {
           Nf3: {
@@ -71,7 +71,7 @@ describe("Node", function () {
 
 describe("Node import/export", function () {
   test("import/export", () => {
-    const node = buildNode({
+    const node = buildNode(RootNodeType.Normal, {
       e4: {
         e5: {
           comment: "Comment",
@@ -111,8 +111,8 @@ describe("Node import/export", function () {
 
 describe("Book", function () {
   test("import/export training history", () => {
-    const rootNode = buildNode({ e4: { e5: {} } });
-    const book = new Book(BookType.Normal, [rootNode]);
+    const rootNode = buildNode(RootNodeType.Normal, { e4: { e5: {} } });
+    const book = new Book([rootNode]);
     book.trainingHistory.added = 1000;
     book.trainingHistory.lastTrained = 2000;
     book.trainingHistory.trainingCount = 10;

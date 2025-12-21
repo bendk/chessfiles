@@ -2,7 +2,7 @@ import type { ChildNode, Node, RootNode } from "./node";
 import type { TrainingActivity } from "./activity";
 import { v4 as uuidv4 } from "uuid";
 import { activityTimeAgo, newTrainingActivity } from "./activity";
-import { Book, BookType, Priority } from "./node";
+import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, makeSan, Chess } from "./chess";
 import { filename, joinPath } from "~/lib/storage";
@@ -66,6 +66,9 @@ export class Training {
       trainingFilename ?? `${uuidv4()}.pgn`,
     );
     const name = bookFilename.split(".")[0];
+    const rootNodes = sourceBook.rootNodes
+      .filter((n) => n.isTraining())
+      .map((n) => n.clone());
     const meta = {
       name,
       sourceBookPath,
@@ -74,21 +77,20 @@ export class Training {
       correctCount: 0,
       incorrectCount: 0,
       linesTrained: 0,
-      totalLines: sourceBook.rootNodes.reduce(
+      totalLines: rootNodes.reduce(
         (count, node) => count + node.lineCount(),
         0,
       ),
       lastTrained: Date.now(),
       currentLine: [],
     };
-    return new Training(
-      settings,
-      meta,
-      sourceBook.rootNodes.map((n) => n.clone()),
-    );
+    return new Training(settings, meta, rootNodes);
   }
 
   restart(book: Book): Training {
+    const rootNodes = book.rootNodes
+      .filter((n) => n.isTraining())
+      .map((n) => n.clone());
     return new Training(
       this.settings,
       {
@@ -96,13 +98,13 @@ export class Training {
         correctCount: 0,
         incorrectCount: 0,
         linesTrained: 0,
-        totalLines: book.rootNodes.reduce(
+        totalLines: rootNodes.reduce(
           (count, node) => count + node.lineCount(),
           0,
         ),
         lastTrained: Date.now(),
       },
-      book.rootNodes,
+      rootNodes,
     );
   }
 
@@ -368,11 +370,11 @@ export class Training {
       ...this.rootNodesToGo,
     ];
 
-    const book = new Book(BookType.Training, rootNodes);
+    const book = new Book(rootNodes);
     if (book.rootNodes.length > 0) {
       book.setTrainingCurrentLineData(JSON.stringify(this.currentLine));
     }
-    return book.export({ trainingHistory: false });
+    return book.exportTraining();
   }
 
   /**
@@ -389,7 +391,9 @@ export class Training {
     settings: TrainingSettings,
   ): Training {
     const book = Book.import(pgnData);
-    const rootNodes = book.rootNodes;
+    const rootNodes = book.rootNodes
+      .filter((n) => n.isTraining())
+      .map((n) => n.clone());
     const training = new Training(settings, meta, rootNodes);
     const currentLineData = book.getTrainingCurrentLineData();
     training.currentLine = currentLineData ? JSON.parse(currentLineData) : [];

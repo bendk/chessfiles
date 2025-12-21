@@ -309,12 +309,7 @@ export function TrainingList(props: TrainingListProps) {
                 <Table
                   each={trainingListing()?.activity?.slice(0, 20) ?? []}
                   columns={4}
-                  headers={[
-                    "Name",
-                    "Lines trained",
-                    "Accuracy",
-                    "Last trained",
-                  ]}
+                  headers={["Name", "Lines trained", "Accuracy", "When"]}
                 >
                   {(item) => (
                     <>

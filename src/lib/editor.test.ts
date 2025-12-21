@@ -11,7 +11,7 @@ import {
   parseSquare,
   pgnToString,
 } from "./chess";
-import { Priority, type RootNode } from "./node";
+import { Priority, type RootNode, RootNodeType } from "./node";
 import { buildNode } from "./testutils";
 import { Editor } from "./editor";
 
@@ -115,7 +115,7 @@ function checkEditorState(editor: Editor, stateSpec: EditorStateSpec) {
 }
 
 function testRootNode(): RootNode {
-  return buildNode({
+  return buildNode(RootNodeType.Normal, {
     e4: {
       e5: {
         Nf3: {
@@ -876,7 +876,7 @@ test("undo moves are not merged if the user moves in-between", () => {
 });
 
 test("undo/redo", () => {
-  const editor = new Editor(buildNode({}));
+  const editor = new Editor(buildNode(RootNodeType.Normal, {}));
 
   expect(editor.view.canUndo).toBeFalsy();
   expect(editor.view.canRedo).toBeFalsy();
@@ -949,7 +949,7 @@ test("undo/redo", () => {
 
 test("noop actions", () => {
   const editor = new Editor(
-    buildNode({
+    buildNode(RootNodeType.Normal, {
       color: "white",
       e4: {
         comment: "Hi",

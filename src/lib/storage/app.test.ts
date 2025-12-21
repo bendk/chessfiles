@@ -6,7 +6,7 @@ import { MockLocalStorage } from "./testutils";
 import type { Activity, LibraryActivity } from "~/lib/activity";
 import { newLibraryActivity, newTrainingActivity } from "~/lib/activity";
 import type { TrainingHistory } from "~/lib/node";
-import { Book, BookType, RootNode } from "~/lib/node";
+import { Book, RootNode, RootNodeType } from "~/lib/node";
 import type { TrainingMeta } from "~/lib/training";
 import { defaultTrainingSettings, Training } from "~/lib/training";
 
@@ -51,9 +51,9 @@ class TestChessfilesStorageLocal extends ChessfilesStorageLocal {
 }
 
 function testBook(name: string): Book {
-  const node = RootNode.fromInitialPosition();
+  const node = RootNode.fromInitialPosition(RootNodeType.Normal);
   node.headers.set("test-name", name);
-  return new Book(BookType.Normal, [node], {
+  return new Book([node], {
     added: 1000,
     lastTrained: 2000,
     trainingCount: 10,
@@ -381,7 +381,7 @@ describe("AppStorage", () => {
     expect((activity[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
 
     // updates
-    book.rootNodes.push(RootNode.fromInitialPosition());
+    book.rootNodes.push(RootNode.fromInitialPosition(RootNodeType.Normal));
     await storage.writeBook("/s2/MyBook.pgn", book);
     await storage.checkFiles("/s2", {
       "MyBook.pgn": book.export(),

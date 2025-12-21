@@ -24,10 +24,9 @@ export enum Priority {
   TrainLast = -1,
 }
 
-export enum BookType {
+export enum RootNodeType {
   Normal = 0,
-  Opening = 1,
-  Training = 2,
+  Training = 1,
 }
 
 export interface TrainingHistory {
@@ -38,9 +37,10 @@ export interface TrainingHistory {
 
 export class Book {
   trainingHistory: TrainingHistory;
+  // JSON string that the training code uses to store the current line for in-progress sessions
+  currentLineData?: string;
 
   constructor(
-    public type: BookType,
     public rootNodes: RootNode[],
     trainingHistory?: TrainingHistory,
   ) {
@@ -49,52 +49,38 @@ export class Book {
 
   static import(pgn: string): Book {
     const trainingHistory = parseTrainingHistory(pgn);
+    const currentLineData = parseCurrentLineData(pgn);
     const games = parsePgn(pgn);
-    let type = BookType.Normal;
-    if (
-      games.length == 1 &&
-      games[0].headers.get("ChessfilesType") == "Opening"
-    ) {
-      type = BookType.Opening;
+    const book = new Book(games.map(RootNode.import), trainingHistory);
+    if (currentLineData !== undefined) {
+      book.currentLineData = currentLineData;
     }
-    return new Book(type, games.map(RootNode.import), trainingHistory);
+    return book;
   }
 
-  export(opts?: ExportOptions): string {
-    opts = opts ?? {
-      trainingHistory: true,
-    };
+  export(): string {
     const games = this.rootNodes.map((node) => node.export());
-    if (this.type == BookType.Opening && games.length == 1) {
-      // Opening book, set ChessfilesType to be "Opening"
-      games[0].headers.set("ChessfilesType", "Opening");
-    } else {
-      // Normal book, unset ChessfilesType if it's set.
-      for (const game of games) {
-        game.headers.delete("ChessfilesType");
-      }
-    }
     const gameData = games.map(pgnToString).join("\n\n");
-    if (opts.trainingHistory) {
-      const trainingHistoryData = exportTrainingHistory(this.trainingHistory);
-      return `${trainingHistoryData}\n${gameData}`;
-    } else {
-      return gameData;
-    }
+
+    return `${exportTrainingHistory(this.trainingHistory)}\n${gameData}`;
+  }
+
+  exportTraining(): string {
+    const games = this.rootNodes.map((node) => node.export());
+    const gameData = games.map(pgnToString).join("\n\n");
+
+    return `${exportCurrentLineData(this.currentLineData)}\n${gameData}`;
   }
 
   /**
    * Get the serialized current line, for a training file book
    */
   getTrainingCurrentLineData(): string | undefined {
-    return this.rootNodes.at(0)?.headers.get("TrainingCurrentLine");
+    return this.currentLineData;
   }
 
   setTrainingCurrentLineData(data: string) {
-    if (this.rootNodes.length == 0) {
-      throw Error("setTrainingCurrentLineData: book contains 0 rootNodes");
-    }
-    return this.rootNodes[0].headers.set("TrainingCurrentLine", data);
+    this.currentLineData = data;
   }
 
   incrementTrainingHistory() {
@@ -103,31 +89,41 @@ export class Book {
   }
 }
 
-export interface ExportOptions {
-  trainingHistory: boolean;
-}
-
 function exportTrainingHistory(history: TrainingHistory): string {
-  return [
-    `%chessfiles-added ${history.added}\n`,
-    `%chessfiles-last-trained ${history.lastTrained}\n`,
-    `%chessfiles-training-count ${history.trainingCount}\n`,
-  ].join("");
+  const json = JSON.stringify(history);
+  return `%chessfiles-training-history ${json}\n`;
 }
 
 function parseTrainingHistory(pgnData: string): TrainingHistory {
-  const re =
-    /%chessfiles-added\s+([^\s]+)\s*\n%chessfiles-last-trained\s+([^\s]+)\s*\n%chessfiles-training-count\s+([^\s]+)\s*\n/;
+  const re = /%chessfiles-training-history\s+([^\n]+)\n/;
   const m = pgnData.match(re);
   if (m !== null) {
-    const added = parseInt(m[1]);
-    const lastTrained = parseInt(m[2]);
-    const trainingCount = parseInt(m[3]);
-    if (!isNaN(added) && !isNaN(lastTrained) && !isNaN(trainingCount)) {
-      return { added, lastTrained, trainingCount };
+    const h = JSON.parse(m[1]);
+    if (
+      typeof h.added == "number" &&
+      typeof h.lastTrained == "number" &&
+      typeof h.trainingCount == "number"
+    ) {
+      return h;
     }
   }
   return newTrainingHistory();
+}
+
+function exportCurrentLineData(currentLineData: string | undefined): string {
+  if (currentLineData === undefined) {
+    return "";
+  }
+  return `%chessfiles-training-current-line ${currentLineData}\n`;
+}
+
+function parseCurrentLineData(pgnData: string): string | undefined {
+  const re = /%chessfiles-training-current-line\s+([^\n]+)\n/;
+  const m = pgnData.match(re);
+  if (m !== null) {
+    return m[1];
+  }
+  return undefined;
 }
 
 export function newTrainingHistory(): TrainingHistory {
@@ -283,6 +279,7 @@ export class RootNode extends Node {
   id: string;
 
   constructor(
+    public type: RootNodeType,
     initialPosition: Chess,
     children: ChildNode[] = [],
     headers?: Map<string, string>,
@@ -296,8 +293,9 @@ export class RootNode extends Node {
     this.id = uuidv4();
   }
 
-  static fromInitialPosition(): RootNode {
+  static fromInitialPosition(type: RootNodeType): RootNode {
     return new RootNode(
+      type,
       Chess.fromSetup(parseFen(INITIAL_FEN).unwrap()).unwrap(),
     );
   }
@@ -363,9 +361,18 @@ export class RootNode extends Node {
     }
   }
 
+  isTraining(): boolean {
+    return this.type == RootNodeType.Training;
+  }
+
   static import(game: PgnGame): RootNode {
+    let type = RootNodeType.Normal;
+    if (game.headers.get("ChessfilesType") == "Opening") {
+      type = RootNodeType.Training;
+    }
     const position = pgnStartingPosition(game);
     return new RootNode(
+      type,
       position,
       game.moves.children.map((childNode) =>
         ChildNode.import(position.clone(), childNode),
@@ -380,11 +387,15 @@ export class RootNode extends Node {
       child.export(this.initialPosition.clone()),
     );
     const headers = new Map([...this.headers]);
+    if (this.type == RootNodeType.Training) {
+      headers.set("ChessfilesType", "Opening");
+    }
     return newPgnGame(headers, children, this.comment);
   }
 
   clone(): RootNode {
     const clone = new RootNode(
+      this.type,
       this.initialPosition.clone(),
       this.children.map((c) => c.clone()),
       new Map(this.headers),

@@ -1,5 +1,6 @@
 import type { Color } from "./chess";
 import { Chess, parseSan, parseFen } from "./chess";
+import type { RootNodeType } from "./node";
 import { ChildNode, RootNode } from "./node";
 
 /**
@@ -8,7 +9,7 @@ import { ChildNode, RootNode } from "./node";
  * @param nodeSpec like a node, except moves are stored inside the `node` object directly rather
  *    than inside the `children` field.
  */
-export function buildNode(nodeSpec: object): RootNode {
+export function buildNode(type: RootNodeType, nodeSpec: object): RootNode {
   let chess;
   if ("position" in nodeSpec) {
     chess = Chess.fromSetup(
@@ -37,7 +38,7 @@ export function buildNode(nodeSpec: object): RootNode {
   const children = Object.entries(nodeSpec).map(([key, value]) =>
     buildChildNode(chess.clone(), key, value),
   );
-  const node = new RootNode(chess, children);
+  const node = new RootNode(type, chess, children);
   if (initialMoves.length > 0) {
     node.initialMoves = initialMoves;
   }
