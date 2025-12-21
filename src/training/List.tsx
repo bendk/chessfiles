@@ -307,7 +307,7 @@ export function TrainingList(props: TrainingListProps) {
               <Show when={trainingListing()?.activity}>
                 <h3 class="text-2xl text-left text-fg-2 pb-4">Activity</h3>
                 <Table
-                  each={trainingListing()?.activity ?? []}
+                  each={trainingListing()?.activity?.slice(0, 20) ?? []}
                   columns={4}
                   headers={[
                     "Name",

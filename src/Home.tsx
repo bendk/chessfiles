@@ -175,7 +175,7 @@ export function Home(props: HomeProps) {
               when={activityListing()}
               fallback={<Loader class="animate-spin duration-1000" size={32} />}
             >
-              <Table each={activityListing() ?? []} columns={2}>
+              <Table each={activityListing()?.slice(0, 20) ?? []} columns={2}>
                 {(item) => (
                   <>
                     <TableCell grow item={item}>
