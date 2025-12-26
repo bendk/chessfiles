@@ -1,10 +1,12 @@
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import type { Book } from "~/lib/node";
 import { RootNode, RootNodeType } from "~/lib/node";
+import type { AppStorage } from "~/lib/storage";
 import { Editor } from "../editor";
 import type { MenuItem, StatusTracker } from "../components";
 import {
   Button,
+  ChooserDialog,
   Dialog,
   Table,
   TableCell,
@@ -14,21 +16,33 @@ import {
 
 export interface BookEditorProps {
   book: Book;
+  storage: AppStorage;
   filename: string;
-  onSave: () => Promise<boolean>;
   onExit: () => void;
   status: StatusTracker;
 }
 
+type DialogInfo =
+  | {
+      type: "confirm-delete";
+      rootNode: RootNode;
+    }
+  | {
+      type: "move";
+      rootNode: RootNode;
+    }
+  | {
+      type: "copy";
+      rootNode: RootNode;
+    };
+
 export function BookEditor(props: BookEditorProps) {
   const [reorderCounter, setReorderCounter] = createSignal(0);
+  const [dialogInfo, setDialogInfo] = createSignal<DialogInfo | null>(null);
+
   const [currentRootNode, setCurrentRootNode] = createSignal<RootNode | null>(
     null,
   );
-  const [confirmDeleteData, setConfirmDeleteData] = createSignal<
-    [RootNode, number] | null
-  >(null);
-
   function rootNodes() {
     // load the reorder counter so that this refreshes when it's incremented
     reorderCounter();
@@ -51,8 +65,12 @@ export function BookEditor(props: BookEditorProps) {
         text: "Open",
       },
       {
-        value: "reorder",
-        text: "Reorder",
+        value: "copy",
+        text: "Copy to other book",
+      },
+      {
+        value: "move",
+        text: "Move to other book",
       },
       {
         value: "delete",
@@ -65,8 +83,11 @@ export function BookEditor(props: BookEditorProps) {
     if (action == "open") {
       setCurrentRootNode(rootNode.clone());
     } else if (action == "delete") {
-      const index = findRootNodeIndex(rootNode.id);
-      setConfirmDeleteData([rootNode, index]);
+      setDialogInfo({ type: "confirm-delete", rootNode });
+    } else if (action == "move") {
+      setDialogInfo({ type: "move", rootNode });
+    } else if (action == "copy") {
+      setDialogInfo({ type: "copy", rootNode });
     }
   }
 
@@ -81,7 +102,7 @@ export function BookEditor(props: BookEditorProps) {
   function onDeleteGame(rootNode: RootNode) {
     const index = findRootNodeIndex(rootNode.id);
     props.book.rootNodes.splice(index, 1);
-    setConfirmDeleteData(null);
+    setDialogInfo(null);
   }
 
   async function onReorder(id: string, insertAfter: string) {
@@ -92,8 +113,36 @@ export function BookEditor(props: BookEditorProps) {
       0,
       ...props.book.rootNodes.splice(index, 1),
     );
-    await props.onSave();
+    await props.status.perform("saving book", async () => {
+      await props.storage.writeBook(props.filename, props.book);
+    });
     setReorderCounter(reorderCounter() + 1);
+  }
+
+  async function onMoveGame(rootNode: RootNode, path: string) {
+    const otherBook = await props.storage.readBook(path);
+    otherBook.rootNodes.push(rootNode);
+
+    const index = findRootNodeIndex(rootNode.id);
+    props.book.rootNodes.splice(index, 1);
+
+    await props.status.perform("saving", async () => {
+      await props.storage.writeBook(path, otherBook);
+      await props.storage.writeBook(props.filename, props.book);
+    });
+
+    setDialogInfo(null);
+  }
+
+  async function onCopyGame(rootNode: RootNode, path: string) {
+    const otherBook = await props.storage.readBook(path);
+    otherBook.rootNodes.push(rootNode);
+
+    await props.status.perform("saving", async () => {
+      await props.storage.writeBook(path, otherBook);
+    });
+
+    setDialogInfo(null);
   }
 
   async function onEditorSave(): Promise<boolean> {
@@ -107,31 +156,66 @@ export function BookEditor(props: BookEditorProps) {
     } else {
       props.book.rootNodes.push(current.clone());
     }
-    return props.onSave();
+    let success = false;
+    await props.status.perform("saving book", async () => {
+      await props.storage.writeBook(props.filename, props.book);
+      success = true;
+    });
+    return success;
   }
 
   function onEditorExit() {
     setCurrentRootNode(null);
   }
 
+  const dialog = createMemo(() => {
+    const info = dialogInfo();
+    if (info === null) {
+      return null;
+    } else if (info.type == "confirm-delete") {
+      const index = findRootNodeIndex(info.rootNode.id);
+      return (
+        <Dialog
+          onSubmit={() => onDeleteGame(info.rootNode)}
+          onClose={() => setDialogInfo(null)}
+          title="Confirm delete"
+          submitText="Delete"
+          closeText="Cancel"
+        >
+          <div>
+            Are you sure you want to delete {info.rootNode.displayName(index)} ?
+          </div>
+        </Dialog>
+      );
+    } else if (info.type == "move") {
+      return (
+        <ChooserDialog
+          title="Move game to other book"
+          storage={props.storage.clone()}
+          onSelect={async (path) => onMoveGame(info.rootNode, path)}
+          onClose={() => {
+            setDialogInfo(null);
+          }}
+        />
+      );
+    } else if (info.type == "copy") {
+      return (
+        <ChooserDialog
+          title="Copy game to other book"
+          storage={props.storage.clone()}
+          onSelect={async (path) => onCopyGame(info.rootNode, path)}
+          onClose={() => {
+            setDialogInfo(null);
+          }}
+        />
+      );
+    }
+  });
+
   return (
     <Switch>
-      <Match when={confirmDeleteData()} keyed>
-        {([rootNode, index]) => {
-          return (
-            <Dialog
-              onSubmit={() => onDeleteGame(rootNode)}
-              onClose={() => setConfirmDeleteData(null)}
-              title="Confirm delete"
-              submitText="Delete"
-              closeText="Cancel"
-            >
-              <div>
-                Are you sure you want to delete {rootNode.displayName(index)} ?
-              </div>
-            </Dialog>
-          );
-        }}
+      <Match when={dialog()} keyed>
+        {(dialog) => dialog}
       </Match>
       <Match when={currentRootNode()} keyed>
         {(rootNode) => (

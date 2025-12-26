@@ -84,22 +84,9 @@ export function Library(props: LibraryProps) {
     return true;
   }
 
-  async function onSaveBook(): Promise<boolean> {
-    const book = currentBook();
-    if (!book) {
-      return false;
-    }
-    let success = false;
-    await props.status.perform("saving book", async () => {
-      await props.storage.writeBook(book.filename, book.book);
-      props.storage.refetchFiles();
-      success = true;
-    });
-    return success;
-  }
-
   async function onExitBook() {
     setCurrentBook(undefined);
+    props.storage.refetchFiles();
   }
 
   function toggleSelected(entry: DirEntry) {
@@ -384,8 +371,8 @@ export function Library(props: LibraryProps) {
           {(currentBook) => (
             <BookEditor
               filename={currentBook.filename}
+              storage={props.storage.clone()}
               book={currentBook.book}
-              onSave={onSaveBook}
               onExit={onExitBook}
               status={props.status}
             />
