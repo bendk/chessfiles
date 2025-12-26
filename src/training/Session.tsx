@@ -7,7 +7,7 @@ import type { AppStorage } from "~/lib/storage";
 import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
 import type { StatusTracker } from "~/components";
-import { Button, MenuButton, StatusError } from "~/components";
+import { menuItem, Button, MenuButton, StatusError } from "~/components";
 
 export interface TrainingSessionProps {
   storage: AppStorage;
@@ -98,21 +98,9 @@ export function TrainingSession(props: TrainingSessionProps) {
     }
 
     const items = [
-      {
-        text: "Correct",
-        value: "correct",
-        selected: s.score == "correct",
-      },
-      {
-        text: "Incorrect",
-        value: "incorrect",
-        selected: s.score == "incorrect",
-      },
-      {
-        text: "Skip",
-        value: "skip",
-        selected: s.score === null,
-      },
+      menuItem("correct", "Correct", { selected: s.score == "correct" }),
+      menuItem("incorrect", "Incorrect", { selected: s.score == "incorrect" }),
+      menuItem("skip", "Skip", { selected: s.score == null }),
     ];
 
     return (

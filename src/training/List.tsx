@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import type { AppControls, MenuItem, StatusTracker } from "~/components";
 import {
+  menuItem,
   Button,
   Checkbox,
   ChooserDialog,
@@ -63,19 +64,11 @@ export function TrainingList(props: TrainingListProps) {
 
   function menu(meta: TrainingMeta): MenuItem[] {
     return [
-      {
-        value: "open",
-        text: "Open",
+      menuItem("open", "Open", {
         disabled: meta.linesTrained >= meta.totalLines,
-      },
-      {
-        value: "restart",
-        text: "Restart",
-      },
-      {
-        value: "delete",
-        text: "Delete",
-      },
+      }),
+      menuItem("restart", "Restart"),
+      menuItem("delete", "Delete"),
     ];
   }
 

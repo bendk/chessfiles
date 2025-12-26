@@ -1,22 +1,28 @@
 import Book from "lucide-solid/icons/book";
-import { createMemo } from "solid-js";
+import type { JSXElement } from "solid-js";
+import { createSignal } from "solid-js";
 import { makeSanAndPlay, nagText } from "~/lib/chess";
 import type { Chess, Move } from "~/lib/chess";
 import { Priority } from "~/lib/node";
 import type { Node as ChessNode, RootNode } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
+import type { ReorderMoves, ReorderMenuItems } from "./Editor";
+import type { MenuContext } from "~/components";
+import { contextMenuEventHandlers, Menu } from "~/components";
 
 /**
- * Render a node into an array of HTML elements
+ * Render a node into an array of JSX elements
  *
- * This isn't a Solid component because we're potentially rendering a ton of deeply nested nodes.
- * To keep things fast we avoid creating any tracking scopes.
+ * This is a bit hacky because a) it's written for performance and b) it needs some refactoring.
  */
 function renderNode(
   node: RootNode,
   view: EditorView,
   setMoves: (moves: readonly Move[]) => void,
-): Node[] {
+  menu: MenuContext,
+  setReorderMoves: (move: readonly Move[]) => void,
+  reorderMenuItems: ReorderMenuItems,
+): JSXElement[] {
   const output: Node[] = [];
   const whiteToMove = node.initialPosition.turn == "white";
   const context: RenderNodeContext = {
@@ -29,7 +35,10 @@ function renderNode(
     whiteToMove,
     moves: [],
     setMoves,
-    // Note: this won't be used for
+    menu,
+    setReorderMoves,
+    reorderMenuItems,
+    // Note: placeholder value, this won't be used.
     moveLink: document.createElement("div"),
   };
 
@@ -37,7 +46,7 @@ function renderNode(
   return output;
 }
 
-function renderNodeInner(context: RenderNodeContext, output: Node[]) {
+function renderNodeInner(context: RenderNodeContext, output: JSXElement[]) {
   // Render first move link
   if (context.node.children.length == 0) {
     return;
@@ -73,13 +82,16 @@ interface RenderNodeContext {
   node: ChessNode;
   nodesInLine: Set<ChessNode>;
   selectedNode: ChessNode | undefined;
-  moveLink: Node;
+  moveLink: JSXElement;
   position: Chess;
   ply: number;
   renderNextMoveNum: boolean;
   whiteToMove: boolean;
   moves: Move[];
   setMoves: (moves: readonly Move[]) => void;
+  menu: MenuContext;
+  setReorderMoves: (move: readonly Move[]) => void;
+  reorderMenuItems: ReorderMenuItems;
 }
 
 function childContext(
@@ -111,18 +123,30 @@ function childContext(
   const willDisplayAfterAlternatives =
     index == 0 && context.node.children.length > 1;
 
-  const moveLink = document.createElement("a");
-  moveLink.text = `${moveNum}${moveSan}${priorityString}${nagTextString}${commentString}`;
-  moveLink.href = "#";
-  if (context.nodesInLine.has(childNode)) {
-    moveLink.classList.add("text-highlight-1");
-    if (childNode === context.selectedNode) {
-      moveLink.classList.add("underline");
-    }
-  } else {
-    moveLink.classList.add("text-fg-2");
-  }
-  moveLink.addEventListener("click", () => context.setMoves(moves));
+  const eventHandlers = contextMenuEventHandlers(context.menu, () => {
+    context.setReorderMoves(moves);
+    return context.reorderMenuItems(moves);
+  });
+  const moveLink = (
+    <a
+      href="#"
+      classList={{
+        "text-highlight-1": context.nodesInLine.has(childNode),
+        "text-fg-2w": !context.nodesInLine.has(childNode),
+        underline:
+          context.nodesInLine.has(childNode) &&
+          childNode === context.selectedNode,
+      }}
+      {...eventHandlers}
+      onClick={() => context.setMoves(moves)}
+    >
+      {moveNum}
+      {moveSan}
+      {priorityString}
+      {nagTextString}
+      {commentString}
+    </a>
+  );
 
   return {
     ...context,
@@ -139,25 +163,45 @@ function childContext(
 export interface MoveListProps {
   rootNode: RootNode;
   view: EditorView;
+  reorderMenuItems: ReorderMenuItems;
+  onReorder: ReorderMoves;
   setMoves: (moves: readonly Move[]) => void;
 }
 
 export function MoveList(props: MoveListProps) {
-  const renderedNodes = createMemo(() => {
-    return renderNode(props.rootNode, props.view, props.setMoves);
-  });
+  const [reorderMoves, setReorderMoves] = createSignal<readonly Move[]>([]);
 
   return (
-    <div>
-      <div class="text-lg/[25px]">
-        <button
-          class="cursor-pointer translate-y-1 mr-2"
-          onClick={() => props.setMoves([])}
-        >
-          <Book size={20} />
-        </button>
-        {renderedNodes()}
-      </div>
-    </div>
+    <Menu
+      onSelect={(op) => {
+        const moves = reorderMoves();
+        if (moves.length == 0) {
+          console.error("MoveTree.onSelect: reorderMoves is empty");
+          return;
+        }
+        setReorderMoves([]);
+        props.onReorder(moves, op);
+      }}
+      placement="top"
+    >
+      {(menu) => (
+        <div class="text-lg/[25px]">
+          <button
+            class="cursor-pointer translate-y-1 mr-2"
+            onClick={() => props.setMoves([])}
+          >
+            <Book size={20} />
+          </button>
+          {renderNode(
+            props.rootNode,
+            props.view,
+            props.setMoves,
+            menu,
+            setReorderMoves,
+            props.reorderMenuItems,
+          )}
+        </div>
+      )}
+    </Menu>
   );
 }

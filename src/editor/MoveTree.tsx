@@ -2,17 +2,23 @@ import ArrowUp from "lucide-solid/icons/arrow-up";
 import ArrowDown from "lucide-solid/icons/arrow-down";
 import Book from "lucide-solid/icons/book";
 import SquareMore from "lucide-solid/icons/message-square-more";
-import { Index } from "solid-js";
+import { createSignal, Index } from "solid-js";
 import { moveEquals } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
 import { Priority } from "~/lib/node";
 import type { EditorView, EditorNode } from "~/lib/editor";
+import type { MenuContext } from "~/components";
+import { MenuContextTrigger, Menu } from "~/components";
+import type { ReorderMoves, ReorderMenuItems } from "./Editor";
 
 interface NodeProps {
   index: number;
   ply: number;
   plyIsCurrent: boolean;
   editorNode: EditorNode;
+  menu: MenuContext;
+  reorderMenuItems: ReorderMenuItems;
+  setReorderMoves: (move: readonly Move[]) => void;
   setMoves: (moves: readonly Move[]) => void;
 }
 
@@ -38,23 +44,31 @@ function Node(props: NodeProps) {
               return "text-highlight-1";
             }
           };
+          const allMoves = [...props.editorNode.movesToParent, move.move];
           return (
-            <button
-              class={`flex items-center gap-0.5 px-1 text-nowrap cursor-pointer ${textColor()}`}
-              onClick={() =>
-                props.setMoves([...props.editorNode.movesToParent, move.move])
-              }
+            <MenuContextTrigger
+              menu={props.menu}
+              generateMenu={() => {
+                props.setReorderMoves(allMoves);
+                return props.reorderMenuItems(allMoves);
+              }}
             >
-              {moveNum}
-              {move.san}
-              {move.priority == Priority.TrainFirst ? (
-                <ArrowUp size={14} />
-              ) : null}
-              {move.priority == Priority.TrainLast ? (
-                <ArrowDown size={14} />
-              ) : null}
-              {move.nagText} {move.hasComment ? <SquareMore size={14} /> : null}
-            </button>
+              <button
+                class={`flex items-center gap-0.5 px-1 text-nowrap cursor-pointer ${textColor()}`}
+                onClick={() => props.setMoves(allMoves)}
+              >
+                {moveNum}
+                {move.san}
+                {move.priority == Priority.TrainFirst ? (
+                  <ArrowUp size={14} />
+                ) : null}
+                {move.priority == Priority.TrainLast ? (
+                  <ArrowDown size={14} />
+                ) : null}
+                {move.nagText}{" "}
+                {move.hasComment ? <SquareMore size={14} /> : null}
+              </button>
+            </MenuContextTrigger>
           );
         })
       }
@@ -65,30 +79,50 @@ function Node(props: NodeProps) {
 export interface MoveTreeProps {
   view: EditorView;
   setMoves: (moves: readonly Move[]) => void;
+  reorderMenuItems: ReorderMenuItems;
+  onReorder: ReorderMoves;
 }
 
 export function MoveTree(props: MoveTreeProps) {
+  const [reorderMoves, setReorderMoves] = createSignal<readonly Move[]>([]);
+
   return (
-    <div>
-      <div class="flex text-lg/[25px] items-start">
-        <button
-          class="cursor-pointer translate-y-1"
-          onClick={() => props.setMoves([])}
-        >
-          <Book size={20} />
-        </button>
-        <Index each={props.view.line}>
-          {(node, index) => (
-            <Node
-              index={index}
-              ply={props.view.initialPly + index}
-              plyIsCurrent={props.view.ply - 1 == index}
-              editorNode={node()}
-              setMoves={props.setMoves}
-            />
-          )}
-        </Index>
-      </div>
-    </div>
+    <Menu
+      onSelect={(op) => {
+        const moves = reorderMoves();
+        if (moves.length == 0) {
+          console.error("MoveTree.onSelect: reorderMoves is empty");
+          return;
+        }
+        setReorderMoves([]);
+        props.onReorder(moves, op);
+      }}
+      placement="top"
+    >
+      {(menu) => (
+        <div class="flex text-lg/[25px] items-start">
+          <button
+            class="cursor-pointer translate-y-1"
+            onClick={() => props.setMoves([])}
+          >
+            <Book size={20} />
+          </button>
+          <Index each={props.view.line}>
+            {(node, index) => (
+              <Node
+                menu={menu}
+                index={index}
+                ply={props.view.initialPly + index}
+                plyIsCurrent={props.view.ply - 1 == index}
+                editorNode={node()}
+                setMoves={props.setMoves}
+                setReorderMoves={setReorderMoves}
+                reorderMenuItems={props.reorderMenuItems}
+              />
+            )}
+          </Index>
+        </div>
+      )}
+    </Menu>
   );
 }

@@ -5,6 +5,7 @@ import type { AppStorage } from "~/lib/storage";
 import { Editor } from "../editor";
 import type { MenuItem, StatusTracker } from "../components";
 import {
+  menuItem,
   Button,
   ChooserDialog,
   Dialog,
@@ -60,22 +61,10 @@ export function BookEditor(props: BookEditorProps) {
 
   function menu(): MenuItem[] {
     return [
-      {
-        value: "open",
-        text: "Open",
-      },
-      {
-        value: "copy",
-        text: "Copy to other book",
-      },
-      {
-        value: "move",
-        text: "Move to other book",
-      },
-      {
-        value: "delete",
-        text: "Delete",
-      },
+      menuItem("open", "Open"),
+      menuItem("copy", "Copy to other book"),
+      menuItem("move", "Move to other book"),
+      menuItem("delete", "Delete"),
     ];
   }
 

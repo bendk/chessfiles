@@ -1,10 +1,16 @@
-import type { MenuItem } from "../Menu";
 import type { DirEntry, AppStorage } from "~/lib/storage";
 import BookIcon from "lucide-solid/icons/book";
 import Database from "lucide-solid/icons/database";
 import FolderIcon from "lucide-solid/icons/folder";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
-import { Checkbox, Table, TableCell, TableMenuCell } from "~/components";
+import type { MenuItem } from "~/components";
+import {
+  menuItem,
+  Checkbox,
+  Table,
+  TableCell,
+  TableMenuCell,
+} from "~/components";
 import { Match, Show, Switch } from "solid-js";
 
 export interface BooksListProps {
@@ -19,42 +25,15 @@ export interface BooksListProps {
 export function BooksList(props: BooksListProps) {
   function menu(value: DirEntry): MenuItem[] {
     if (value.type == "engine") {
-      return [
-        {
-          value: "open",
-          text: "Open",
-        },
-        {
-          value: "move-engine",
-          text: "Move all files",
-        },
-      ];
+      return [menuItem("open", "Open")];
     } else {
       return [
-        {
-          value: "open",
-          text: "Open",
-        },
-        {
-          value: "rename",
-          text: "Rename",
-        },
-        {
-          value: "duplicate",
-          text: "Duplicate",
-        },
-        {
-          value: "copy",
-          text: "Copy",
-        },
-        {
-          value: "move",
-          text: "Move",
-        },
-        {
-          value: "delete",
-          text: "Delete",
-        },
+        menuItem("open", "Open"),
+        menuItem("rename", "Rename"),
+        menuItem("duplicate", "Duplicate"),
+        menuItem("copy", "Copy"),
+        menuItem("move", "Move"),
+        menuItem("delete", "Delete"),
       ];
     }
   }

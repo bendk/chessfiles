@@ -12,7 +12,7 @@ import {
   Engine as EngineBackend,
 } from "~/lib/engine";
 import type { MenuItem } from "~/components";
-import { MenuButton, ToggleSwitch } from "~/components";
+import { menuHeader, menuItem, MenuButton, ToggleSwitch } from "~/components";
 
 interface Line {
   score: string;
@@ -93,26 +93,20 @@ export function Engine(props: EngineProps) {
 
   function depthMenuItems(): MenuItem[] {
     const s = settings();
-    const items: MenuItem[] = [
-      {
-        text: "Max depth",
-        value: "",
-        disabled: true,
-      },
-    ];
+    const items: MenuItem[] = [menuHeader("Max depth")];
     for (let i = 16; i <= 30; i++) {
-      items.push({
-        value: i.toString(),
-        text: i.toString(),
-        selected: s.maxDepth == i,
-      });
+      items.push(
+        menuItem(i.toString(), i.toString(), {
+          selected: s.maxDepth == i,
+        }),
+      );
     }
 
-    items.push({
-      value: "infinite",
-      text: "Unlimited",
-      selected: s.maxDepth === null,
-    });
+    items.push(
+      menuItem("infinite", "Unlimited", {
+        selected: s.maxDepth === null,
+      }),
+    );
 
     return items;
   }
@@ -129,19 +123,13 @@ export function Engine(props: EngineProps) {
   }
 
   function searchLinesItems(): MenuItem[] {
-    const items: MenuItem[] = [
-      {
-        text: "Lines to display",
-        value: "",
-        disabled: true,
-      },
-    ];
+    const items: MenuItem[] = [menuHeader("Lines to display")];
     for (let i = 1; i <= 5; i++) {
-      items.push({
-        text: i.toString(),
-        value: i.toString(),
-        selected: settings().lines == i,
-      });
+      items.push(
+        menuItem(i.toString(), i.toString(), {
+          selected: settings().lines == i,
+        }),
+      );
     }
     return items;
   }

@@ -27,7 +27,7 @@ import {
   lookupTablebasePosition,
 } from "~/lib/tablebase";
 import type { MenuItem } from "~/components";
-import { MenuButton, ToggleSwitch } from "~/components";
+import { menuItem, MenuButton, ToggleSwitch } from "~/components";
 
 export interface BookProps {
   position: Chess;
@@ -64,11 +64,11 @@ export function OpeningBook(props: BookProps) {
 
   function openingBookKindMenuItems(): MenuItem[] {
     const s = settings();
-    return ALL_OPENING_BOOK_KINDS.map((kind) => ({
-      text: openingBookLabel(kind),
-      value: kind,
-      selected: s.kind == kind,
-    }));
+    return ALL_OPENING_BOOK_KINDS.map((kind) =>
+      menuItem(kind, openingBookLabel(kind), {
+        selected: s.kind == kind,
+      }),
+    );
   }
 
   function updateOpeningBookKind(value: string) {

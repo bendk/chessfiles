@@ -6,11 +6,12 @@ import type { DateValue } from "@ark-ui/solid";
 import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
 import type { RootNode } from "~/lib/node";
-import { RootNodeType, Priority } from "~/lib/node";
+import { RootNodeType } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
-import { createSignal, Index, Match, Switch } from "solid-js";
+import { createMemo, createSignal, Index, Match, Switch } from "solid-js";
 import { Portal } from "solid-js/web";
-import { Button, MenuButton, RadioGroup } from "~/components";
+import { menuItem, Button, MenuButton, RadioGroup } from "~/components";
+import type { ReorderMenuItems, ReorderMoves } from "./Editor";
 
 export interface CurrentNodeControlsProps {
   isRoot: boolean;
@@ -21,17 +22,17 @@ export interface CurrentNodeControlsProps {
   setDraftComment: (comment: string) => void;
   commitDraftComment: () => void;
   toggleNag: (nag: Nag) => void;
-  setPriority: (priority: Priority) => void;
+  reorderMenuItems: ReorderMenuItems;
+  onReorder: ReorderMoves;
   onSetInitialPosition: () => void;
 }
 
 export function CurrentNodeControls(props: CurrentNodeControlsProps) {
-  const item = (nag: Nag, cssClass?: string) => ({
-    text: nagText(nag),
-    value: nag.toString(),
-    selected: props.view.currentNode.nags.indexOf(nag) != -1,
-    cssClass,
-  });
+  const item = (nag: Nag, cssClass?: string) =>
+    menuItem(nag.toString(), nagText(nag), {
+      selected: props.view.currentNode.nags.indexOf(nag) != -1,
+      cssClass,
+    });
 
   function setTrainingColor(color: string | null) {
     if (color == "white" || color == "black") {
@@ -41,6 +42,31 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
     }
     props.setView(props.editor.view);
   }
+
+  const reorderButton = createMemo(() => {
+    const currentNode = props.view.currentNode;
+    if (currentNode.move === null) {
+      return null;
+    }
+    return (
+      <MenuButton
+        placement="bottom-end"
+        style="flat"
+        icon=<ArrowUpDown />
+        items={props.reorderMenuItems([
+          ...currentNode.movesToParent,
+          currentNode.move,
+        ])}
+        onSelect={(op) => {
+          if (currentNode.move === null) {
+            console.error("currentNode.move is null");
+            return;
+          }
+          props.onReorder([...currentNode.movesToParent, currentNode.move], op);
+        }}
+      />
+    );
+  });
 
   return (
     <Switch>
@@ -146,59 +172,30 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
             rows="3"
           ></textarea>
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <MenuButton
-                placement="top-end"
-                style="nags"
-                icon=<Tags />
-                items={[
-                  item(Nag.BrilliantMove, "row-start-2"),
-                  item(Nag.GoodMove),
-                  item(Nag.InterestingMove),
-                  item(Nag.DubiousMove),
-                  item(Nag.PoorMove),
-                  item(Nag.BlunderMove),
+            <MenuButton
+              placement="bottom-start"
+              style="nags"
+              icon=<Tags />
+              items={[
+                item(Nag.BrilliantMove, "row-start-2"),
+                item(Nag.GoodMove),
+                item(Nag.InterestingMove),
+                item(Nag.DubiousMove),
+                item(Nag.PoorMove),
+                item(Nag.BlunderMove),
 
-                  item(Nag.PlusOverMinusPosition, "row-start-1"),
-                  item(Nag.PlusMinusPosition),
-                  item(Nag.PlusEqualsPosition),
-                  item(Nag.EqualPosition),
-                  item(Nag.UnclearPosition),
-                  item(Nag.EqualsPlusPosition),
-                  item(Nag.MinusPlusPosition),
-                  item(Nag.MinusOverPlusPosition),
-                ]}
-                onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
-              />
-              <MenuButton
-                placement="top-end"
-                style="flat"
-                icon=<ArrowUpDown />
-                items={[
-                  {
-                    text: "Priority: First",
-                    value: Priority.TrainFirst.toString(),
-                    selected:
-                      props.view.currentNode.priority == Priority.TrainFirst,
-                  },
-                  {
-                    text: "Priority: Default",
-                    value: Priority.Default.toString(),
-                    selected:
-                      props.view.currentNode.priority == Priority.Default,
-                  },
-                  {
-                    text: "Priority: Last",
-                    value: Priority.TrainLast.toString(),
-                    selected:
-                      props.view.currentNode.priority == Priority.TrainLast,
-                  },
-                ]}
-                onSelect={(priority) =>
-                  props.setPriority(Number.parseInt(priority))
-                }
-              />
-            </div>
+                item(Nag.PlusOverMinusPosition, "row-start-1"),
+                item(Nag.PlusMinusPosition),
+                item(Nag.PlusEqualsPosition),
+                item(Nag.EqualPosition),
+                item(Nag.UnclearPosition),
+                item(Nag.EqualsPlusPosition),
+                item(Nag.MinusPlusPosition),
+                item(Nag.MinusOverPlusPosition),
+              ]}
+              onSelect={(nag) => props.toggleNag(Number.parseInt(nag))}
+            />
+            {reorderButton()}
           </div>
         </div>
       </Match>
@@ -259,11 +256,11 @@ function ResultField(props: ResultFieldProps) {
           textSize="text-md"
           placement="top-start"
           text={props.view.headers.get("Result")}
-          items={possibleValues.map((value) => ({
-            text: value,
-            value,
-            selected: props.view.headers.get("Result") == value,
-          }))}
+          items={possibleValues.map((value) =>
+            menuItem(value, value, {
+              selected: props.view.headers.get("Result") == value,
+            }),
+          )}
           onSelect={setValue}
         />
       </div>

@@ -5,8 +5,9 @@ import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
 import Undo from "lucide-solid/icons/undo";
 import { SegmentGroup } from "@ark-ui/solid";
+import { moveEquals } from "~/lib/chess";
 import type { Move, Nag, Shape } from "~/lib/chess";
-import type { Priority, RootNode } from "~/lib/node";
+import type { RootNode } from "~/lib/node";
 import { RootNodeType } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
 import { Editor as EditorBackend } from "~/lib/editor";
@@ -18,7 +19,8 @@ import {
   Show,
   Switch,
 } from "solid-js";
-import { Button, Dialog } from "~/components";
+import type { MenuItem } from "~/components";
+import { menuItem, Button, Dialog } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
 import { Board } from "./Board";
@@ -26,6 +28,10 @@ import { Book } from "./Book";
 import { Engine } from "./Engine";
 import { MoveList } from "./MoveList";
 import { MoveTree } from "./MoveTree";
+
+export type ReorderMenuItems = (moves: readonly Move[]) => MenuItem[];
+export type ReorderMoves = (moves: readonly Move[], op: string) => void;
+export type ReorderOp = "main" | "up" | "down";
 
 interface EditorProps {
   rootNode: RootNode;
@@ -89,11 +95,6 @@ export function Editor(props: EditorProps) {
     setView(editor.view);
   }
 
-  function setPriority(priority: Priority) {
-    editor.setPriority(priority);
-    setView(editor.view);
-  }
-
   function undo() {
     editor.undo();
     setView(editor.view);
@@ -101,6 +102,70 @@ export function Editor(props: EditorProps) {
 
   function redo() {
     editor.redo();
+    setView(editor.view);
+  }
+
+  function reorderMenuItems(moves: readonly Move[]) {
+    const move = moves.at(-1);
+    if (move === undefined) {
+      console.error("reorderMenuItems: move list empty");
+      return [];
+    }
+    const movesToParent = moves.slice(0, -1);
+    const node =
+      movesToParent.length > 0
+        ? props.rootNode.getDescendant(movesToParent)
+        : props.rootNode;
+    if (node === undefined) {
+      console.error("reorderMenuItems: node lookup failed", movesToParent);
+      return [];
+    }
+    const parentMoves = node.children.map((n) => n.move);
+    const index = parentMoves.findIndex((m) => moveEquals(m, move));
+    const items = [];
+    if (index > 0) {
+      items.push(menuItem("main", "Make main line"));
+    }
+    if (index > 1) {
+      items.push(menuItem("up", "Move variation up"));
+    }
+    if (index < parentMoves.length - 1) {
+      items.push(menuItem("down", "Move variation down"));
+    }
+    return items;
+  }
+
+  function onReorder(moves: readonly Move[], op: string) {
+    const move = moves.at(-1);
+    if (move === undefined) {
+      console.error("reorderMenuItems: move list empty");
+      return [];
+    }
+    const movesToParent = moves.slice(0, -1);
+    const node =
+      movesToParent.length > 0
+        ? props.rootNode.getDescendant(movesToParent)
+        : props.rootNode;
+    if (node === undefined) {
+      console.error("onReorder: node lookup failed", movesToParent);
+      return;
+    }
+    const parentMoves = node.children.map((n) => n.move);
+    const index = parentMoves.findIndex((m) => moveEquals(m, move));
+    const newMoves = [...parentMoves];
+    newMoves.splice(index, 1);
+
+    if (op == "main") {
+      newMoves.splice(0, 0, move);
+    } else if (op == "up") {
+      newMoves.splice(index - 1, 0, move);
+    } else if (op == "down") {
+      newMoves.splice(index + 1, 0, move);
+    } else {
+      console.error("Invalid reorder op: ", op);
+    }
+    editor.setMoves([...movesToParent, move]);
+    editor.reorderMoves(newMoves);
     setView(editor.view);
   }
 
@@ -194,7 +259,8 @@ export function Editor(props: EditorProps) {
                   setDraftComment={setDraftComment}
                   commitDraftComment={commitDraftComment}
                   toggleNag={toggleNag}
-                  setPriority={setPriority}
+                  reorderMenuItems={reorderMenuItems}
+                  onReorder={onReorder}
                   onSetInitialPosition={() => setMode("set-initial-position")}
                 />
               </div>
@@ -227,6 +293,8 @@ export function Editor(props: EditorProps) {
                 rootNode={props.rootNode}
                 view={view()}
                 setMoves={setMoves}
+                reorderMenuItems={reorderMenuItems}
+                onReorder={onReorder}
               />
             </div>
           </div>
@@ -312,6 +380,8 @@ interface MoveViewProps {
   rootNode: RootNode;
   view: EditorView;
   setMoves: (moves: readonly Move[]) => void;
+  reorderMenuItems: ReorderMenuItems;
+  onReorder: ReorderMoves;
 }
 
 function MoveView(props: MoveViewProps) {
@@ -351,10 +421,17 @@ function MoveView(props: MoveViewProps) {
               rootNode={props.rootNode}
               view={props.view}
               setMoves={props.setMoves}
+              reorderMenuItems={props.reorderMenuItems}
+              onReorder={props.onReorder}
             />
           </Match>
           <Match when={moveView() == "tree"}>
-            <MoveTree view={props.view} setMoves={props.setMoves} />
+            <MoveTree
+              view={props.view}
+              setMoves={props.setMoves}
+              reorderMenuItems={props.reorderMenuItems}
+              onReorder={props.onReorder}
+            />
           </Match>
         </Switch>
       </div>

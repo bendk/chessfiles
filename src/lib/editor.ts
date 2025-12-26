@@ -51,6 +51,8 @@ export interface EditorMove {
 
 export interface EditorCurrentNode {
   readonly node: Node;
+  readonly movesToParent: readonly Move[];
+  readonly move: Move | null;
   readonly comment: string;
   readonly nags: readonly Nag[];
   readonly shapes: readonly Shape[];
@@ -83,7 +85,7 @@ export class Editor {
 
   private calcView(): EditorView {
     const editorNode = this.currentLine.editorNode();
-    let currentNode;
+    let currentNode: EditorCurrentNode;
     let lastMove;
     if (editorNode !== undefined) {
       currentNode = {
@@ -92,6 +94,8 @@ export class Editor {
         nags: editorNode.node.nags ?? [],
         shapes: editorNode.node.shapes ?? [],
         priority: editorNode.node.priority,
+        movesToParent: editorNode.movesToParent,
+        move: editorNode.node.move,
       };
       lastMove = editorNode.node.move;
     } else {
@@ -101,6 +105,8 @@ export class Editor {
         nags: [],
         shapes: [],
         priority: Priority.Default,
+        movesToParent: [],
+        move: null,
       };
       lastMove = undefined;
     }

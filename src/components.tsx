@@ -3,8 +3,17 @@ export { Checkbox } from "./Checkbox";
 export { Dialog } from "./Dialog";
 export { StandardLayout } from "./StandardLayout";
 export { Home } from "./Home";
-export { Menu, MenuButton } from "./Menu";
-export type { MenuItem } from "./Menu";
+export {
+  contextMenuEventHandlers,
+  menuHeader,
+  menuItem,
+  menuSeparator,
+  Menu,
+  MenuButton,
+  MenuContextTrigger,
+  MenuTrigger,
+} from "./Menu";
+export type { MenuContext, MenuItem } from "./Menu";
 export { Progress } from "./Progress";
 export * as RadioGroup from "./RadioGroup";
 export { Navbar } from "./Navbar";
@@ -23,4 +32,11 @@ export function Loader() {
       <LoaderIcon class="animate-spin duration-1000" size={64} />
     </div>
   );
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
