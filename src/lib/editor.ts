@@ -2,46 +2,72 @@ import type { Color, Move, Nag, Shape, Chess } from "./chess";
 import {
   makeFen,
   makeSan,
-  moveEquals,
   moveListEquals,
-  nagText,
   shapeEquals,
   MOVE_NAGS,
   POSITION_NAGS,
 } from "./chess";
-import type { RootNode, Node } from "./node";
+import type { Node } from "./node";
 import { Priority } from "./node";
-import { ChildNode } from "./node";
+import { ChildNode, RootNode } from "./node";
 
 // Editor view
 //
 // This is what gets rendered in the DOM.
 // Everything is immutable for easy change detection
 export interface EditorView {
+  readonly tree: EditorTree;
+  readonly position: Chess;
+  readonly selectedNode: Node;
+  readonly shapes: readonly Shape[];
   readonly initialPly: number;
   readonly ply: number;
-  // Current line, the index of the selected node is `ply-1`
-  // ply=0 represents the root node being selected.
-  readonly line: readonly EditorNode[];
   readonly color: Color | undefined;
   readonly rootComment: string | undefined;
   readonly currentNode: EditorCurrentNode;
-  readonly position: Chess;
   readonly lastMove?: Move;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly headers: Map<string, string>;
 }
 
-// Editor node, this represents a child node with some extra information to help rendering.
-export interface EditorNode {
-  readonly node: ChildNode;
-  readonly movesToParent: readonly Move[];
-  readonly parentMoves: EditorMove[];
-  readonly position: Chess;
+/**
+ * The node tree representation used when rendering the editor/game dialog
+ */
+export type EditorTree = readonly EditorTreeItem[];
+
+export interface EditorTreeItem {
+  readonly moves: readonly EditorMove[];
+  // Comment for the last move in the sequence
+  readonly comment: string;
+  // The first move in earch branch is an alternate to the last move in `moves`
+  readonly branches: EditorBranch[];
 }
 
 export interface EditorMove {
+  readonly node: ChildNode;
+  readonly san: string;
+  readonly nags: readonly Nag[];
+  readonly hasShape: boolean;
+}
+
+export interface EditorBranch {
+  selected: boolean;
+  line: EditorTree;
+}
+
+// Editor node, this represents a child node with some extra information to help rendering.
+export interface EditorNode {
+  // Node for the current branch
+  readonly node: ChildNode;
+  readonly movesToParent: readonly Move[];
+  readonly branches: Branch[];
+  readonly position: Chess;
+}
+
+export interface Branch {
+  node: ChildNode;
+  selected: boolean;
   move: Move;
   san: string;
   nagText: string;
@@ -51,7 +77,8 @@ export interface EditorMove {
 
 export interface EditorCurrentNode {
   readonly node: Node;
-  readonly movesToParent: readonly Move[];
+  readonly movesToNode: readonly Move[];
+  readonly siblingCount: number;
   readonly move: Move | null;
   readonly comment: string;
   readonly nags: readonly Nag[];
@@ -64,7 +91,7 @@ export interface EditorCurrentNode {
  */
 export class Editor {
   rootNode: RootNode;
-  currentLine: CurrentLine;
+  line: EditorLine;
   view: EditorView;
   initialPly: number;
   // Currently selected node
@@ -74,9 +101,74 @@ export class Editor {
 
   constructor(rootNode: RootNode) {
     this.rootNode = rootNode;
-    this.currentLine = new CurrentLine(rootNode);
+    this.line = new EditorLine(rootNode);
     this.initialPly = rootNode.initialPosition.turn == "white" ? 0 : 1;
     this.view = this.calcView();
+  }
+
+  private makeTree(): EditorTree {
+    return this.branch(this.rootNode, this.rootNode.initialPosition.clone(), -1)
+      .line;
+  }
+
+  private branch(node: Node, position: Chess, index: number): EditorBranch {
+    const line: EditorTreeItem[] = [];
+    let moves: EditorMove[] = [];
+    let selected = true;
+    if (node instanceof ChildNode) {
+      moves.push(this.editorMove(node, position));
+      position.play(node.move);
+      selected = this.line.nodeAt(index) === node;
+    } else if (
+      node instanceof RootNode &&
+      node.comment &&
+      node.comment.length > 0
+    ) {
+      line.push({
+        moves: [],
+        comment: node.comment,
+        branches: [],
+      });
+    }
+    while (true) {
+      const [firstChild, ...otherChildren] = node.children;
+      if (firstChild === undefined) {
+        break;
+      }
+      moves.push(this.editorMove(firstChild, position));
+      index++;
+      const comment = firstChild.comment ?? "";
+
+      if (comment || otherChildren.length > 0) {
+        line.push({
+          moves,
+          comment,
+          branches: otherChildren.map((child) => {
+            const branch = this.branch(child, position.clone(), index);
+            return branch;
+          }),
+        });
+        moves = [];
+      }
+      position.play(firstChild.move);
+      node = firstChild;
+    }
+    if (moves.length > 0) {
+      line.push({ moves, comment: "", branches: [] });
+    }
+    return {
+      selected,
+      line,
+    };
+  }
+
+  private editorMove(node: ChildNode, position: Chess): EditorMove {
+    return {
+      node,
+      san: makeSan(position, node.move),
+      nags: node.nags ?? [],
+      hasShape: node.shapes !== undefined && node.shapes.length > 0,
+    };
   }
 
   private updateView() {
@@ -84,20 +176,22 @@ export class Editor {
   }
 
   private calcView(): EditorView {
-    const editorNode = this.currentLine.editorNode();
     let currentNode: EditorCurrentNode;
     let lastMove;
-    if (editorNode !== undefined) {
+
+    const pos = this.line.pos();
+    if (pos.type == "child") {
       currentNode = {
-        node: editorNode.node,
-        comment: editorNode.node.comment ?? "",
-        nags: editorNode.node.nags ?? [],
-        shapes: editorNode.node.shapes ?? [],
-        priority: editorNode.node.priority,
-        movesToParent: editorNode.movesToParent,
-        move: editorNode.node.move,
+        node: pos.child,
+        comment: pos.child.comment ?? "",
+        nags: pos.child.nags ?? [],
+        shapes: pos.child.shapes ?? [],
+        priority: pos.child.priority,
+        siblingCount: pos.parent.children.length,
+        move: pos.child.move,
+        movesToNode: this.line.moves(),
       };
-      lastMove = editorNode.node.move;
+      lastMove = pos.child.move;
     } else {
       currentNode = {
         node: this.rootNode,
@@ -105,20 +199,23 @@ export class Editor {
         nags: [],
         shapes: [],
         priority: Priority.Default,
-        movesToParent: [],
+        movesToNode: this.line.moves(),
+        siblingCount: 0,
         move: null,
       };
       lastMove = undefined;
     }
 
     return {
-      line: [...this.currentLine.line],
+      tree: this.makeTree(),
+      position: this.line.position(),
+      selectedNode: currentNode.node,
+      rootComment: this.rootNode.comment,
+      shapes: currentNode.shapes,
       initialPly: this.initialPly,
-      ply: this.currentLine.index + 1,
+      ply: this.line.ply(),
       currentNode,
       color: this.rootNode.color(),
-      rootComment: this.rootNode.comment,
-      position: this.currentLine.currentPosition(),
       lastMove,
       canUndo: this.undoStack.length > 0,
       canRedo: this.redoStack.length > 0,
@@ -127,7 +224,7 @@ export class Editor {
   }
 
   private performOp(op: EditorOp, undoType?: "undo" | "redo") {
-    const undoAction = op.execute(this.currentLine);
+    const undoAction = op.execute(this.line);
 
     if (undoType === "undo") {
       this.redoStack.push(undoAction);
@@ -137,16 +234,15 @@ export class Editor {
       this.undoStack.push(undoAction);
       this.redoStack = [];
     }
-    this.currentLine.extendLineWithFirstMoves();
     this.updateView();
   }
 
   private addUndoForNewMove(move: Move) {
-    const editorNode = this.currentLine.editorNode();
-    if (editorNode === undefined) {
-      throw Error("addUndoForNewMove: no editor node");
+    const moves = this.line.moves();
+    if (moves.length == 0) {
+      throw Error("addUndoForNewMove: moves empty");
     }
-    const initialMoves = editorNode.movesToParent;
+    const initialMoves = moves.slice(0, -1);
 
     // Try to extend the previes undo entry if possible
     const lastUndo = this.undoStack.at(-1);
@@ -172,7 +268,7 @@ export class Editor {
   }
 
   move(move: Move) {
-    const changed = this.currentLine.move(move);
+    const changed = this.line.move(move);
     if (changed) {
       this.addUndoForNewMove(move);
       this.canMergeUndoPlayMove = true;
@@ -182,45 +278,73 @@ export class Editor {
     this.updateView();
   }
 
+  canMoveBackward(): boolean {
+    return this.line.canMoveBackward();
+  }
+
+  canMoveForward(): boolean {
+    return this.line.canMoveForward();
+  }
+
   moveBackward() {
-    if (this.currentLine.canMoveBackward()) {
-      this.currentLine.moveBackward();
+    if (this.line.canMoveBackward()) {
+      this.line.moveBackward();
       this.updateView();
       this.canMergeUndoPlayMove = false;
     }
   }
 
   moveForward() {
-    if (this.currentLine.canMoveForward()) {
-      this.currentLine.moveForward();
+    if (this.line.canMoveForward()) {
+      this.line.moveForward();
       this.updateView();
       this.canMergeUndoPlayMove = false;
     }
   }
 
+  canMoveBackwardGameView(): boolean {
+    return this.line.canMoveBackwardGameView();
+  }
+
+  canMoveForwardGameView(): boolean {
+    return this.line.canMoveForwardGameView();
+  }
+
+  moveBackwardGameView() {
+    this.line.moveBackwardGameView();
+    this.updateView();
+    this.canMergeUndoPlayMove = false;
+  }
+
+  moveForwardGameView() {
+    this.line.moveForwardGameView();
+    this.updateView();
+    this.canMergeUndoPlayMove = false;
+  }
+
   setMoves(moves: readonly Move[]) {
-    this.currentLine.setMoves(moves);
+    this.line.setMoves(moves);
     this.updateView();
     this.canMergeUndoPlayMove = false;
   }
 
   deleteNode() {
-    const editorNode = this.currentLine.editorNode();
-    if (editorNode === undefined) {
-      throw Error("deleteNode: no editor node");
+    const node = this.line.childNode();
+    if (node === undefined) {
+      throw Error("deleteNode: no child node");
     }
-    this.performOp(new DeleteNode(editorNode.node.move));
+    this.performOp(new DeleteNode(node.move));
   }
 
   setComment(comment: string) {
-    if ((this.currentLine.node().comment ?? "") == comment) {
+    if ((this.line.node().comment ?? "") == comment) {
       return;
     }
     this.performOp(new SetComment(comment));
   }
 
   toggleNag(nag: Nag) {
-    const currentNode = this.currentLine.node();
+    const currentNode = this.line.node();
     if (!(currentNode instanceof ChildNode)) {
       return;
     }
@@ -250,7 +374,7 @@ export class Editor {
   }
 
   toggleShape(shape: Shape) {
-    const currentNode = this.currentLine.node();
+    const currentNode = this.line.node();
     if (!(currentNode instanceof ChildNode)) {
       return;
     }
@@ -263,7 +387,7 @@ export class Editor {
   }
 
   setPriority(priority: Priority) {
-    const currentNode = this.currentLine.node();
+    const currentNode = this.line.node();
     if (!(currentNode instanceof ChildNode)) {
       return;
     }
@@ -271,11 +395,10 @@ export class Editor {
   }
 
   reorderMoves(moves: readonly Move[]) {
-    const editorNode = this.currentLine.editorNode();
-    if (editorNode === undefined) {
+    const parent = this.line.parentNode();
+    if (parent === undefined) {
       return;
     }
-    const parent = this.currentLine.node(this.currentLine.index - 1);
     if (parent.childrenHaveOrder(moves)) {
       return;
     }
@@ -308,8 +431,7 @@ export class Editor {
     if (action === undefined) {
       return;
     }
-    this.currentLine.setMoves(action.initialMoves);
-    this.currentLine.index = action.initialMoves.length - 1;
+    this.line.setMoves(action.initialMoves);
     this.performOp(action.op, "undo");
     this.canMergeUndoPlayMove = false;
   }
@@ -319,8 +441,7 @@ export class Editor {
     if (action === undefined) {
       return;
     }
-    this.currentLine.setMoves(action.initialMoves);
-    this.currentLine.index = action.initialMoves.length - 1;
+    this.line.setMoves(action.initialMoves);
     this.performOp(action.op, "redo");
     this.canMergeUndoPlayMove = false;
   }
@@ -332,206 +453,369 @@ export class Editor {
   }
 }
 
+type EditorLinePosition =
+  | {
+      type: "root";
+      root: RootNode;
+    }
+  | {
+      type: "child";
+      parent: Node;
+      child: ChildNode;
+    };
+
 // Manages the current editor line and the user's position inside it
-class CurrentLine {
+class EditorLine {
   rootNode: RootNode;
-  line: EditorNode[] = [];
-  // Current index in line, -1 indicates we're on the root node, before the first element.
-  index = -1;
+  // Child nodes and positions for the current line
+  private childNodes: ChildNode[];
+  private positions: Chess[];
+  // Index of the current position in the line, -1 means that the root node is selected
+  private index: number;
 
   constructor(rootNode: RootNode) {
     this.rootNode = rootNode;
-    this.extendLineWithFirstMoves();
+    this.childNodes = [];
+    this.positions = [];
+    this.index = -1;
+    this.extendWithFirstMoves();
   }
 
-  reset(extendLine?: boolean) {
-    this.line = [];
-    this.index = -1;
-    if (extendLine !== false) {
-      this.extendLineWithFirstMoves();
+  node(): Node {
+    return this.index == -1 ? this.rootNode : this.childNodes[this.index];
+  }
+
+  nodeAt(index: number): Node {
+    return index == -1 ? this.rootNode : this.childNodes[index];
+  }
+
+  childNode(): ChildNode | undefined {
+    return this.index == -1 ? undefined : this.childNodes[this.index];
+  }
+
+  parentNode(): Node | undefined {
+    if (this.index == -1) {
+      return undefined;
+    } else if (this.index == 0) {
+      return this.rootNode;
+    } else {
+      return this.childNodes[this.index - 1];
     }
   }
 
-  // Makes a move and update the line
-  //
-  // Returns true if this added a new move to the tree.
-  move(move: Move, extendLine?: boolean): boolean {
-    let added = false;
-    const next = this.line[this.index + 1]?.node;
-    if (next && moveEquals(next.move, move)) {
-      this.moveForward();
-      return added;
+  grandParentNode(): Node | undefined {
+    if (this.index <= 0) {
+      return undefined;
+    }
+    return this.childNodes[this.index - 2] ?? this.rootNode;
+  }
+
+  ply(): number {
+    return this.index + 1;
+  }
+
+  pos(): EditorLinePosition {
+    if (this.index == -1) {
+      return {
+        type: "root",
+        root: this.rootNode,
+      };
+    } else if (this.index == 0) {
+      return {
+        type: "child",
+        parent: this.rootNode,
+        child: this.childNodes[0],
+      };
     } else {
-      const node = this.node();
-      let childIndex = node.getChildIndex(move);
-      if (childIndex == -1) {
-        node.addChild(move);
-        childIndex = node.children.length - 1;
-        added = true;
-      }
-      this.trimLine(false);
-      this.pushToLine(node, childIndex);
-      this.moveForward();
-      if (extendLine !== false) {
-        this.extendLineWithFirstMoves();
-      }
-      return added;
+      return {
+        type: "child",
+        parent: this.childNodes[this.index - 1],
+        child: this.childNodes[this.index],
+      };
+    }
+  }
+
+  moves(): Move[] {
+    return this.childNodes.slice(0, this.index + 1).map((n) => n.move);
+  }
+
+  position(): Chess {
+    return this.index == -1
+      ? this.rootNode.initialPosition.clone()
+      : this.positions[this.index].clone();
+  }
+
+  /**
+   * Play a move
+   *
+   * Returns true if this is a new move for the game
+   */
+  move(move: Move): boolean {
+    const parent = this.node();
+    const child = parent.getChild(move);
+    if (child === undefined) {
+      // Adding new move
+      this.trimLine();
+      this.push(parent.addChild(move));
+      this.index++;
+      this.extendWithFirstMoves();
+      return true;
+    } else if (child === this.childNodes[this.index + 1]) {
+      // Move is the next move in the current line
+      this.index++;
+      return false;
+    } else {
+      // Existing move that's not part of the current line
+      this.trimLine();
+      this.push(child);
+      this.extendWithFirstMoves();
+      this.index++;
+      return false;
     }
   }
 
   setMoves(moves: readonly Move[]) {
-    this.reset(false);
+    let node: Node = this.rootNode;
+    this.index = -1;
+
     for (const move of moves) {
-      this.move(move, false);
+      let child = node.getChild(move);
+      if (child === undefined) {
+        child = node.addChild(move);
+        this.trimLine();
+        this.push(child);
+      } else if (child === this.childNodes[this.index + 1]) {
+        // Move is the next move in the current line
+      } else {
+        // Existing move that's not part of the current line
+        this.trimLine();
+        this.push(child);
+      }
+      this.index++;
+      node = child;
     }
-    this.extendLineWithFirstMoves();
+    this.extendWithFirstMoves();
   }
 
-  canMoveBackward(): boolean {
-    return this.index >= 0;
+  private push(child: ChildNode) {
+    const pos = (
+      this.positions.at(-1) ?? this.rootNode.initialPosition
+    ).clone();
+    pos.play(child.move);
+    this.positions.push(pos);
+    this.childNodes.push(child);
   }
 
   canMoveForward(): boolean {
-    return this.index + 1 < this.line.length;
+    return this.index + 1 < this.childNodes.length;
   }
 
-  moveBackward() {
-    if (!this.canMoveBackward()) {
-      throw Error("can't move backward");
-    }
-    this.index--;
+  canMoveBackward(): boolean {
+    return this.index > -1;
   }
 
-  // Move forward if we can
   moveForward() {
     if (!this.canMoveForward()) {
-      throw Error("can't move forward");
+      throw Error("EditorLine.moveForward: at end of line");
     }
     this.index++;
   }
 
-  // Update the current editor node
-  updateEditorNode(update: (node: EditorNode) => EditorNode) {
-    if (this.index < 0) {
-      throw Error(`updateEditorNode: index=${this.index}`);
+  moveBackward() {
+    if (!this.canMoveBackward()) {
+      throw Error("EditorLine.moveBackward: at start of line");
     }
-    this.line[this.index] = update(this.line[this.index]);
+    this.index--;
   }
 
-  trimLine(extendLine?: boolean) {
-    this.line = this.line.slice(0, this.index + 1);
-    if (extendLine !== false) {
-      this.extendLineWithFirstMoves();
+  canMoveForwardGameView(): boolean {
+    if (this.index + 1 < this.childNodes.length) {
+      // can move forward on the current line
+      return true;
     }
+    for (let i = 0; i < this.childNodes.length; i++) {
+      const parent = this.childNodes[i - 1] ?? this.rootNode;
+      const child = this.childNodes[i];
+      const childIndex = parent.children.indexOf(child);
+      if (
+        i == this.index &&
+        childIndex == 0 &&
+        parent.children[1] &&
+        !parent.children[1].isEmpty()
+      ) {
+        // can move to an alternate branch
+        return true;
+      }
+      if (childIndex > 0 && !parent.children[0].isEmpty()) {
+        // Can move forward back to the main line
+        return true;
+      }
+      if (childIndex > 0 && childIndex + 1 < parent.children.length) {
+        // Can move forward to the next branch
+        return true;
+      }
+    }
+    return false;
   }
 
-  // Push nodes for `this.currentNode.firstChild()` until we reach the end of the tree.
-  extendLineWithFirstMoves() {
-    let node: Node = this.line.at(-1)?.node ?? this.rootNode;
-
-    while (node.children.length > 0) {
-      this.pushToLine(node, 0);
-      node = node.children[0];
-    }
+  canMoveBackwardGameView(): boolean {
+    return this.index > -1;
   }
 
-  private pushToLine(parent: Node, moveIndex: number) {
-    const child = parent.children[moveIndex];
-
-    let position, movesToParent: Move[];
-    const lastNode = this.line.at(-1);
-    if (!lastNode) {
-      position = this.rootNode.initialPosition.clone();
-      movesToParent = [];
-    } else {
-      position = lastNode.position.clone();
-      movesToParent = [...lastNode.movesToParent, lastNode.node.move];
-    }
-    const parentMoves = parent.children.map((child) =>
-      this.createEditorMove(position, child),
-    );
-    position.play(child.move);
-
-    this.line.push({
-      parentMoves,
-      position,
-      node: child,
-      movesToParent,
-    });
-  }
-
-  private createEditorMove(position: Chess, child: ChildNode): EditorMove {
-    const nagTextParts = [];
-    for (const nag of child.nags ?? []) {
-      nagTextParts.push(nagText(nag));
-    }
-    const hasComment =
-      (child.comment !== undefined && child.comment.length > 0) ||
-      (child.shapes !== undefined && child.shapes.length > 0);
-    return {
-      move: child.move,
-      san: makeSan(position, child.move),
-      nagText: nagTextParts.join(""),
-      priority: child.priority,
-      hasComment,
-    };
-  }
-
-  // "Refresh" the current node, which:
-  //   * Creates a new object for it, which makes solid re-render it.
-  //   * Updates the `parentMoves` field
+  // Move forward in game view mode
   //
-  // Call this when the comments or other metadata changes.
-  refreshEditorNode() {
-    const editorNode = this.editorNode();
-    if (editorNode === undefined) {
+  // Returns true if we were able to move backward
+  moveForwardGameView() {
+    const pos = this.pos();
+
+    if (pos.type == "root") {
+      const firstChild = pos.root.firstChild();
+      if (firstChild === undefined) {
+        return;
+      }
+      this.move(firstChild.move);
+      return;
+    }
+    const childIndex = pos.parent.children.indexOf(pos.child);
+    if (childIndex == 0 && childIndex + 1 < pos.parent.children.length) {
+      // We just moved past a branch, backtrack and enter the branch
+      this.index--;
+      this.trimLine();
+      this.push(pos.parent.children[childIndex + 1]);
+      this.extendWithFirstMoves();
+      this.index++;
       return;
     }
 
-    let parentNode, parentPosition;
-    if (this.index == 0) {
-      parentNode = this.rootNode;
-      parentPosition = this.rootNode.initialPosition;
-    } else {
-      const parentEditorNode = this.line[this.index - 1];
-      parentNode = parentEditorNode.node;
-      parentPosition = parentEditorNode.position;
+    if (this.index + 1 < this.childNodes.length) {
+      // Move forward on the current branch
+      this.index++;
+      return;
     }
 
-    this.updateEditorNode((editorNode) => ({
-      parentMoves: parentNode.children.map((child) =>
-        this.createEditorMove(parentPosition, child),
-      ),
-      position: editorNode.position,
-      node: editorNode.node,
-      movesToParent: editorNode.movesToParent,
-    }));
-  }
+    for (let i = this.childNodes.length - 1; i >= 0; i--) {
+      const parent = this.childNodes[i - 1] ?? this.rootNode;
+      const child = this.childNodes[i];
+      const childIndex = parent.children.indexOf(child);
+      const nextChild = parent.children[childIndex + 1];
 
-  editorNode(index?: number): EditorNode | undefined {
-    return this.line[index ?? this.index];
-  }
-
-  node(index?: number): Node {
-    const editorNode = this.editorNode(index);
-    return editorNode ? editorNode.node : this.rootNode;
-  }
-
-  currentPosition(index?: number): Chess {
-    const editorNode = this.editorNode(index);
-    if (editorNode) {
-      return editorNode.position.clone();
-    } else {
-      return this.rootNode.initialPosition.clone();
+      if (childIndex > 0 && nextChild) {
+        // Switch to the next branch
+        this.index = i - 1;
+        this.trimLine();
+        this.push(nextChild);
+        this.extendWithFirstMoves();
+        this.index++;
+        return;
+      }
+      if (childIndex > 0 && !parent.children[0].isEmpty()) {
+        // Switch back to the main line
+        this.index = i - 1;
+        this.trimLine();
+        this.push(parent.children[0]);
+        this.push(parent.children[0].children[0]);
+        this.extendWithFirstMoves();
+        this.index += 2;
+        return;
+      }
     }
   }
 
-  movesToCurrentNode(): Move[] {
-    const editorNode = this.editorNode();
-    if (editorNode) {
-      return [...editorNode.movesToParent, editorNode.node.move];
-    } else {
-      return [];
+  // Move backward in game view mode
+  //
+  // Returns true if we were able to move backward
+  moveBackwardGameView() {
+    const pos = this.pos();
+
+    if (pos.type == "root") {
+      // At root node, can't move backward
+      return;
+    }
+    const { parent, child } = pos;
+
+    const childIndex = parent.children.indexOf(child);
+    if (childIndex == 1) {
+      // First branch, switch to the main line first move
+      this.index--;
+      this.trimLine();
+      this.push(parent.children[childIndex - 1]);
+      this.index++;
+      return;
+    }
+    if (childIndex > 1) {
+      // 3rd or more branch, switch to the end of the previous branch
+      this.index--;
+      this.trimLine();
+      this.push(parent.children[childIndex - 1]);
+      this.extendForMoveBackwards();
+      this.index = this.childNodes.length - 1;
+      return;
+    }
+
+    const grandParent = this.grandParentNode();
+    if (
+      grandParent &&
+      grandParent.children.length >= 2 &&
+      grandParent.firstChild() === parent
+    ) {
+      // Parent is the main branch and there's an alternate, move to the last alternate branch
+      // On the main line, move to the first alternate move
+      this.index -= 2;
+      this.trimLine();
+      this.push(grandParent.children.at(-1)!);
+      this.extendForMoveBackwards();
+      this.index = this.childNodes.length - 1;
+      return;
+    }
+
+    // Move backwards in the current line
+    this.index--;
+  }
+
+  private trimLine() {
+    this.positions.splice(this.index + 1);
+    this.childNodes.splice(this.index + 1);
+  }
+
+  private extendWithFirstMoves() {
+    let node: Node = this.childNodes.at(-1) ?? this.rootNode;
+    const position = (
+      this.positions.at(-1) ?? this.rootNode.initialPosition
+    ).clone();
+
+    while (true) {
+      const firstChild = node.firstChild();
+      if (firstChild === undefined) {
+        break;
+      }
+
+      this.childNodes.push(firstChild);
+      position.play(firstChild.move);
+      this.positions.push(position.clone());
+      node = firstChild;
+    }
+  }
+
+  private extendForMoveBackwards() {
+    let node: Node = this.childNodes.at(-1) ?? this.rootNode;
+    const position = (
+      this.positions.at(-1) ?? this.rootNode.initialPosition
+    ).clone();
+
+    while (true) {
+      let child = node.firstChild();
+      if (child === undefined) {
+        break;
+      }
+      // If the line ends here and there's additional children, then pick the last one of those
+      if (child.isEmpty() && node.children.length > 1) {
+        child = node.children.at(-1)!;
+      }
+
+      this.childNodes.push(child);
+      position.play(child.move);
+      this.positions.push(position.clone());
+      node = child;
     }
   }
 }
@@ -543,27 +827,25 @@ interface UndoAction {
 
 abstract class EditorOp {
   // Transform a ChildNode and return the reverse operation for the undo/redo stack
-  abstract execute(cursor: CurrentLine): UndoAction;
+  abstract execute(line: EditorLine): UndoAction;
 }
 
 /**
  * EditorOp for playing new moves.
  *
  * This one is a bit special since it's only used for redo purposes.  The initial mutation
- * conditionally happens inside the `cursor.play` method.
+ * conditionally happens inside the `line.move` method.
  */
 class PlayMoves extends EditorOp {
   constructor(private moves: Move[]) {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const initialMoves = cursor.movesToCurrentNode();
-    cursor.trimLine(false);
+  execute(line: EditorLine): UndoAction {
+    const initialMoves = line.moves();
     for (const move of this.moves) {
-      cursor.move(move, false);
+      line.move(move);
     }
-    cursor.extendLineWithFirstMoves();
     return {
       initialMoves,
       op: new UndoPlayMoves(this.moves),
@@ -576,18 +858,16 @@ class UndoPlayMoves extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
+  execute(line: EditorLine): UndoAction {
     const firstMove = this.moves[0];
     if (!firstMove) {
       throw Error("UndoPlayMoves: move list is empty");
     }
 
-    const node = cursor.node();
+    const node = line.node();
     node.removeChild(firstMove);
-    cursor.trimLine(false);
-    cursor.extendLineWithFirstMoves();
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new PlayMoves(this.moves),
     };
   }
@@ -598,22 +878,19 @@ class DeleteNode extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    if (cursor.index < 0) {
-      throw Error(`DeleteNode: index is ${cursor.index}`);
+  execute(line: EditorLine): UndoAction {
+    if (!line.canMoveBackward()) {
+      throw Error("DeleteNode: no parent node");
     }
-    cursor.moveBackward();
-    const parent = cursor.node();
-    const deletedNode = parent.getChild(this.move);
+    line.moveBackward();
+    const parent = line.node();
+    const deletedNode = parent.removeChild(this.move);
     if (deletedNode === undefined) {
       throw Error(`DeleteNode: move not found: ${this.move}`);
     }
-    parent.removeChild(deletedNode.move);
-    cursor.trimLine(false);
-    cursor.extendLineWithFirstMoves();
 
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new UndoDeleteNode(deletedNode),
     };
   }
@@ -624,13 +901,11 @@ class UndoDeleteNode extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    cursor.node().addChildNode(this.childNode);
-    cursor.trimLine(false);
-    cursor.move(this.childNode.move, false);
-    cursor.extendLineWithFirstMoves();
+  execute(line: EditorLine): UndoAction {
+    line.node().addChildNode(this.childNode);
+    line.move(this.childNode.move);
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new DeleteNode(this.childNode.move),
     };
   }
@@ -641,13 +916,12 @@ class SetComment extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const node = cursor.node();
+  execute(line: EditorLine): UndoAction {
+    const node = line.node();
     const oldComment = node.comment;
     node.comment = this.comment.length > 0 ? this.comment : undefined;
-    cursor.refreshEditorNode();
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetComment(oldComment ?? ""),
     };
   }
@@ -658,16 +932,15 @@ class SetNags extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const editorNode = cursor.editorNode();
-    if (editorNode === undefined) {
-      throw Error("SetNags: no editor node");
+  execute(line: EditorLine): UndoAction {
+    const node = line.childNode();
+    if (node === undefined) {
+      throw Error("SetNags: no child node");
     }
-    const oldNags = editorNode.node.nags;
-    editorNode.node.nags = this.nags.length > 0 ? [...this.nags] : undefined;
-    cursor.refreshEditorNode();
+    const oldNags = node.nags;
+    node.nags = this.nags.length > 0 ? [...this.nags] : undefined;
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetNags(oldNags ?? []),
     };
   }
@@ -678,16 +951,15 @@ class SetShapes extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const node = cursor.node();
-    if (!(node instanceof ChildNode)) {
-      throw Error(`SetShapes: invalid node type: ${node}`);
+  execute(line: EditorLine): UndoAction {
+    const node = line.childNode();
+    if (node === undefined) {
+      throw Error("SetShapes: no child node");
     }
     const oldShapes = node.shapes;
     node.shapes = this.shapes.length > 0 ? [...this.shapes] : undefined;
-    cursor.refreshEditorNode();
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetShapes(oldShapes ?? []),
     };
   }
@@ -698,16 +970,15 @@ class SetPriority extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const node = cursor.node();
-    if (!(node instanceof ChildNode)) {
-      throw Error(`SetPriority: invalid node type: ${node}`);
+  execute(line: EditorLine): UndoAction {
+    const node = line.childNode();
+    if (node === undefined) {
+      throw Error("SetPriority: no child node");
     }
     const oldPriority = node.priority;
     node.priority = this.priority;
-    cursor.refreshEditorNode();
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetPriority(oldPriority),
     };
   }
@@ -718,16 +989,15 @@ class ReorderMoves extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    if (cursor.index < -1) {
-      throw Error(`ReorderMoves: index: ${cursor.index}`);
+  execute(line: EditorLine): UndoAction {
+    const parent = line.parentNode();
+    if (parent === undefined) {
+      throw Error("ReorderMoves: no parent node");
     }
-    const parent = cursor.node(cursor.index - 1);
     const currentOrder = parent.children.map((n) => n.move);
     parent.reorderChildren(this.order);
-    cursor.refreshEditorNode();
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new ReorderMoves(currentOrder),
     };
   }
@@ -738,11 +1008,11 @@ class SetTrainingColor extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const oldColor = cursor.rootNode.color();
-    cursor.rootNode.setColor(this.color);
+  execute(line: EditorLine): UndoAction {
+    const oldColor = line.rootNode.color();
+    line.rootNode.setColor(this.color);
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetTrainingColor(oldColor),
     };
   }
@@ -756,15 +1026,15 @@ class SetHeaderValue extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const oldValue = cursor.rootNode.headers.get(this.name);
+  execute(line: EditorLine): UndoAction {
+    const oldValue = line.rootNode.headers.get(this.name);
     if (this.value === undefined) {
-      cursor.rootNode.headers.delete(this.name);
+      line.rootNode.headers.delete(this.name);
     } else {
-      cursor.rootNode.headers.set(this.name, this.value);
+      line.rootNode.headers.set(this.name, this.value);
     }
     return {
-      initialMoves: cursor.movesToCurrentNode(),
+      initialMoves: line.moves(),
       op: new SetHeaderValue(this.name, oldValue),
     };
   }
@@ -778,11 +1048,11 @@ class SetInitialPosition extends EditorOp {
     super();
   }
 
-  execute(cursor: CurrentLine): UndoAction {
-    const oldFen = makeFen(cursor.rootNode.initialPosition.toSetup());
-    const oldChildren = cursor.rootNode.children;
-    cursor.rootNode.setInitialPosition(this.fen, this.restoreChildren);
-    cursor.reset();
+  execute(line: EditorLine): UndoAction {
+    const oldFen = makeFen(line.rootNode.initialPosition.toSetup());
+    const oldChildren = line.rootNode.children;
+    line.rootNode.setInitialPosition(this.fen, this.restoreChildren);
+    line.setMoves([]);
     return {
       initialMoves: [],
       op: new SetInitialPosition(oldFen, oldChildren),

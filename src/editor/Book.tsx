@@ -1,4 +1,5 @@
 import BookIcon from "lucide-solid/icons/book";
+import QuickLRU from "quick-lru";
 import {
   createEffect,
   createMemo,
@@ -8,12 +9,13 @@ import {
   Show,
   Switch,
 } from "solid-js";
-
 import type { Chess, Move } from "~/lib/chess";
+import { makeFen } from "~/lib/chess";
 import { abbreviateCount } from "~/lib/util";
 import type { OpeningBookSettings, OpeningBookLookup } from "~/lib/openingBook";
 import type { TablebaseSettings, TablebaseLookup } from "~/lib/tablebase";
 import {
+  fetchPgn,
   getOpeningBookSettings,
   isOpeningBookKind,
   setOpeningBookSettings,
@@ -31,7 +33,9 @@ import { menuItem, MenuButton, ToggleSwitch } from "~/components";
 
 export interface BookProps {
   position: Chess;
+  ply: number;
   onMove: (move: Move) => void;
+  onShowGame: (pgn: string) => void;
 }
 
 export function Book(props: BookProps) {
@@ -56,6 +60,9 @@ export function Book(props: BookProps) {
 export function OpeningBook(props: BookProps) {
   const [settings, setSettings] = createSignal(getOpeningBookSettings());
   const [lookup, setLookup] = createSignal<OpeningBookLookup | null>(null);
+  const cache = new QuickLRU<string, OpeningBookLookup | null>({
+    maxSize: 1024,
+  });
 
   function updateSettings(settings: OpeningBookSettings) {
     setSettings(settings);
@@ -79,7 +86,19 @@ export function OpeningBook(props: BookProps) {
 
   createEffect(async () => {
     setLookup(null);
-    setLookup(await lookupOpeningPosition(settings().kind, props.position));
+    const position = props.position;
+    if (props.ply >= 80) {
+      return;
+    }
+    const fen = makeFen(position.toSetup());
+    const cached = cache.get(fen);
+    if (cached !== undefined) {
+      setLookup(cached);
+      return;
+    }
+    const result = await lookupOpeningPosition(settings().kind, props.position);
+    cache.set(fen, result);
+    setLookup(result);
   });
 
   return (
@@ -112,7 +131,7 @@ export function OpeningBook(props: BookProps) {
                       class="grid grid-cols-subgrid col-span-4 group cursor-pointer text-left"
                       onClick={() => props.onMove(move().move)}
                     >
-                      <div class="pr-4 border-t-1 border-fg-3 group-hover:text-highlight-1">
+                      <div class="pr-4 border-t-1 border-fg-3 group-hover:text-highlight-line">
                         {move().san}
                       </div>
                       <div class="pr-4 border-t-1 border-fg-3">
@@ -168,41 +187,45 @@ export function OpeningBook(props: BookProps) {
               </div>
               <Show when={lookup.topGames.length > 0}>
                 <h3 class="pt-4 pb-1 text-fg-2">Top games</h3>
-                <div class="overflow-auto grid grid-cols-[auto_1fr_auto_auto_auto] text-sm basis-0 grow">
-                  <Index each={lookup.topGames}>
-                    {(item) => (
-                      <a
-                        class="grid grid-cols-subgrid col-span-full text-left cursor-pointer hover:bg-highlight-2"
-                        href={item().url}
-                        target="_blank"
-                      >
-                        <div class="pt-1 pr-2 border-t-1 border-fg-3">
-                          {item().white.rating}
-                        </div>
-                        <div class="pt-1 pr-2 border-t-1 border-fg-3 truncate">
-                          {item().white.name}
-                        </div>
-                        <div class="pt-1 pr-2 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
-                          {item().san}
-                        </div>
-                        <div class="pt-1 pr-2 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
-                          <Switch>
-                            <Match when={item().winner == "white"}>1-0</Match>
-                            <Match when={item().winner == "black"}>0-1</Match>
-                            <Match when={item().winner === null}>
-                              &#x00BD-&#x00BD
-                            </Match>
-                          </Switch>
-                        </div>
-                        <div class="pt-1 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
-                          {item().year}
-                        </div>
+                <div class="basis-0 grow overflow-auto">
+                  <div class="grid grid-cols-[auto_1fr_auto_auto_auto] text-sm">
+                    <Index each={lookup.topGames}>
+                      {(item) => (
+                        <button
+                          class="grid grid-cols-subgrid col-span-full text-left cursor-pointer hover-bg"
+                          onClick={async () => {
+                            const pgn = await fetchPgn(item().id);
+                            props.onShowGame(pgn);
+                          }}
+                        >
+                          <div class="pt-1 pr-2 border-t-1 border-fg-3">
+                            {item().white.rating}
+                          </div>
+                          <div class="pt-1 pr-2 border-t-1 border-fg-3 truncate">
+                            {item().white.name}
+                          </div>
+                          <div class="pt-1 pr-2 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
+                            {item().san}
+                          </div>
+                          <div class="pt-1 pr-2 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
+                            <Switch>
+                              <Match when={item().winner == "white"}>1-0</Match>
+                              <Match when={item().winner == "black"}>0-1</Match>
+                              <Match when={item().winner === null}>
+                                &#x00BD-&#x00BD
+                              </Match>
+                            </Switch>
+                          </div>
+                          <div class="pt-1 border-t-1 border-fg-3 row-span-2 pb-2 flex items-center">
+                            {item().year}
+                          </div>
 
-                        <div class="pb-2">{item().black.rating}</div>
-                        <div class="truncate pb-2">{item().black.name}</div>
-                      </a>
-                    )}
-                  </Index>
+                          <div class="pb-2">{item().black.rating}</div>
+                          <div class="truncate pb-2">{item().black.name}</div>
+                        </button>
+                      )}
+                    </Index>
+                  </div>
                 </div>
               </Show>
             </Show>
@@ -232,7 +255,7 @@ export function Tablebase(props: BookProps) {
   const dtmTooltip = "Depth to mate: The number of half-moves until mate";
 
   return (
-    <div class="flex flex-col">
+    <div class="flex flex-col grow">
       <h3 class="flex items-center gap-2">
         <ToggleSwitch
           checked={settings().enable}
@@ -255,7 +278,7 @@ export function Tablebase(props: BookProps) {
                     {(item) => (
                       <>
                         <button
-                          class="cursor-pointer text-left hover:text-highlight-1 text-left"
+                          class="cursor-pointer text-left hover-bg text-left"
                           onClick={() => props.onMove(item().move)}
                         >
                           {item().san}
@@ -286,7 +309,7 @@ export function Tablebase(props: BookProps) {
                     {(item) => (
                       <>
                         <button
-                          class="cursor-pointer text-left hover:text-highlight-1"
+                          class="cursor-pointer text-left hover-fg"
                           onClick={() => props.onMove(item().move)}
                         >
                           {item().san}
@@ -306,7 +329,7 @@ export function Tablebase(props: BookProps) {
                     {(item) => (
                       <>
                         <button
-                          class="cursor-pointer text-left hover:text-highlight-1"
+                          class="cursor-pointer text-left hover-fg"
                           onClick={() => props.onMove(item().move)}
                         >
                           {item().san}
@@ -337,7 +360,7 @@ export function Tablebase(props: BookProps) {
                     {(item) => (
                       <>
                         <button
-                          class="cursor-pointer text-left hover:text-highlight-1"
+                          class="cursor-pointer text-left hover-fg"
                           onClick={() => props.onMove(item().move)}
                         >
                           {item().san}

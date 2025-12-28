@@ -1,15 +1,11 @@
 import ArrowUpDown from "lucide-solid/icons/arrow-up-down";
-import PrevIcon from "lucide-solid/icons/chevron-left";
-import NextIcon from "lucide-solid/icons/chevron-right";
 import Tags from "lucide-solid/icons/tags";
-import type { DateValue } from "@ark-ui/solid";
-import { DatePicker, Field, parseDate } from "@ark-ui/solid";
 import { Nag, nagText } from "~/lib/chess";
+import { Field } from "@ark-ui/solid";
 import type { RootNode } from "~/lib/node";
 import { RootNodeType } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
-import { createMemo, createSignal, Index, Match, Switch } from "solid-js";
-import { Portal } from "solid-js/web";
+import { createMemo, Match, Switch } from "solid-js";
 import { menuItem, Button, MenuButton, RadioGroup } from "~/components";
 import type { ReorderMenuItems, ReorderMoves } from "./Editor";
 
@@ -45,7 +41,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
 
   const reorderButton = createMemo(() => {
     const currentNode = props.view.currentNode;
-    if (currentNode.move === null) {
+    if (currentNode.siblingCount < 2) {
       return null;
     }
     return (
@@ -53,16 +49,13 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
         placement="bottom-end"
         style="flat"
         icon=<ArrowUpDown />
-        items={props.reorderMenuItems([
-          ...currentNode.movesToParent,
-          currentNode.move,
-        ])}
+        items={props.reorderMenuItems([...currentNode.movesToNode])}
         onSelect={(op) => {
           if (currentNode.move === null) {
             console.error("currentNode.move is null");
             return;
           }
-          props.onReorder([...currentNode.movesToParent, currentNode.move], op);
+          props.onReorder([...currentNode.movesToNode], op);
         }}
       />
     );
@@ -71,58 +64,15 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
   return (
     <Switch>
       <Match when={props.isRoot && props.rootNode.type == RootNodeType.Normal}>
-        <div class="flex flex-col gap-4">
-          <h2 class="text-2xl">Game Info</h2>
-          <HeaderField
-            label="White Player"
-            key="White"
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <HeaderField
-            label="Black Player"
-            key="Black"
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <HeaderField
-            label="Event"
-            key="Event"
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <HeaderField
-            label="Site"
-            key="Site"
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <DateField
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <HeaderField
-            label="Round"
-            key="Round"
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
-          <ResultField
-            editor={props.editor}
-            view={props.view}
-            setView={props.setView}
-          />
+        <div class="flex flex-col gap-4 grow h-full pb-4">
           <Field.Root class="flex flex-col gap-1">
             <Field.Label>Game notes</Field.Label>
             <Field.Textarea
-              value={props.view.currentNode.comment}
-              onChange={(evt) => props.setDraftComment(evt.target.value)}
+              value={props.view.rootComment}
+              onInput={(evt) => {
+                props.setDraftComment(evt.target.value);
+              }}
+              onChange={props.commitDraftComment}
               onKeyUp={(evt) => {
                 if (evt.key == "Enter") {
                   evt.currentTarget.blur();
@@ -132,10 +82,12 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
               rows="5"
             />
           </Field.Root>
-          <Button
-            text="Set initial position"
-            onClick={props.onSetInitialPosition}
-          />
+          <div class="flex gap-4 grow items-end justify-start">
+            <Button
+              text="Set initial position"
+              onClick={props.onSetInitialPosition}
+            />
+          </div>
         </div>
       </Match>
       <Match
@@ -162,16 +114,18 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
         </div>
       </Match>
       <Match when={!props.isRoot}>
-        <div class="flex flex-col gap-4 h-full">
-          <h2 class="text-2xl">Notes</h2>
+        <div class="flex flex-col h-full">
+          <h2 class="text-lg text-fg-2">Notes</h2>
           <textarea
             class="border-1 border-fg-3 rounded-sm w-full p-2"
             value={props.view.currentNode.comment}
-            onInput={(evt) => props.setDraftComment(evt.target.value)}
+            onInput={(evt) => {
+              props.setDraftComment(evt.target.value);
+            }}
             onChange={props.commitDraftComment}
             rows="3"
           ></textarea>
-          <div class="flex items-center justify-between">
+          <div class="pt-4 flex items-center justify-start">
             <MenuButton
               placement="bottom-start"
               style="nags"
@@ -200,298 +154,5 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
         </div>
       </Match>
     </Switch>
-  );
-}
-
-export interface HeaderFieldProps {
-  label: string;
-  key: string;
-  view: EditorView;
-  setView: (view: EditorView) => void;
-  editor: Editor;
-}
-
-function HeaderField(props: HeaderFieldProps) {
-  function setValue(value: string) {
-    props.editor.setHeaderValue(props.key, value);
-    props.setView(props.editor.view);
-  }
-
-  return (
-    <Field.Root class="flex flex-col gap-1">
-      <Field.Label>{props.label}</Field.Label>
-      <Field.Input
-        value={props.view.headers.get(props.key)}
-        onChange={(evt) => setValue(evt.target.value)}
-        onKeyUp={(evt) => {
-          if (evt.key == "Enter") {
-            evt.currentTarget.blur();
-          }
-        }}
-        class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
-      />
-    </Field.Root>
-  );
-}
-
-export interface ResultFieldProps {
-  view: EditorView;
-  setView: (view: EditorView) => void;
-  editor: Editor;
-}
-
-function ResultField(props: ResultFieldProps) {
-  function setValue(value: string) {
-    props.editor.setHeaderValue("Result", value);
-    props.setView(props.editor.view);
-  }
-
-  const possibleValues = ["1-0", "1/2-1/2", "0-1", "*"];
-
-  return (
-    <Field.Root class="flex flex-col gap-1">
-      <Field.Label>Result</Field.Label>
-      <div class="flex">
-        <MenuButton
-          textSize="text-md"
-          placement="top-start"
-          text={props.view.headers.get("Result")}
-          items={possibleValues.map((value) =>
-            menuItem(value, value, {
-              selected: props.view.headers.get("Result") == value,
-            }),
-          )}
-          onSelect={setValue}
-        />
-      </div>
-    </Field.Root>
-  );
-}
-
-export interface DateFieldProps {
-  view: EditorView;
-  setView: (view: EditorView) => void;
-  editor: Editor;
-}
-
-function DateField(props: DateFieldProps) {
-  function parsePgnDate(value: string | undefined): DateValue | undefined {
-    if (value === undefined || value == "????.??.??") {
-      return undefined;
-    }
-    return parseDate(value.replace(/\./g, "-"));
-  }
-
-  function formatPgnDate(date: DateValue): string {
-    return `${date.year.toString().padStart(4, "0")}.${date.month.toString().padStart(2, "0")}.${date.day.toString().padStart(2, "0")}`;
-  }
-
-  const [error, setError] = createSignal("");
-  const [value, setValue] = createSignal(
-    parsePgnDate(props.view.headers.get("Date")),
-  );
-  const valueAsArray = () => {
-    const v = value();
-    return v !== undefined ? [v] : undefined;
-  };
-
-  return (
-    <DatePicker.Root
-      value={valueAsArray()}
-      format={formatPgnDate}
-      onValueChange={({ value }) => {
-        props.editor.setHeaderValue(
-          "Date",
-          value[0] ? formatPgnDate(value[0]) : undefined,
-        );
-        props.setView(props.editor.view);
-        setError("");
-      }}
-    >
-      <DatePicker.Label>Date</DatePicker.Label>
-
-      <DatePicker.Control class="flex items-center justify-between gap-4">
-        <input
-          type="text"
-          value={props.view.headers.get("Date")}
-          placeholder="YYYY.MM.DD"
-          onChange={(evt) => {
-            let date;
-            try {
-              date = parsePgnDate(evt.target.value);
-            } catch {
-              setError("expected YYYY.MM.DD");
-              return;
-            }
-            setError("");
-            setValue(date);
-            props.editor.setHeaderValue(
-              "Date",
-              date ? formatPgnDate(date) : undefined,
-            );
-            props.setView(props.editor.view);
-          }}
-          onKeyUp={(evt) => {
-            if (evt.key == "Enter") {
-              evt.currentTarget.blur();
-            }
-          }}
-          class="border-1 border-fg-3 rounded-md px-2 py-1 outline-0"
-        />
-        <DatePicker.Trigger class="text-3xl cursor-pointer">
-          📅
-        </DatePicker.Trigger>
-      </DatePicker.Control>
-      <div class="text-error pl-1 pt-0.5">{error()}</div>
-
-      <Portal>
-        <DatePicker.Positioner>
-          <DatePicker.Content class="bg-bg-2 text-fg-1 p-4 border-1 border-fg-3">
-            <DatePicker.View view="day">
-              <DatePicker.Context>
-                {(context) => (
-                  <>
-                    <DatePicker.ViewControl class="flex items-center w-full pb-4">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <PrevIcon />
-                      </DatePicker.PrevTrigger>
-                      <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
-                          <DatePicker.RangeText />
-                        </DatePicker.ViewTrigger>
-                      </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <NextIcon />
-                      </DatePicker.NextTrigger>
-                    </DatePicker.ViewControl>
-
-                    <DatePicker.Table class="w-80">
-                      <DatePicker.TableHead>
-                        <DatePicker.TableRow>
-                          <Index each={context().weekDays}>
-                            {(weekDay) => (
-                              <DatePicker.TableHeader class="p-2">
-                                {weekDay().short}
-                              </DatePicker.TableHeader>
-                            )}
-                          </Index>
-                        </DatePicker.TableRow>
-                      </DatePicker.TableHead>
-
-                      <DatePicker.TableBody>
-                        <Index each={context().weeks}>
-                          {(week) => (
-                            <DatePicker.TableRow>
-                              <Index each={week()}>
-                                {(day) => (
-                                  <DatePicker.TableCell value={day()}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-fg-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
-                                      {day().day}
-                                    </DatePicker.TableCellTrigger>
-                                  </DatePicker.TableCell>
-                                )}
-                              </Index>
-                            </DatePicker.TableRow>
-                          )}
-                        </Index>
-                      </DatePicker.TableBody>
-                    </DatePicker.Table>
-                  </>
-                )}
-              </DatePicker.Context>
-            </DatePicker.View>
-
-            <DatePicker.View view="month">
-              <DatePicker.Context>
-                {(context) => (
-                  <>
-                    <DatePicker.ViewControl class="flex items-center w-full pb-6">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <PrevIcon />
-                      </DatePicker.PrevTrigger>
-                      <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
-                          <DatePicker.RangeText />
-                        </DatePicker.ViewTrigger>
-                      </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <NextIcon />
-                      </DatePicker.NextTrigger>
-                    </DatePicker.ViewControl>
-
-                    <DatePicker.Table class="w-80">
-                      <DatePicker.TableBody>
-                        <Index
-                          each={context().getMonthsGrid({
-                            columns: 4,
-                            format: "short",
-                          })}
-                        >
-                          {(months) => (
-                            <DatePicker.TableRow>
-                              <Index each={months()}>
-                                {(month) => (
-                                  <DatePicker.TableCell value={month().value}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
-                                      {month().label}
-                                    </DatePicker.TableCellTrigger>
-                                  </DatePicker.TableCell>
-                                )}
-                              </Index>
-                            </DatePicker.TableRow>
-                          )}
-                        </Index>
-                      </DatePicker.TableBody>
-                    </DatePicker.Table>
-                  </>
-                )}
-              </DatePicker.Context>
-            </DatePicker.View>
-
-            <DatePicker.View view="year">
-              <DatePicker.Context>
-                {(context) => (
-                  <>
-                    <DatePicker.ViewControl class="flex items-center w-full pb-6">
-                      <DatePicker.PrevTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <PrevIcon />
-                      </DatePicker.PrevTrigger>
-                      <div class="grow flex justify-center">
-                        <DatePicker.ViewTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-4 rounded-md">
-                          <DatePicker.RangeText />
-                        </DatePicker.ViewTrigger>
-                      </div>
-                      <DatePicker.NextTrigger class="cursor-pointer hover:bg-highlight-2 py-2 px-2 rounded-md">
-                        <NextIcon />
-                      </DatePicker.NextTrigger>
-                    </DatePicker.ViewControl>
-
-                    <DatePicker.Table class="w-80">
-                      <DatePicker.TableBody>
-                        <Index each={context().getYearsGrid({ columns: 4 })}>
-                          {(years) => (
-                            <DatePicker.TableRow>
-                              <Index each={years()}>
-                                {(year) => (
-                                  <DatePicker.TableCell value={year().value}>
-                                    <DatePicker.TableCellTrigger class="p-2 text-center cursor-pointer hover:bg-highlight-2 rounded-md">
-                                      {year().label}
-                                    </DatePicker.TableCellTrigger>
-                                  </DatePicker.TableCell>
-                                )}
-                              </Index>
-                            </DatePicker.TableRow>
-                          )}
-                        </Index>
-                      </DatePicker.TableBody>
-                    </DatePicker.Table>
-                  </>
-                )}
-              </DatePicker.Context>
-            </DatePicker.View>
-          </DatePicker.Content>
-        </DatePicker.Positioner>
-      </Portal>
-    </DatePicker.Root>
   );
 }

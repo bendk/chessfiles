@@ -11,7 +11,6 @@ export abstract class ChessfilesStorage {
 
 export class FileExistsError extends Error {}
 export class TrainingExistsError extends Error {}
-// TODO: use this more
 export class FileNotFoundError extends Error {}
 
 export type DirEntryType = "engine" | "dir" | "file";

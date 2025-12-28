@@ -14,7 +14,14 @@ import { Chessground } from "chessground";
 import ArrowBigLeft from "lucide-solid/icons/arrow-left";
 import ArrowBigRight from "lucide-solid/icons/arrow-right";
 import Delete from "lucide-solid/icons/delete";
-import { createSignal, createEffect, onCleanup, onMount, Show } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  createEffect,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import { Button } from "~/components";
 
 import "./chessground.base.css";
@@ -46,19 +53,19 @@ function PromotionSelector(props: PromotionSelectorProps) {
       }}
     >
       <button
-        class={`piece-queen-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
+        class={`piece-queen-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("queen")}
       ></button>
       <button
-        class={`piece-rook-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
+        class={`piece-rook-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("rook")}
       ></button>
       <button
-        class={`piece-bishop-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
+        class={`piece-bishop-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("bishop")}
       ></button>
       <button
-        class={`piece-knight-${props.color} cursor-pointer h-[25%] bg-cover hover:bg-highlight-1`}
+        class={`piece-knight-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("knight")}
       ></button>
     </div>
@@ -68,7 +75,7 @@ function PromotionSelector(props: PromotionSelectorProps) {
 interface BoardProps {
   chess: Chess;
   lastMove?: Move;
-  onMove: (move: Move) => void;
+  onMove?: (move: Move) => void;
   shapes?: readonly Shape[];
   enableShapes?: boolean;
   withArrows?: boolean;
@@ -77,6 +84,7 @@ interface BoardProps {
   onMoveBackwards?: () => void;
   onMoveForwards?: () => void;
   onDeleteNode?: () => void;
+  viewOnly?: boolean;
 }
 
 interface PendingPromotionState {
@@ -109,11 +117,37 @@ export function Board(props: BoardProps) {
   const [pendingPromotionState, setPendingPromotionState] =
     createSignal<PendingPromotionState>();
 
+  const shapes = createMemo(() => {
+    if (props.shapes === undefined) {
+      return [];
+    }
+    const shapes: DrawShape[] = props.shapes.map((shape) => {
+      if (shape.from == shape.to) {
+        return {
+          orig: makeSquare(shape.from),
+          brush: shape.color,
+        };
+      } else {
+        return {
+          orig: makeSquare(shape.from),
+          dest: makeSquare(shape.to),
+          brush: shape.color,
+        };
+      }
+    });
+    const pending = pendingShape();
+    if (pending) {
+      shapes.push(pending);
+    }
+    return shapes;
+  });
+
   // Make the board match the current `props.chess` value.  This is how we initialize the board and
   // react to changes to `props.chess`.
   function syncPosition() {
     if (!board) {
       board = Chessground(innerDiv, {
+        viewOnly: props.viewOnly === true,
         coordinates: false,
         movable: {
           free: false,
@@ -141,36 +175,22 @@ export function Board(props: BoardProps) {
       movable: {
         dests: chessgroundDests(props.chess),
       },
+      drawable: {
+        shapes: shapes(),
+      },
     });
   }
 
   function playMove(move: Move) {
-    props.onMove(move);
+    if (props.onMove) {
+      props.onMove(move);
+    }
   }
 
   function syncShapes() {
-    if (!board || props.shapes === undefined) {
-      return;
+    if (board !== undefined) {
+      board.setShapes(shapes());
     }
-    const shapes: DrawShape[] = props.shapes.map((shape) => {
-      if (shape.from == shape.to) {
-        return {
-          orig: makeSquare(shape.from),
-          brush: shape.color,
-        };
-      } else {
-        return {
-          orig: makeSquare(shape.from),
-          dest: makeSquare(shape.to),
-          brush: shape.color,
-        };
-      }
-    });
-    const pending = pendingShape();
-    if (pending) {
-      shapes.push(pending);
-    }
-    board.setShapes(shapes);
   }
 
   createEffect(syncPosition);
@@ -310,9 +330,9 @@ export function Board(props: BoardProps) {
           }
         }}
         onWheel={(evt) => {
-          if (evt.deltaY < 0 && props.onMoveForwards) {
+          if (evt.deltaY > 0 && props.onMoveForwards) {
             props.onMoveForwards();
-          } else if (evt.deltaY > 0 && props.onMoveBackwards) {
+          } else if (evt.deltaY < 0 && props.onMoveBackwards) {
             props.onMoveBackwards();
           }
         }}

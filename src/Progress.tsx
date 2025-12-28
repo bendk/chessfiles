@@ -16,7 +16,7 @@ export function Progress(props: ProgressProps) {
         <div class="absolute left-0 right-0 top-0 bottom-0 flex justify-center items-center">
           <ArkProgress.ValueText />
         </div>
-        <ArkProgress.Range class="bg-highlight-2 rounded h-full" />
+        <ArkProgress.Range class="bg-highlight-fill rounded h-full" />
       </ArkProgress.Track>
     </ArkProgress.Root>
   );

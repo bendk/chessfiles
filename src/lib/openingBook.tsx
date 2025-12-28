@@ -38,12 +38,18 @@ export interface TopGame {
   san: string;
   year: number;
   url: string;
+  id: GameIdentifier;
 }
 
 export interface TopGamePlayer {
   name: string;
   rating: number;
 }
+
+export type GameIdentifier = {
+  type: "lichess";
+  id: string;
+};
 
 export function getOpeningBookSettings(): OpeningBookSettings {
   const settings: OpeningBookSettings = {
@@ -149,10 +155,30 @@ function mapTopGame(position: Chess, g: any): TopGame {
   return {
     white: g.white,
     black: g.black,
+    year: g.year,
     winner: g.winner,
     move,
     san: makeSan(position, move),
     url: `https://lichess.org/${g.id}`,
-    year: g.year,
+    id: {
+      type: "lichess",
+      id: g.id,
+    },
   };
+}
+
+export async function fetchPgn(game: GameIdentifier): Promise<string> {
+  if (game.type == "lichess") {
+    return fetchPgnLichess(game.id);
+  }
+  throw Error(`invalid game identifier ${game}`);
+}
+
+async function fetchPgnLichess(id: string): Promise<string> {
+  const url = "https://lichess.org/api/games/export/_ids";
+  const response = await fetch(url, {
+    method: "POST",
+    body: id,
+  });
+  return await response.text();
 }

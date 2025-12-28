@@ -2,6 +2,13 @@ export { Button } from "./Button";
 export { Checkbox } from "./Checkbox";
 export { Dialog } from "./Dialog";
 export { StandardLayout } from "./StandardLayout";
+export {
+  Board,
+  Editor,
+  GameDialog,
+  GameViewMoves,
+  LineViewMoves,
+} from "./editor";
 export { Home } from "./Home";
 export {
   contextMenuEventHandlers,

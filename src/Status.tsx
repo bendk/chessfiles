@@ -146,7 +146,7 @@ export function Status(props: StatusProps) {
                   <Show when={status().type == "error"}>
                     <button
                       onClick={() => props.status?.dismiss()}
-                      class="cursor-pointer text-fg-2 hover:text-highlight-1"
+                      class="cursor-pointer text-fg-2 hover-bg"
                     >
                       <X />
                     </button>

@@ -216,7 +216,7 @@ function BoardButton(props: BoardButtonProps) {
       classList={{
         "rounded-l-md": props.end == "left",
         "rounded-r-md": props.end == "right",
-        "hover:bg-highlight-1": props.selection != props.value,
+        "hover:bg-highlight-line": props.selection != props.value,
         "bg-selection": props.selection == props.value,
       }}
       onClick={() => props.setSelection(props.value)}

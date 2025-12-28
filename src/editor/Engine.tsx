@@ -183,7 +183,7 @@ export function Engine(props: EngineProps) {
                       {(move, index) => (
                         <span
                           classList={{
-                            "group-hover:text-highlight-1": index == 0,
+                            "group-hover:text-highlight-line": index == 0,
                           }}
                         >
                           {move() + " "}

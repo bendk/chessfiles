@@ -112,7 +112,7 @@ export function Menu(props: MenuProps) {
           class={`flex items-center cursor-pointer gap-2 px-4 py-2 ${item.cssClass ?? ""}`}
           classList={{
             "bg-selection": item.selected,
-            "hover:bg-highlight-2": item.disabled !== true,
+            "hover-bg": item.disabled !== true,
             "text-fg-2": item.disabled,
           }}
         >

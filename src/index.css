@@ -24,28 +24,29 @@ html {
 :root {
   --color-fg-1: var(--color-zinc-800);
   --color-fg-2: var(--color-zinc-500);
-  --color-fg-3: var(--color-zinc-300);
+  --color-fg-3: var(--color-zinc-400);
   --color-bg-1: var(--color-white);
   --color-bg-2: var(--color-zinc-100);
   --color-bg-3: var(--color-zinc-300);
-  --color-highlight-1: var(--color-sky-500);
-  --color-highlight-2: var(--color-sky-200);
+  --color-highlight-line: var(--color-sky-500);
+  --color-highlight-fill: var(--color-sky-200);
+  --color-selection: var(--color-sky-300);
   --color-success: var(--color-green-500);
   --color-error: var(--color-red-500);
   --color-warning: var(--color-amber-600);
   --color-shadow: var(--color-zinc-800);
-  --color-selection: var(--color-slate-500);
 }
 
 .dark {
   --color-fg-1: var(--color-zinc-300);
   --color-fg-2: var(--color-zinc-400);
-  --color-fg-3: var(--color-zinc-600);
+  --color-fg-3: var(--color-zinc-500);
   --color-bg-1: var(--color-zinc-900);
   --color-bg-2: var(--color-zinc-800);
   --color-bg-3: var(--color-zinc-600);
-  --color-highlight-1: var(--color-sky-300);
-  --color-highlight-2: var(--color-sky-700);
+  --color-highlight-line: var(--color-sky-300);
+  --color-highlight-fill: var(--color-sky-600);
+  --color-selection: var(--color-sky-500);
   --color-warning: var(--color-amber-300);
 }
 
@@ -56,12 +57,20 @@ html {
   --color-bg-1: var(--color-bg-1);
   --color-bg-2: var(--color-bg-2);
   --color-bg-3: var(--color-bg-3);
-  --color-highlight-2: var(--color-highlight-2);
-  --color-highlight-1: var(--color-highlight-1);
+  --color-highlight-line: var(--color-highlight-line);
+  --color-highlight-fill: var(--color-highlight-fill);
   --color-success: var(--color-success);
   --color-error: var(--color-error);
   --color-warning: var(--color-warning);
   --color-selection: var(--color-selection);
+}
+
+.hover-bg {
+  @apply hover:bg-highlight-fill text-fg-1;
+}
+
+.hover-fg {
+  @apply hover:text-highlight-line;
 }
 
 .header {
@@ -69,7 +78,7 @@ html {
 }
 
 .footer {
-  @apply border-t-1 border-fg-3 bg-bg-2 dark:text-fg-1 dark:bg-zinc-800;
+  @apply border-t-1 border-fg-3 bg-bg-2 dark:text-fg-1 dark:bg-black;
 }
 
 .shadow {

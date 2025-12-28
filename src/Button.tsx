@@ -31,9 +31,10 @@ export function Button(props: ButtonProps) {
     <button
       class={cls()}
       title={props.title}
-      onClick={() => {
+      onClick={(evt) => {
         if (props.disabled !== true && props.onClick) {
           props.onClick();
+          evt.stopPropagation();
         }
       }}
     >
@@ -67,11 +68,11 @@ export function buttonClass(
   if (disabled) {
     cls += " text-fg-2";
   } else if (style == "flat") {
-    cls += " hover:text-fg-1 hover:bg-highlight-2";
+    cls += " hover-bg";
   } else if (style == "primary") {
-    cls += " hover:text-fg-1 hover:bg-highlight-2";
+    cls += " hover-bg";
   } else {
-    cls += " hover:text-fg-1 hover:bg-highlight-2";
+    cls += " hover-bg";
   }
 
   return cls;

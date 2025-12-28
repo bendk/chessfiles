@@ -170,6 +170,7 @@ export class AppStorage {
   async writeBook(path: string, book: Book): Promise<void> {
     const metaManager = await this.metaManager;
     path = joinPath(this.dir(), path);
+
     await this.writeFile(path, book.export());
     await metaManager.onSaveBook(path, book.trainingHistory);
   }

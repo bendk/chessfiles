@@ -1,10 +1,8 @@
-import List from "lucide-solid/icons/list";
-import ListTree from "lucide-solid/icons/list-tree";
 import LogOut from "lucide-solid/icons/log-out";
 import Redo from "lucide-solid/icons/redo";
 import Save from "lucide-solid/icons/save";
+import Settings from "lucide-solid/icons/settings";
 import Undo from "lucide-solid/icons/undo";
-import { SegmentGroup } from "@ark-ui/solid";
 import { moveEquals } from "~/lib/chess";
 import type { Move, Nag, Shape } from "~/lib/chess";
 import type { RootNode } from "~/lib/node";
@@ -12,22 +10,24 @@ import { RootNodeType } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
 import { Editor as EditorBackend } from "~/lib/editor";
 import {
+  createMemo,
   createSignal,
   onCleanup,
   onMount,
   Match,
-  Show,
   Switch,
 } from "solid-js";
 import type { MenuItem } from "~/components";
-import { menuItem, Button, Dialog } from "~/components";
+import { menuItem, Button, Dialog, MenuButton } from "~/components";
 import { CurrentNodeControls } from "./CurrentNodeControls";
 import { SelectInitialPosition } from "./SelectInitialPosition";
+import { GameDialog } from "./GameDialog";
+import { GameInfo } from "./GameInfo";
 import { Board } from "./Board";
 import { Book } from "./Book";
 import { Engine } from "./Engine";
-import { MoveList } from "./MoveList";
-import { MoveTree } from "./MoveTree";
+import { GameViewMoves } from "./GameViewMoves";
+import { LineViewMoves } from "./LineViewMoves";
 
 export type ReorderMenuItems = (moves: readonly Move[]) => MenuItem[];
 export type ReorderMoves = (moves: readonly Move[], op: string) => void;
@@ -40,13 +40,25 @@ interface EditorProps {
   onExit: () => void;
 }
 
+type DialogInfo =
+  | {
+      type: "confirm-exit";
+    }
+  | {
+      type: "game";
+      pgn: string;
+    };
+
 export function Editor(props: EditorProps) {
   const editor = new EditorBackend(props.rootNode);
   const [view, setView] = createSignal(editor.view);
   const [saving, setSaving] = createSignal(false);
   const [draftComment, setDraftComment] = createSignal<string>();
   const [mode, setMode] = createSignal("");
-  const [confirmExitDialog, setConfirmExitDialog] = createSignal(false);
+  const [dialog, setDialog] = createSignal<DialogInfo | null>(null);
+  const [moveView, setMoveView] = createSignal(
+    props.rootNode.type == RootNodeType.Training ? "game" : "line",
+  );
 
   function onMove(move: Move) {
     editor.move(move);
@@ -75,13 +87,21 @@ export function Editor(props: EditorProps) {
 
   function moveBackwards() {
     commitDraftComment();
-    editor.moveBackward();
+    if (moveView() == "line") {
+      editor.moveBackward();
+    } else {
+      editor.moveBackwardGameView();
+    }
     setView(editor.view);
   }
 
   function moveForwards() {
     commitDraftComment();
-    editor.moveForward();
+    if (moveView() == "line") {
+      editor.moveForward();
+    } else {
+      editor.moveForwardGameView();
+    }
     setView(editor.view);
   }
 
@@ -183,14 +203,14 @@ export function Editor(props: EditorProps) {
 
   function onExit() {
     if (editor.view.canUndo) {
-      setConfirmExitDialog(true);
+      setDialog({ type: "confirm-exit" });
     } else {
       props.onExit();
     }
   }
 
   function onExitSubmit() {
-    setConfirmExitDialog(false);
+    setDialog(null);
     props.onExit();
   }
 
@@ -200,7 +220,7 @@ export function Editor(props: EditorProps) {
   // Calculated from:  left-sidebar: 320, right-sidebar: 400px
   const boardMaxWidth = "100vw - 720px";
 
-  const boardSize = `width: calc(min(${boardMaxHeight}, ${boardMaxWidth}))`;
+  const boardSize = `width: calc(min(${boardMaxHeight}, ${boardMaxWidth})); height: calc(min(${boardMaxHeight}, ${boardMaxWidth}) + 52px);`;
 
   onMount(() => {
     window.onbeforeunload = () => {
@@ -211,6 +231,25 @@ export function Editor(props: EditorProps) {
   });
   onCleanup(() => {
     window.onbeforeunload = null;
+  });
+
+  const openDialog = createMemo(() => {
+    const d = dialog();
+    if (d?.type == "confirm-exit") {
+      return (
+        <Dialog
+          onSubmit={onExitSubmit}
+          onClose={() => setDialog(null)}
+          title="Confirm exit"
+          submitText="Exit"
+        >
+          <div>There are unsaved changes, are you sure you want to exit?</div>
+        </Dialog>
+      );
+    } else if (d?.type == "game") {
+      return <GameDialog pgn={d.pgn} onClose={() => setDialog(null)} />;
+    }
+    return null;
   });
 
   return (
@@ -228,19 +267,14 @@ export function Editor(props: EditorProps) {
           />
         </Match>
         <Match when={true}>
-          {
-            // the middle grid-row value is calculated to be the available width:
-            //   - start with 100vw
-            //   - 640px for the left and right sidebars
-            //   + 52px for the controls
-            //   - mod(100vw, 8px) so that it's divisible by 8 (all other terms are already divisible)
-          }
           <div class="flex flex-col h-screen">
             <div class="col-span-full header px-2 py-4 h-[76px]">
               <Header
                 name={props.name}
                 rootNode={props.rootNode}
                 view={view()}
+                editor={editor}
+                setView={setView}
                 saving={saving()}
                 undo={undo}
                 redo={redo}
@@ -248,68 +282,70 @@ export function Editor(props: EditorProps) {
                 onExit={onExit}
               />
             </div>
-            <div class="flex grow justify-center">
-              <div class="pt-4 pl-2 pr-4 basis-[320px] shrink-0">
-                <CurrentNodeControls
-                  isRoot={view().ply == 0}
-                  rootNode={props.rootNode}
-                  view={view()}
-                  editor={editor}
-                  setView={setView}
-                  setDraftComment={setDraftComment}
-                  commitDraftComment={commitDraftComment}
-                  toggleNag={toggleNag}
-                  reorderMenuItems={reorderMenuItems}
-                  onReorder={onReorder}
-                  onSetInitialPosition={() => setMode("set-initial-position")}
-                />
-              </div>
-              <div class="shrink-0 flex" style={boardSize}>
-                <Board
-                  chess={view().position}
-                  lastMove={view().lastMove}
-                  enableShapes={view().ply > 0}
-                  shapes={view().currentNode.shapes}
-                  onMove={onMove}
-                  toggleShape={toggleShape}
-                  onMoveBackwards={moveBackwards}
-                  onMoveForwards={moveForwards}
-                  onDeleteNode={deleteNode}
-                  withArrows
-                  withDeleteNode
-                />
-              </div>
-              <div class="pt-2 px-2 pr-4 flex flex-col gap-8 max-w-[800px] grow">
+            <div class="flex grow justify-center gap-4">
+              <div class="pt-4 pl-2 flex flex-col gap-8 w-100">
                 <Engine
                   currentPly={view().initialPly + view().ply}
                   position={view().position}
                   onMove={onMove}
                 />
-                <Book position={view().position} onMove={onMove} />
+                <Book
+                  position={view().position}
+                  ply={view().ply}
+                  onMove={onMove}
+                  onShowGame={(pgn) => setDialog({ type: "game", pgn })}
+                />
               </div>
-            </div>
-            <div class="col-span-full footer h-[200px] p-2">
-              <MoveView
-                rootNode={props.rootNode}
-                view={view()}
-                setMoves={setMoves}
-                reorderMenuItems={reorderMenuItems}
-                onReorder={onReorder}
-              />
+              <div class="flex flex-col gap-8">
+                <div class="flex">
+                  <div class="flex" style={boardSize}>
+                    <Board
+                      chess={view().position}
+                      lastMove={view().lastMove}
+                      enableShapes={view().ply > 0}
+                      shapes={view().currentNode.shapes}
+                      onMove={onMove}
+                      toggleShape={toggleShape}
+                      onMoveBackwards={moveBackwards}
+                      onMoveForwards={moveForwards}
+                      onDeleteNode={deleteNode}
+                      withArrows
+                      withDeleteNode
+                    />
+                  </div>
+                </div>
+                <div class="grow">
+                  <CurrentNodeControls
+                    isRoot={view().ply == 0}
+                    rootNode={props.rootNode}
+                    view={view()}
+                    editor={editor}
+                    setView={setView}
+                    setDraftComment={setDraftComment}
+                    commitDraftComment={commitDraftComment}
+                    toggleNag={toggleNag}
+                    reorderMenuItems={reorderMenuItems}
+                    onReorder={onReorder}
+                    onSetInitialPosition={() => setMode("set-initial-position")}
+                  />
+                </div>
+              </div>
+              <div class="pt-2 basis-[320px] shrink-0">
+                <MoveView
+                  rootNode={props.rootNode}
+                  moveView={moveView()}
+                  setMoveView={setMoveView}
+                  view={view()}
+                  setMoves={setMoves}
+                  reorderMenuItems={reorderMenuItems}
+                  onReorder={onReorder}
+                />
+              </div>
             </div>
           </div>
         </Match>
       </Switch>
-      <Show when={confirmExitDialog()} keyed>
-        <Dialog
-          onSubmit={onExitSubmit}
-          onClose={() => setConfirmExitDialog(false)}
-          title="Confirm exit"
-          submitText="Exit"
-        >
-          <div>There are unsaved changes, are you sure you want to exit?</div>
-        </Dialog>
-      </Show>
+      {openDialog()}
     </>
   );
 }
@@ -318,6 +354,8 @@ interface HeaderProps {
   name: string;
   rootNode: RootNode;
   view: EditorView;
+  setView: (view: EditorView) => void;
+  editor: EditorBackend;
   saving: boolean;
   undo: () => void;
   redo: () => void;
@@ -327,18 +365,25 @@ interface HeaderProps {
 
 function Header(props: HeaderProps) {
   return (
-    <div class="flex justify-between">
-      <div class="text-3xl truncate text-ellipsis">
+    <div class="flex justify-between gap-10">
+      <div class="w-100 truncate flex items-center">
+        <GameInfo
+          view={props.view}
+          setView={props.setView}
+          editor={props.editor}
+        />
+      </div>
+      <div class="text-3xl truncate">
         <Switch>
           <Match when={props.rootNode.type == RootNodeType.Normal}>
-            {props.name}: Editing game
+            {props.name}
           </Match>
           <Match when={props.rootNode.type == RootNodeType.Training}>
-            {props.name}: Training game
+            {props.name}
           </Match>
         </Switch>
       </div>
-      <div class="flex gap-8">
+      <div class="w-100 flex justify-end gap-8">
         <div class="flex">
           <Button
             disabled={!props.view.canUndo}
@@ -379,45 +424,50 @@ function Header(props: HeaderProps) {
 interface MoveViewProps {
   rootNode: RootNode;
   view: EditorView;
+  moveView: string;
+  setMoveView: (view: string) => void;
   setMoves: (moves: readonly Move[]) => void;
   reorderMenuItems: ReorderMenuItems;
   onReorder: ReorderMoves;
 }
 
 function MoveView(props: MoveViewProps) {
-  const [moveView, setMoveView] = createSignal(
-    props.rootNode.type == RootNodeType.Training ? "tree" : "list",
-  );
+  const moveViewText = createMemo(() => {
+    if (props.moveView == "game") {
+      return "Game view";
+    } else {
+      return "Line view";
+    }
+  });
+
   return (
     <div class="flex flex-col min-h-full min-w-full">
-      <div class="flex justify-start pb-2">
-        <SegmentGroup.Root
-          value={moveView()}
-          class="flex relative"
-          onValueChange={(details) => setMoveView(details.value ?? "list")}
-        >
-          <SegmentGroup.Item value="list">
-            <SegmentGroup.ItemControl class="cursor-pointer data-[state=checked]:bg-highlight-2 px-2 py-1 border-1 border-fg-2 rounded-l-md">
-              <SegmentGroup.ItemText>
-                <List size={20} />
-              </SegmentGroup.ItemText>
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.ItemControl>
-          </SegmentGroup.Item>
-          <SegmentGroup.Item value="tree">
-            <SegmentGroup.ItemControl class="cursor-pointer data-[state=checked]:bg-highlight-2 px-2 py-1 border-1 border-fg-2 border-l-0 rounded-r-md">
-              <SegmentGroup.ItemText>
-                <ListTree size={20} />
-              </SegmentGroup.ItemText>
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.ItemControl>
-          </SegmentGroup.Item>
-        </SegmentGroup.Root>
+      <div class="flex items-center justify-between pb-2">
+        <div class="text-lg text-fg-2">{moveViewText()}</div>
+        <MenuButton
+          icon={<Settings class="text-fg-2" />}
+          style="flat"
+          items={[
+            {
+              type: "item",
+              value: "game",
+              text: "Game view",
+              selected: props.moveView == "game",
+            },
+            {
+              type: "item",
+              value: "line",
+              text: "Line view",
+              selected: props.moveView == "line",
+            },
+          ]}
+          onSelect={props.setMoveView}
+        />
       </div>
-      <div class="pr-2 min-h-0 min-w-0 grow overflow-auto">
+      <div class="pr-2 basis-0 grow overflow-auto">
         <Switch>
-          <Match when={moveView() == "list"}>
-            <MoveList
+          <Match when={props.moveView == "game"}>
+            <GameViewMoves
               rootNode={props.rootNode}
               view={props.view}
               setMoves={props.setMoves}
@@ -425,8 +475,9 @@ function MoveView(props: MoveViewProps) {
               onReorder={props.onReorder}
             />
           </Match>
-          <Match when={moveView() == "tree"}>
-            <MoveTree
+          <Match when={props.moveView == "line"}>
+            <LineViewMoves
+              rootNode={props.rootNode}
               view={props.view}
               setMoves={props.setMoves}
               reorderMenuItems={props.reorderMenuItems}

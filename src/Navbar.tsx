@@ -22,8 +22,8 @@ function NavbarLink(props: NavbarLinkProps) {
     <a
       class="flex gap-1 items-center mx-3 pb-0.5 text-lg cursor-pointer font-medium"
       classList={{
-        "border-b-2 border-highlight-1": current(),
-        "hover:text-highlight-1": !current(),
+        "border-b-2 border-highlight-line": current(),
+        "hover-fg": !current(),
         "px-2": props.text === undefined,
       }}
       aria-current={current() ? "page" : undefined}

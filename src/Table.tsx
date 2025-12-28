@@ -118,8 +118,8 @@ export function Table<T>(props: TableProps<T>) {
                 }
                 class={`col-span-${props.columns} grid grid-cols-subgrid group border-fg-3 items-center`}
                 classList={{
-                  "hover:bg-highlight-2": !otherItemActive(tableItem),
-                  "bg-highlight-2": thisItemActive(tableItem),
+                  "hover-bg": !otherItemActive(tableItem),
+                  "bg-highlight-fill": thisItemActive(tableItem),
                   "transition-transform delay-20 ease-in-out":
                     otherItemActive(tableItem),
                   "border-b-1": index() != props.each.length - 1,
@@ -302,7 +302,7 @@ export function TableMenuCell<T>(props: TableMenuCellProps<T>) {
     return <div />;
   }
   return (
-    <div class="flex justify-center px-2 hover:text-highlight-1">
+    <div class="flex justify-center px-2 hover-fg">
       <Show when={!otherItemActive(props.item)}>
         <MenuTrigger
           hover
@@ -328,10 +328,8 @@ export function TableGripperCell<T>(props: TableGripperCellProps<T>) {
     <div
       class="cursor-grab"
       classList={{
-        "group-hover:opacity-100 hover:text-highlight-1 ml-2": !otherItemActive(
-          props.item,
-        ),
-        "text-highlight-1 opacity-100": thisItemActive(props.item),
+        "group-hover:opacity-100 hover-fg ml-2": !otherItemActive(props.item),
+        "text-highlight-line opacity-100": thisItemActive(props.item),
         "opacity-0": !thisItemActive(props.item),
       }}
     >

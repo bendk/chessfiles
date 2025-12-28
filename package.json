@@ -23,6 +23,7 @@
     "chessops": "^0.14.2",
     "lucide-solid": "^0.555.0",
     "pkce-challenge": "^5.0.0",
+    "quick-lru": "^7.3.0",
     "solid-js": "^1.9.5",
     "tailwindcss": "^4.1.13",
     "uuid": "^11.1.0"
