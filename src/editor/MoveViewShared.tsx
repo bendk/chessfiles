@@ -5,7 +5,11 @@ import type { Node as ChessNode, RootNode } from "~/lib/node";
 import type { EditorMove } from "~/lib/editor";
 import type { ReorderMenuItems } from "./Editor";
 import type { MenuContext } from "~/components";
-import { contextMenuEventHandlers } from "~/components";
+import {
+  contextMenuEventHandlers,
+  menuItem,
+  menuSeparator,
+} from "~/components";
 
 // Context for rendering MoveList/MoveTree
 export interface MoveViewContext {
@@ -126,13 +130,18 @@ export function moveButton(
     }
   }
 
-  const reorderMenuItems = context.reorderMenuItems;
-  if (reorderMenuItems !== undefined) {
-    eventHandlers = contextMenuEventHandlers(context.menu, () => {
+  eventHandlers = contextMenuEventHandlers(context.menu, () => {
+    const items = [];
+    if (context.reorderMenuItems) {
       context.setReorderMoves(currentMoves);
-      return reorderMenuItems(currentMoves);
-    });
-  }
+      const reorderItems = context.reorderMenuItems(currentMoves);
+      if (reorderItems.length > 0) {
+        items.push(...reorderItems, menuSeparator());
+      }
+    }
+    items.push(menuItem("delete", "Delete"));
+    return items;
+  });
 
   const moveButton = (
     <button

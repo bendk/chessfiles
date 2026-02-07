@@ -91,7 +91,7 @@ export interface GameViewMovesProps {
   rootNode: RootNode;
   view: EditorView;
   reorderMenuItems?: ReorderMenuItems;
-  onReorder?: ReorderMoves;
+  onContextMenuAction?: ReorderMoves;
   setMoves: (moves: readonly Move[]) => void;
 }
 
@@ -121,7 +121,7 @@ export function GameViewMoves(props: GameViewMovesProps) {
   return (
     <Menu
       onSelect={(op) => {
-        if (!props.onReorder) {
+        if (!props.onContextMenuAction) {
           return;
         }
         const moves = reorderMoves();
@@ -130,7 +130,7 @@ export function GameViewMoves(props: GameViewMovesProps) {
           return;
         }
         setReorderMoves([]);
-        props.onReorder(moves, op);
+        props.onContextMenuAction(moves, op);
       }}
       placement="top"
     >

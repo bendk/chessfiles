@@ -144,21 +144,31 @@ export function Editor(props: EditorProps) {
     const index = parentMoves.findIndex((m) => moveEquals(m, move));
     const items = [];
     if (index > 0) {
-      items.push(menuItem("main", "Make main line"));
+      items.push(menuItem("reorder-main", "Make main line"));
     }
     if (index > 1) {
-      items.push(menuItem("up", "Move variation up"));
+      items.push(menuItem("reorder-up", "Move variation up"));
     }
     if (index < parentMoves.length - 1) {
-      items.push(menuItem("down", "Move variation down"));
+      items.push(menuItem("reorder-down", "Move variation down"));
     }
     return items;
   }
 
-  function onReorder(moves: readonly Move[], op: string) {
+  function onContextMenuAction(moves: readonly Move[], op: string) {
+    if (op.startsWith("reorder-")) {
+      onReorderMenuAction(moves, op);
+    } else if (op == "delete") {
+      editor.setMoves(moves);
+      editor.deleteNode();
+      setView(editor.view);
+    }
+  }
+
+  function onReorderMenuAction(moves: readonly Move[], op: string) {
     const move = moves.at(-1);
     if (move === undefined) {
-      console.error("reorderMenuItems: move list empty");
+      console.error("onReorderMenuAction: move list empty");
       return [];
     }
     const movesToParent = moves.slice(0, -1);
@@ -167,7 +177,7 @@ export function Editor(props: EditorProps) {
         ? props.rootNode.getDescendant(movesToParent)
         : props.rootNode;
     if (node === undefined) {
-      console.error("onReorder: node lookup failed", movesToParent);
+      console.error("onReorderMenuAction: node lookup failed", movesToParent);
       return;
     }
     const parentMoves = node.children.map((n) => n.move);
@@ -175,11 +185,11 @@ export function Editor(props: EditorProps) {
     const newMoves = [...parentMoves];
     newMoves.splice(index, 1);
 
-    if (op == "main") {
+    if (op == "reorder-main") {
       newMoves.splice(0, 0, move);
-    } else if (op == "up") {
+    } else if (op == "reorder-up") {
       newMoves.splice(index - 1, 0, move);
-    } else if (op == "down") {
+    } else if (op == "reorder-down") {
       newMoves.splice(index + 1, 0, move);
     } else {
       console.error("Invalid reorder op: ", op);
@@ -325,7 +335,7 @@ export function Editor(props: EditorProps) {
                     commitDraftComment={commitDraftComment}
                     toggleNag={toggleNag}
                     reorderMenuItems={reorderMenuItems}
-                    onReorder={onReorder}
+                    onContextMenuAction={onContextMenuAction}
                     onSetInitialPosition={() => setMode("set-initial-position")}
                   />
                 </div>
@@ -338,7 +348,7 @@ export function Editor(props: EditorProps) {
                   view={view()}
                   setMoves={setMoves}
                   reorderMenuItems={reorderMenuItems}
-                  onReorder={onReorder}
+                  onContextMenuAction={onContextMenuAction}
                 />
               </div>
             </div>
@@ -428,7 +438,7 @@ interface MoveViewProps {
   setMoveView: (view: string) => void;
   setMoves: (moves: readonly Move[]) => void;
   reorderMenuItems: ReorderMenuItems;
-  onReorder: ReorderMoves;
+  onContextMenuAction: ReorderMoves;
 }
 
 function MoveView(props: MoveViewProps) {
@@ -472,7 +482,7 @@ function MoveView(props: MoveViewProps) {
               view={props.view}
               setMoves={props.setMoves}
               reorderMenuItems={props.reorderMenuItems}
-              onReorder={props.onReorder}
+              onContextMenuAction={props.onContextMenuAction}
             />
           </Match>
           <Match when={props.moveView == "line"}>
@@ -481,7 +491,7 @@ function MoveView(props: MoveViewProps) {
               view={props.view}
               setMoves={props.setMoves}
               reorderMenuItems={props.reorderMenuItems}
-              onReorder={props.onReorder}
+              onContextMenuAction={props.onContextMenuAction}
             />
           </Match>
         </Switch>

@@ -231,7 +231,11 @@ export function contextMenuEventHandlers(
 ): ContextMenuEventHandlers {
   function openMenu(evt: MouseEvent) {
     if (generateMenu) {
-      menu.setItems(generateMenu());
+      const items = generateMenu();
+      if (items.length == 0) {
+        return;
+      }
+      menu.setItems(items);
     }
     if (onOpen) {
       onOpen();

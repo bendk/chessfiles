@@ -19,7 +19,7 @@ export interface CurrentNodeControlsProps {
   commitDraftComment: () => void;
   toggleNag: (nag: Nag) => void;
   reorderMenuItems: ReorderMenuItems;
-  onReorder: ReorderMoves;
+  onContextMenuAction: ReorderMoves;
   onSetInitialPosition: () => void;
 }
 
@@ -55,7 +55,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
             console.error("currentNode.move is null");
             return;
           }
-          props.onReorder([...currentNode.movesToNode], op);
+          props.onContextMenuAction([...currentNode.movesToNode], op);
         }}
       />
     );
