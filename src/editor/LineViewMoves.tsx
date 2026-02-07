@@ -100,10 +100,6 @@ export function LineViewMoves(props: LineViewMovesProps) {
       placement="top"
     >
       {(menu) => {
-        if (props.rootNode.isEmpty()) {
-          return "";
-        }
-
         const context = {
           selectedNode: props.view.selectedNode,
           setMoves: props.setMoves,

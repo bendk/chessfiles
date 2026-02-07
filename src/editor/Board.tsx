@@ -2,6 +2,7 @@ import {
   chessgroundDests,
   makeFen,
   makeSquare,
+  normalizeMove,
   parseSquare,
   squareFile,
   squareRank,
@@ -182,6 +183,7 @@ export function Board(props: BoardProps) {
   }
 
   function playMove(move: Move) {
+    move = normalizeMove(props.chess, move);
     if (props.onMove) {
       props.onMove(move);
     }

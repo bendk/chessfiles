@@ -1,19 +1,36 @@
 import Pencil from "lucide-solid/icons/pencil";
-import { Index, Show, createEffect, createMemo, createSignal } from "solid-js";
+import {
+  Index,
+  Show,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+} from "solid-js";
 import { Board } from "~/editor/Board";
+import { GameDialog } from "~/editor/GameDialog";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
+import { RootNodeType } from "~/lib/node";
 import type { AppStorage } from "~/lib/storage";
 import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
-import type { StatusTracker } from "~/components";
+import type { AppControls, StatusTracker } from "~/components";
 import { menuItem, Button, MenuButton, StatusError } from "~/components";
 
 export interface TrainingSessionProps {
   storage: AppStorage;
   status: StatusTracker;
   training: Training;
+  controls: AppControls;
   onExit: () => void;
+}
+
+type Dialog = GameDialogInfo;
+
+interface GameDialogInfo {
+  type: "game";
+  pgn: string;
 }
 
 export function TrainingSession(props: TrainingSessionProps) {
@@ -28,6 +45,18 @@ export function TrainingSession(props: TrainingSessionProps) {
   });
   const [needsSave, setNeedsSave] = createSignal(false);
   const [historySaved, setHistorySaved] = createSignal(false);
+  const [dialog, setDialog] = createSignal<Dialog | null>(null);
+
+  const [gameList, { refetch: refetchGameList }] = createResource(async () => {
+    if (state().type == "show-training-summary") {
+      const book = await props.storage.readBook(
+        props.training.meta.sourceBookPath,
+      );
+      return book.rootNodes.filter((node) => node.type == RootNodeType.Normal);
+    } else {
+      return [];
+    }
+  });
 
   async function onExit() {
     props.status.perform("saving training", async () => {
@@ -217,6 +246,7 @@ export function TrainingSession(props: TrainingSessionProps) {
       }
 
       case "show-training-summary": {
+        refetchGameList();
         if (!historySaved()) {
           props.storage.incrementTrainingHistory(props.training.meta);
         }
@@ -225,34 +255,72 @@ export function TrainingSession(props: TrainingSessionProps) {
           <>
             <h2 class="text-2xl">Training complete</h2>
             <Button
-              class="mt-1 w-full"
-              text="Restart"
+              class="mt-2 w-full"
+              text="Train again"
               onClick={restartTraining}
             />
-            <Button class="mt-1 w-full" text="Exit" onClick={onExit} />
+            <Button
+              class="mt-2 w-full"
+              text="Edit Book"
+              onClick={() =>
+                props.controls.setPage({
+                  name: "files",
+                  initialPath: props.training.meta.sourceBookPath,
+                })
+              }
+            />
+            <h2 class="pt-8 text-2xl">Games</h2>
+            <div class="max-h-160 overflow-y-auto">
+              <Index each={gameList()}>
+                {(node, index) => (
+                  <Button
+                    textSize="text-md"
+                    style="flat"
+                    text={node().displayName(index)}
+                    onClick={() =>
+                      setDialog({
+                        type: "game",
+                        pgn: node().toPgnString(),
+                      })
+                    }
+                  />
+                )}
+              </Index>
+            </div>
           </>
         );
       }
     }
   });
 
+  const renderedDialog = createMemo(() => {
+    const d = dialog();
+
+    if (d === null) {
+      return null;
+    } else if (d.type == "game") {
+      return <GameDialog pgn={d.pgn} onClose={() => setDialog(null)} />;
+    }
+  });
+
   return (
-    <div class="flex flex-col pt-4 px-10">
+    <div class="flex flex-col pt-4 px-10 h-screen">
+      {renderedDialog()}
       <div class="flex justify-between pb-8">
         <h1 class="text-3xl truncate text-ellipsis">
           Training: {props.training.meta.name}
         </h1>
         <Button text="Exit" onClick={onExit} />
       </div>
-      <div class="flex justify-center">
-        <div class="flex w-full max-w-200 gap-8">
+      <div class="flex grow justify-center">
+        <div class="flex w-full max-w-250 gap-8">
           <Board
             chess={board().position}
             lastMove={board().lastMove}
             onMove={onMove}
             enableShapes={false}
           />
-          <div class="flex flex-col w-80 justify-between">
+          <div class="flex flex-col w-80 gap-10">
             <div>{statePane()}</div>
             <div>
               {adjustScoreButton()}

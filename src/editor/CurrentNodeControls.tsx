@@ -6,7 +6,7 @@ import type { RootNode } from "~/lib/node";
 import { RootNodeType } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
 import { createMemo, Match, Switch } from "solid-js";
-import { menuItem, Button, MenuButton, RadioGroup } from "~/components";
+import { menuItem, Button, MenuButton } from "~/components";
 import type { ReorderMenuItems, ReorderMoves } from "./Editor";
 
 export interface CurrentNodeControlsProps {
@@ -37,6 +37,16 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
       props.editor.setTrainingColor(undefined);
     }
     props.setView(props.editor.view);
+  }
+
+  function trainingColorLabel() {
+    if (props.view.color == "white") {
+      return "Training: white";
+    } else if (props.view.color == "black") {
+      return "Training: black";
+    } else {
+      return "Training: both sides";
+    }
   }
 
   const reorderButton = createMemo(() => {
@@ -93,24 +103,43 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
       <Match
         when={props.isRoot && props.rootNode.type == RootNodeType.Training}
       >
-        <div class="flex flex-col gap-8">
+        <div class="flex flex-col gap-4">
           <div class="italic">
             Add moves that you want to memorize. Train them later from the
             Training page.
           </div>
-          <RadioGroup.Root
-            value={props.view.color ?? ""}
-            onValueChange={setTrainingColor}
-          >
-            <RadioGroup.Label text="Color to train" />
-            <RadioGroup.Item text="White" value="white" />
-            <RadioGroup.Item text="Black" value="black" />
-            <RadioGroup.Item text="Both" value="" />
-          </RadioGroup.Root>
-          <Button
-            text="Set initial position"
-            onClick={props.onSetInitialPosition}
-          />
+          <div class="flex gap-16">
+            <div class="w-80">
+              <MenuButton
+                text={trainingColorLabel()}
+                items={[
+                  {
+                    type: "item",
+                    value: "white",
+                    text: "White",
+                    selected: props.view.color == "white",
+                  },
+                  {
+                    type: "item",
+                    value: "black",
+                    text: "Black",
+                    selected: props.view.color == "black",
+                  },
+                  {
+                    type: "item",
+                    value: "both",
+                    text: "Both sides",
+                    selected: props.view.color === undefined,
+                  },
+                ]}
+                onSelect={setTrainingColor}
+              />
+            </div>
+            <Button
+              text="Change initial position"
+              onClick={props.onSetInitialPosition}
+            />
+          </div>
         </div>
       </Match>
       <Match when={!props.isRoot}>

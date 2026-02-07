@@ -8,7 +8,14 @@ import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { Training } from "~/lib/training";
 import * as dropbox from "~/lib/auth/dropbox";
-import { FileExistsError, FileNotFoundError, normalizePath } from "./base";
+import type { DirEntryType } from "./base";
+import {
+  FileExistsError,
+  FileNotFoundError,
+  TrainingNotFoundError,
+  normalizePath,
+  splitPath,
+} from "./base";
 import { ChessfilesStorageLocal } from "./local";
 import { ChessfilesStorageDropbox } from "./dropbox";
 
@@ -128,12 +135,12 @@ export class AppStorage {
     return this.storage.allStorageEngines().map(([name]) => name);
   }
 
-  setDir(path: string) {
+  async setDir(path: string): Promise<undefined> {
     if (!path.startsWith("/")) {
       path = joinPath(this.dir(), path);
     }
     this.setDirPath(path);
-    this.refetchFiles();
+    await this.refetchFiles();
   }
 
   async listDir(path: string): Promise<DirEntry[]> {
@@ -182,12 +189,36 @@ export class AppStorage {
   }
 
   async exists(path: string): Promise<boolean> {
+    const fileType = await this.fileType(path);
+    return fileType !== null;
+  }
+
+  async isFile(path: string): Promise<boolean> {
+    const fileType = await this.fileType(path);
+    return fileType === "file";
+  }
+
+  async isDir(path: string): Promise<boolean> {
+    const fileType = await this.fileType(path);
+    return fileType === "dir";
+  }
+
+  private async fileType(path: string): Promise<DirEntryType | null> {
     try {
       const [storage, storagePath] = this.resolvePath(path);
-      return await storage.exists(storagePath);
+      if (storagePath == "/") {
+        return "dir";
+      }
+      const [storageDir, filename] = splitPath(storagePath);
+      for (const entry of await storage.listDir(storageDir)) {
+        if (entry.filename == filename) {
+          return entry.type;
+        }
+      }
+      return null;
     } catch (e) {
       if (e instanceof FileNotFoundError) {
-        return false;
+        return null;
       }
       throw e;
     }
@@ -216,7 +247,6 @@ export class AppStorage {
     if (storage != storage2) {
       throw Error("rename: storage != storage2");
     }
-    console.log(sourceStoragePath, destStoragePath);
     await storage.move(sourceStoragePath, destStoragePath);
     this.refetchFiles();
   }
@@ -570,14 +600,23 @@ export class AppStorage {
     return (await this.metaManager).listTrainingHistory();
   }
 
-  async createTraining(bookPath: string): Promise<Training> {
+  async createOrLoadTraining(bookPath: string): Promise<Training> {
+    const metaManager = await this.metaManager;
+    for (const existingMeta of metaManager.listTraining()) {
+      if (existingMeta.sourceBookPath == bookPath) {
+        return this.loadTraining(existingMeta);
+      }
+    }
+
     const book = await this.readBook(bookPath);
+    if (!book.hasTraining()) {
+      throw new TrainingNotFoundError();
+    }
     const settings = await this.readTrainingSettings();
     const [storageName] = this.engineForPath(bookPath);
     const trainingDir = `/${storageName}/ChessfilesTraining/`;
     const training = Training.create(settings, bookPath, book, trainingDir);
 
-    const metaManager = await this.metaManager;
     metaManager.saveTrainingMeta(training.meta);
     await this.saveTraining(training);
     return training;

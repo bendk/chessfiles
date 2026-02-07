@@ -3,6 +3,7 @@ import * as pgn from "chessops/pgn";
 import { Chess } from "chessops/chess";
 import type { Color, Piece } from "chessops/types";
 import { type NormalMove as Move } from "chessops/types";
+import { normalizeMove as chessNormalizeMove } from "chessops/chess";
 import {
   parseSan as chessParseSan,
   makeSan,
@@ -24,11 +25,16 @@ const pgnToString = pgn.makePgn;
 const pgnParseComment = pgn.parseComment;
 const parsePgn = pgn.parsePgn;
 
+function normalizeMove(position: Chess, move: Move): Move {
+  return chessNormalizeMove(position, move) as Move;
+}
+
 export {
   makeSan,
   makeSanAndPlay,
   makeSquare,
   moveEquals,
+  normalizeMove,
   parsePgn,
   pgnParseComment,
   pgnToString,

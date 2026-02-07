@@ -1,9 +1,9 @@
 import { createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import type { Book } from "~/lib/node";
 import { RootNode, RootNodeType } from "~/lib/node";
-import type { AppStorage } from "~/lib/storage";
+import { type AppStorage } from "~/lib/storage";
 import { Editor } from "../editor";
-import type { MenuItem, StatusTracker } from "../components";
+import type { AppControls, MenuItem, StatusTracker } from "../components";
 import {
   menuItem,
   Button,
@@ -18,6 +18,7 @@ import {
 export interface BookEditorProps {
   book: Book;
   storage: AppStorage;
+  controls: AppControls;
   filename: string;
   onExit: () => void;
   status: StatusTracker;
@@ -153,6 +154,20 @@ export function BookEditor(props: BookEditorProps) {
     return success;
   }
 
+  async function onTrainBook(): Promise<boolean> {
+    let success = false;
+    await props.status.perform("opening training", async () => {
+      const path = props.storage.absPath(props.filename);
+      const training = await props.storage.createOrLoadTraining(path);
+      props.controls.setPage({
+        name: "training",
+        initialTraining: training,
+      });
+      success = true;
+    });
+    return success;
+  }
+
   function onEditorExit() {
     setCurrentRootNode(null);
   }
@@ -253,6 +268,9 @@ export function BookEditor(props: BookEditorProps) {
               text="Add training game"
               onClick={() => addGame(RootNodeType.Training)}
             />
+            <Show when={props.book.hasTraining()}>
+              <Button text="Train book" onClick={onTrainBook} />
+            </Show>
           </div>
         </div>
       </Match>

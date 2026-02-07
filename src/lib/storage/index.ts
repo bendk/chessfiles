@@ -10,6 +10,7 @@ export {
   FileExistsError,
   FileNotFoundError,
   TrainingExistsError,
+  TrainingNotFoundError,
   type DirEntry,
   type DirEntryType,
 } from "./base";

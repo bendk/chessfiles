@@ -57,7 +57,7 @@ export function Editor(props: EditorProps) {
   const [mode, setMode] = createSignal("");
   const [dialog, setDialog] = createSignal<DialogInfo | null>(null);
   const [moveView, setMoveView] = createSignal(
-    props.rootNode.type == RootNodeType.Training ? "game" : "line",
+    props.rootNode.isTraining() ? "line" : "game",
   );
 
   function onMove(move: Move) {

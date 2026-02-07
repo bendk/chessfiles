@@ -27,7 +27,12 @@ import {
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
-import { FileNotFoundError, TrainingExistsError } from "~/lib/storage";
+import {
+  filename,
+  FileNotFoundError,
+  TrainingExistsError,
+  TrainingNotFoundError,
+} from "../lib/storage/";
 
 export interface TrainingListProps {
   storage: AppStorage;
@@ -53,9 +58,10 @@ export function TrainingList(props: TrainingListProps) {
       console.error("invalid dialog for restartFininshedMeta (${d})");
       return;
     }
-    await onMenuAction(d.meta, "restart");
+    const training = await props.storage.restartTraining(d.meta);
+    await props.openTraining(training.meta);
     setDialog(null);
-    await onMenuAction(d.meta, "open");
+    refetchTrainingListing();
   }
 
   const [trainingListing, { refetch: refetchTrainingListing }] = createResource(
@@ -169,11 +175,17 @@ export function TrainingList(props: TrainingListProps) {
               props.status.perform("creating training", async () => {
                 let training;
                 try {
-                  training = await props.storage.createTraining(path);
+                  training = await props.storage.createOrLoadTraining(path);
                 } catch (e) {
                   if (e instanceof TrainingExistsError) {
                     setChooserError(
                       "Training already in progress for that book",
+                    );
+                    return;
+                  }
+                  if (e instanceof TrainingNotFoundError) {
+                    setChooserError(
+                      `${filename(path)} does not contain a training game`,
                     );
                     return;
                   }
@@ -252,14 +264,20 @@ export function TrainingList(props: TrainingListProps) {
           <div class="text-2xl flex gap-2">Error loading training data</div>
         </Match>
         <Match when={trainingListing.state == "ready"}>
-          <div class="flex items-start gap-8 w-full">
+          <div class="h-full flex items-start gap-8 w-full">
             <div class="flex-1">
-              <h3 class="text-2xl text-left text-fg-2 pb-4">Sessions</h3>
+              <div class="flex justify-between">
+                <h3 class="text-2xl text-left text-fg-2 pb-4">Sessions</h3>
+                <Button
+                  textSize="text-base"
+                  style="flat"
+                  icon=<IconSettings />
+                  onClick={() => setDialog({ type: "settings" })}
+                />
+              </div>
               <Switch>
                 <Match when={trainingListing()?.metas.length == 0}>
-                  <p class="text-lg pt-1">
-                    Press "New Training Session" to start training.
-                  </p>
+                  <p class="text-lg italic">No sessions in progress.</p>
                 </Match>
                 <Match when={true}>
                   <Table
@@ -295,6 +313,12 @@ export function TrainingList(props: TrainingListProps) {
                   </Table>
                 </Match>
               </Switch>
+              <Button
+                text="New Session"
+                class="mt-4"
+                icon=<Plus />
+                onClick={() => setDialog({ type: "new-session" })}
+              />
             </div>
             <div class="flex-1">
               <Show when={trainingListing()?.activity}>
@@ -332,18 +356,6 @@ export function TrainingList(props: TrainingListProps) {
                 </Table>
               </Show>
             </div>
-          </div>
-          <div class="flex pt-16 gap-8">
-            <Button
-              text="Session"
-              icon=<Plus />
-              onClick={() => setDialog({ type: "new-session" })}
-            />
-            <Button
-              text="Settings"
-              icon=<IconSettings />
-              onClick={() => setDialog({ type: "settings" })}
-            />
           </div>
         </Match>
       </Switch>

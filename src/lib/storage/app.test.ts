@@ -396,12 +396,15 @@ describe("AppStorage", () => {
   test("saving training", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
-    await s2.createFile("/MyBook.pgn", "test data");
+    const book = new Book([
+      RootNode.fromInitialPosition(RootNodeType.Training),
+    ]);
+    await s2.createFile("/MyBook.pgn", book.export());
 
     const storage = testAppStorage([s1, s2]);
 
     // Initial creation
-    const training = await storage.createTraining("/s2/MyBook.pgn");
+    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
     await storage.checkFiles("/s2/ChessfilesTraining", {
       [filename(training.meta.trainingBookPath)]: training.exportPgn(),
     });
@@ -435,12 +438,14 @@ describe("AppStorage", () => {
   test("remove training", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
-    await s2.createFile("/MyBook.pgn", "test data");
+    const book = new Book([
+      RootNode.fromInitialPosition(RootNodeType.Training),
+    ]);
+    await s2.createFile("/MyBook.pgn", book.export());
 
     const storage = testAppStorage([s1, s2]);
 
-    // Initial creation
-    const training = await storage.createTraining("/s2/MyBook.pgn");
+    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
     await storage.checkFiles("/s2/ChessfilesTraining", {
       [filename(training.meta.trainingBookPath)]: training.exportPgn(),
     });
@@ -449,6 +454,23 @@ describe("AppStorage", () => {
     await storage.removeTraining(training.meta);
     await storage.checkTraining({ s1: [], s2: [] });
     await storage.checkFiles("/s2/ChessfilesTraining", {});
+  });
+
+  test("load existing training", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    const book = new Book([
+      RootNode.fromInitialPosition(RootNodeType.Training),
+    ]);
+    await s2.createFile("/MyBook.pgn", book.export());
+
+    const storage = testAppStorage([s1, s2]);
+
+    await storage.createOrLoadTraining("/s2/MyBook.pgn");
+    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
+    await storage.checkFiles("/s2/ChessfilesTraining", {
+      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
+    });
   });
 
   test("move single file", async () => {

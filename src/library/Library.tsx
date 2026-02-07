@@ -9,7 +9,7 @@ import Square from "lucide-solid/icons/square";
 import SquareCheck from "lucide-solid/icons/square-check";
 import Trash from "lucide-solid/icons/trash-2";
 import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
-import { normalizeNewFilename, joinPath } from "~/lib/storage";
+import { normalizeNewFilename, joinPath, splitPath } from "~/lib/storage";
 import type { Book } from "~/lib/node";
 import type { AppControls, StatusTracker } from "~/components";
 import { Button, ChooserDialog, Dialog, StandardLayout } from "~/components";
@@ -66,7 +66,21 @@ export function Library(props: LibraryProps) {
   const [currentBook, setCurrentBook] = createSignal<CurrentBook>();
 
   if (props.initialPath) {
-    props.storage.setDir(props.initialPath);
+    openPath(props.initialPath);
+  }
+
+  async function openPath(path: string) {
+    if (await props.storage.isDir(path)) {
+      props.storage.setDir(path);
+    } else {
+      const [dir, filename] = splitPath(path);
+      await props.storage.setDir(dir);
+      const book = await props.storage.readBook(filename);
+      setCurrentBook({
+        filename: filename,
+        book,
+      });
+    }
   }
 
   function unsetDialog() {
@@ -372,6 +386,7 @@ export function Library(props: LibraryProps) {
             <BookEditor
               filename={currentBook.filename}
               storage={props.storage.clone()}
+              controls={props.controls}
               book={currentBook.book}
               onExit={onExitBook}
               status={props.status}

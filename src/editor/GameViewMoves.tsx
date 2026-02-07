@@ -103,7 +103,7 @@ export function GameViewMoves(props: GameViewMovesProps) {
     // access the current node so this re-runs when it changes
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     props.view.currentNode.node;
-    const selectedElt = elt.getElementsByClassName("selected-node")[0];
+    const selectedElt = elt?.getElementsByClassName("selected-node")[0];
     if (!selectedElt) {
       return;
     }

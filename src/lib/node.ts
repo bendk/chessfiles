@@ -87,6 +87,10 @@ export class Book {
     this.trainingHistory.lastTrained = new Date().getTime();
     this.trainingHistory.trainingCount += 1;
   }
+
+  hasTraining(): boolean {
+    return this.rootNodes.some((n) => n.isTraining());
+  }
 }
 
 function exportTrainingHistory(history: TrainingHistory): string {

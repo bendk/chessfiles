@@ -41,6 +41,7 @@ export function Training(props: TrainingProps) {
             storage={props.storage}
             status={props.status}
             training={training}
+            controls={props.controls}
             onExit={() => setCurrentTraining(null)}
           />
         )}

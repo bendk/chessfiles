@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { activityTimeAgo, newTrainingActivity } from "./activity";
 import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
-import { makeFen, makeSan, Chess } from "./chess";
+import { makeFen, makeSan, normalizeMove, Chess } from "./chess";
 import { filename, joinPath } from "~/lib/storage";
 
 export type Score = "correct" | "incorrect";
@@ -131,6 +131,7 @@ export class Training {
   }
 
   tryMove(move: Move) {
+    move = normalizeMove(this.board.position, move);
     assertIsDefined(this.currentNode);
     if (this.state.type != "choose-move") {
       throw Error(`tryMove: invalid state (${this.state.type})`);
@@ -280,6 +281,9 @@ export class Training {
   }
 
   private shouldSkipUserMove() {
+    if (this.settings.skipAfter == 0) {
+      return false;
+    }
     const fen = makeFen(this.board.position.toSetup());
     const count = this.correctStreakMap.get(fen) ?? 0;
     return count >= this.settings.skipAfter;

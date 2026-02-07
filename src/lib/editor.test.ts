@@ -394,7 +394,7 @@ test("undo moves are not merged if the user moves in-between", () => {
   editor.moveBackward();
   checkEditorState(editor, {
     currentMoves: "",
-    line: "e4 (d4) e5 (e6 d4 (Nf3 d5) d5) Nf3 Hello Nc6 (Nf6) Bc4",
+    line: "e4 (*d4) e5 (e6 d4 (Nf3 d5) d5) Nf3 Hello Nc6 (Nf6) Bc4",
   });
   editor.moveForward();
   checkEditorState(editor, {
