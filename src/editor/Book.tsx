@@ -1,3 +1,4 @@
+import { leadingAndTrailing, debounce } from "@solid-primitives/scheduled";
 import BookIcon from "lucide-solid/icons/book";
 import QuickLRU from "quick-lru";
 import {
@@ -60,9 +61,6 @@ export function Book(props: BookProps) {
 export function OpeningBook(props: BookProps) {
   const [settings, setSettings] = createSignal(getOpeningBookSettings());
   const [lookup, setLookup] = createSignal<OpeningBookLookup | null>(null);
-  const cache = new QuickLRU<string, OpeningBookLookup | null>({
-    maxSize: 1024,
-  });
 
   function updateSettings(settings: OpeningBookSettings) {
     setSettings(settings);
@@ -84,22 +82,29 @@ export function OpeningBook(props: BookProps) {
     }
   }
 
-  createEffect(async () => {
-    setLookup(null);
-    const position = props.position;
-    if (props.ply >= 80) {
-      return;
-    }
-    const fen = makeFen(position.toSetup());
-    const cached = cache.get(fen);
-    if (cached !== undefined) {
-      setLookup(cached);
-      return;
-    }
-    const result = await lookupOpeningPosition(settings().kind, props.position);
-    cache.set(fen, result);
-    setLookup(result);
+  const cache = new QuickLRU<string, OpeningBookLookup | null>({
+    maxSize: 1024,
   });
+  const performLookup = leadingAndTrailing(
+    debounce,
+    async (settings: OpeningBookSettings, position: Chess) => {
+      if (props.ply >= 80) {
+        return;
+      }
+      const fen = makeFen(position.toSetup());
+      const cached = cache.get(fen);
+      if (cached !== undefined) {
+        setLookup(cached);
+        return;
+      }
+      setLookup(null);
+      const result = await lookupOpeningPosition(settings.kind, position);
+      cache.set(fen, result);
+      setLookup(result);
+    },
+    250,
+  );
+  createEffect(() => performLookup(settings(), props.position));
 
   return (
     <div class="flex flex-col grow">
@@ -245,10 +250,29 @@ export function Tablebase(props: BookProps) {
     setTablebaseSettings(settings);
   }
 
-  createEffect(async () => {
-    setLookup(null);
-    setLookup(await lookupTablebasePosition(settings().kind, props.position));
+  // createEffect(async () => {
+  //   setLookup(await lookupTablebasePosition(settings().kind, props.position));
+  // });
+  const cache = new QuickLRU<string, TablebaseLookup | null>({
+    maxSize: 1024,
   });
+  const performLookup = leadingAndTrailing(
+    debounce,
+    async (settings: TablebaseSettings, position: Chess) => {
+      const fen = makeFen(position.toSetup());
+      const cached = cache.get(fen);
+      if (cached !== undefined) {
+        setLookup(cached);
+        return;
+      }
+      setLookup(null);
+      const result = await lookupTablebasePosition(settings.kind, position);
+      cache.set(fen, result);
+      setLookup(result);
+    },
+    250,
+  );
+  createEffect(() => performLookup(settings(), props.position));
 
   const dtzTooltip =
     "Rounded distance to Zeroing under the 50-move rule: The number of half-moves until the next capture, pawn move, or checkmate";
