@@ -26,7 +26,7 @@ html {
   --color-fg-2: var(--color-zinc-500);
   --color-fg-3: var(--color-zinc-400);
   --color-bg-1: var(--color-white);
-  --color-bg-2: var(--color-zinc-100);
+  --color-bg-2: var(--color-slate-100);
   --color-bg-3: var(--color-zinc-300);
   --color-highlight-line: var(--color-sky-500);
   --color-highlight-fill: var(--color-sky-200);
