@@ -10,7 +10,7 @@ import {
   Switch,
 } from "solid-js";
 import { activityDescription, activityTimeAgo } from "~/lib/activity";
-import * as dropbox from "~/lib/auth/dropbox";
+import { dropbox, lichess } from "~/lib/auth";
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
@@ -42,6 +42,9 @@ export function Home(props: HomeProps) {
   const [dialog, setDialog] = createSignal("");
   const [dropboxConnected, setDropboxConnected] = createSignal(
     dropbox.isAuthorized(),
+  );
+  const [lichessConnected, setLichessConnected] = createSignal(
+    lichess.isAuthorized(),
   );
   const [trainingListing] = createResource(() => props.storage.listTraining());
   const [activityListing] = createResource(() => props.storage.listActivity());
@@ -127,8 +130,44 @@ export function Home(props: HomeProps) {
               </Match>
             </Switch>
             <div class="pt-2">
-              Connected Dropbox accounts provide storage space for your chess
-              files.
+              Connect your Dropbox account to provide storage space for your
+              chess files.
+            </div>
+          </Dialog>
+        </Match>
+        <Match when={dialog() == "lichess"}>
+          <Dialog
+            title="Lichess Account"
+            closeText="Close"
+            onClose={() => setDialog("")}
+            submitText={
+              lichessConnected() ? "Disconnect Lichess" : "Connect Lichess"
+            }
+            onSubmit={async () => {
+              if (lichessConnected()) {
+                await lichess.disconnect();
+                setLichessConnected(false);
+                setDialog("");
+              } else {
+                lichess.startLogin();
+              }
+            }}
+          >
+            <Switch>
+              <Match when={lichessConnected()}>
+                <div class="flex items-center gap-1 text-success">
+                  <CloudCheck /> Lichess account connected
+                </div>
+              </Match>
+              <Match when={!lichessConnected()}>
+                <div class="flex items-center gap-1 text-fg-2">
+                  <CloudOff /> Lichess account not connected
+                </div>
+              </Match>
+            </Switch>
+            <div class="pt-2">
+              Connect your Lichess account to get opening and endgame databases
+              in the game editor.
             </div>
           </Dialog>
         </Match>
@@ -171,7 +210,12 @@ export function Home(props: HomeProps) {
               />
             </div>
             <div class="flex items-start text-fg-2">
-              <Button icon={<CloudOff />} text="Lichess" style="flat" />
+              <Button
+                icon={lichessConnected() ? <CloudCheck /> : <CloudOff />}
+                text="Lichess"
+                style="flat"
+                onClick={() => setDialog("lichess")}
+              />
             </div>
           </div>
         </div>

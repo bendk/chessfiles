@@ -11,6 +11,7 @@ import {
   Switch,
 } from "solid-js";
 import type { Chess, Move } from "~/lib/chess";
+import { lichess } from "~/lib/auth";
 import { makeFen } from "~/lib/chess";
 import { abbreviateCount } from "~/lib/util";
 import type { OpeningBookSettings, OpeningBookLookup } from "~/lib/openingBook";
@@ -59,6 +60,14 @@ export function Book(props: BookProps) {
 }
 
 export function OpeningBook(props: BookProps) {
+  if (!lichess.isAuthorized()) {
+    return (
+      <div class="italic">
+        Login to lichess from the home page to see game databases
+      </div>
+    );
+  }
+
   const [settings, setSettings] = createSignal(getOpeningBookSettings());
   const [lookup, setLookup] = createSignal<OpeningBookLookup | null>(null);
 

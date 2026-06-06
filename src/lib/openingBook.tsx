@@ -1,3 +1,4 @@
+import { lichess } from "~/lib/auth";
 import type { Chess, Move, Color } from "~/lib/chess";
 import { makeFen, makeSan, parseSan, parseUciMove } from "~/lib/chess";
 
@@ -117,7 +118,7 @@ export async function lookupOpeningLichess(
   params.set("fen", makeFen(position.toSetup()));
   params.set("topGames", "10");
   const url = `https://explorer.lichess.ovh/${masters ? "masters" : "lichess"}?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetchLichess(url);
   const data = await response.json();
   const totalGames = data.white + data.draws + data.black;
   return {
@@ -176,9 +177,33 @@ export async function fetchPgn(game: GameIdentifier): Promise<string> {
 
 async function fetchPgnLichess(id: string): Promise<string> {
   const url = "https://lichess.org/api/games/export/_ids";
-  const response = await fetch(url, {
+  const response = await fetchLichess(url, {
     method: "POST",
     body: id,
   });
   return await response.text();
+}
+
+async function fetchLichess(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const headers = lichess.authHeaders();
+  options = options ?? {};
+  // The auth headers should always be set if we get here.
+  // If not, we'll skip adding them to the request and probably get a 404
+  if (headers !== null) {
+    if (options.headers === undefined) {
+      options.headers = headers;
+    } else if (options.headers instanceof Headers) {
+      for (const [key, value] of headers.values()) {
+        options.headers.append(key, value);
+      }
+    } else {
+      console.warn("fetchLichess: invalid options.headers: ${options.headers}");
+    }
+  } else {
+    console.warn("fetchLichess: no auth headers");
+  }
+  return fetch(url, options);
 }
