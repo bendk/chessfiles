@@ -1,8 +1,8 @@
 import type { ChessfilesStorage } from "./base";
 import { filename } from "./base";
 import { newLibraryActivity } from "~/lib/activity";
+import { fixupLoadedTrainingMeta } from "~/lib/training";
 import type { Activity, TrainingActivity } from "~/lib/activity";
-import type { TrainingHistory } from "~/lib/node";
 import type { TrainingMeta } from "~/lib/training";
 
 const META_PATH = "/ChessfilesData.json";
@@ -15,21 +15,17 @@ const META_PATH = "/ChessfilesData.json";
  *
  * - Merging the activity together into a single list
  * - Keeping the `TrainingMeta` data in sync with the stored training files
- * - Keeping the `TrainingHistory` data in sync with the books
  * - Moving stored training files so they're always on the same storage as their metadata
  */
 export interface StorageMeta {
   // Map trainingBookPath to the TrainingMeta entries
   trainingMeta: Record<string, TrainingMeta>;
-  // Map book paths to the TrainingHistory entries
-  trainingHistory: Record<string, TrainingHistory>;
   activity: Activity[];
 }
 
 function defaultStorageMeta(): StorageMeta {
   return {
     activity: [],
-    trainingHistory: {},
     trainingMeta: {},
   };
 }
@@ -59,6 +55,9 @@ class StorageMetaManager {
       } catch (e) {
         console.warn(`Error reading ${storageName} meta: ${e}`);
       }
+    }
+    for (const [key, trainingMeta] of Object.entries(meta.trainingMeta)) {
+      meta.trainingMeta[key] = fixupLoadedTrainingMeta(trainingMeta);
     }
     const manager = new StorageMetaManager(storageName, storage, meta);
     await manager.onLoad();
@@ -138,10 +137,6 @@ class StorageMetaManager {
     this.meta.activity.push(activity);
   }
 
-  addTrainingHistory(bookPath: string, history: TrainingHistory) {
-    this.meta.trainingHistory[bookPath] = history;
-  }
-
   /**
    * Remove any training metas that match a set of book paths
    *
@@ -155,29 +150,6 @@ class StorageMetaManager {
       if (sourceBookPaths.has(meta.sourceBookPath)) {
         removed.push(this.meta.trainingMeta[trainingPath]);
         delete this.meta.trainingMeta[trainingPath];
-      }
-    }
-    return removed;
-  }
-
-  /**
-   * Remove any training history that match a set of book paths
-   *
-   * Returns the list of removed TrainingHistory items
-   *
-   * Does not call `saveMeta()`, the AppMetaManager is responsible for that.
-   */
-  removeMatchingTrainingHistory(
-    sourceBookPaths: Set<string>,
-  ): [string, TrainingHistory][] {
-    const removed: [string, TrainingHistory][] = [];
-    for (const sourceBookPath of Object.keys(this.meta.trainingHistory)) {
-      if (sourceBookPaths.has(sourceBookPath)) {
-        removed.push([
-          sourceBookPath,
-          this.meta.trainingHistory[sourceBookPath],
-        ]);
-        delete this.meta.trainingHistory[sourceBookPath];
       }
     }
     return removed;
@@ -252,13 +224,9 @@ export class AppMetaManager {
     await storageMetaManager.saveMeta();
   }
 
-  async onSaveBook(
-    path: string,
-    trainingHistory: TrainingHistory,
-  ): Promise<void> {
+  async onSaveBook(path: string): Promise<void> {
     const storageMetaManager = this.lookupStorageMetaManager(path);
     storageMetaManager.addActivity(newLibraryActivity(filename(path)));
-    storageMetaManager.addTrainingHistory(path, trainingHistory);
     await storageMetaManager.saveMeta();
   }
 
@@ -268,14 +236,6 @@ export class AppMetaManager {
       metas.push(...Object.values(storageMetaManagers.meta.trainingMeta));
     }
     metas.sort((a, b) => b.lastTrained - a.lastTrained);
-    return metas;
-  }
-
-  listTrainingHistory(): TrainingHistory[] {
-    const metas = [];
-    for (const storageMetaManagers of this.storageMetaManagers) {
-      metas.push(...Object.values(storageMetaManagers.meta.trainingHistory));
-    }
     return metas;
   }
 
@@ -304,49 +264,9 @@ export class AppMetaManager {
       if (removed.length > 0) {
         for (const meta of removed) {
           await storageMetaManager.remove(meta.trainingBookPath);
-          delete storageMetaManager.meta.trainingHistory[meta.sourceBookPath];
         }
         await storageMetaManager.saveMeta();
       }
-    }
-  }
-
-  /**
-   * Update metadata after files have been copied
-   *
-   * Inputs an array of [sourcePath, destPath] items.
-   */
-  async onFilesCopied(paths: [string, string][]): Promise<void> {
-    const pathMap = new Map(paths);
-    const sourcePathSet = new Set(pathMap.keys());
-
-    const movedTrainingHistory = [];
-    for (const storageMetaManager of this.storageMetaManagers) {
-      const removed =
-        storageMetaManager.removeMatchingTrainingHistory(sourcePathSet);
-      for (const [sourceBookPath, trainingHistory] of removed) {
-        const newPath = pathMap.get(sourceBookPath)!;
-        const destStorageMetaManager = this.lookupStorageMetaManager(newPath);
-        movedTrainingHistory.push({
-          dest: destStorageMetaManager,
-          newPath,
-          trainingHistory,
-        });
-      }
-    }
-
-    // Update TrainingHistory
-    for (const { dest, newPath, trainingHistory } of movedTrainingHistory) {
-      dest.meta.trainingHistory[newPath] = trainingHistory;
-    }
-
-    // Save all metas
-    const changed = new Set<StorageMetaManager>();
-    for (const { dest } of movedTrainingHistory) {
-      changed.add(dest);
-    }
-    for (const storageMetaManager of changed) {
-      await storageMetaManager.saveMeta();
     }
   }
 
@@ -374,21 +294,6 @@ export class AppMetaManager {
       }
     }
 
-    const movedTrainingHistory = [];
-    for (const storageMetaManager of this.storageMetaManagers) {
-      const removed =
-        storageMetaManager.removeMatchingTrainingHistory(sourcePathSet);
-      for (const [sourceBookPath, trainingHistory] of removed) {
-        const newPath = pathMap.get(sourceBookPath)!;
-        const destStorageMetaManager = this.lookupStorageMetaManager(newPath);
-        movedTrainingHistory.push({
-          dest: destStorageMetaManager,
-          newPath,
-          trainingHistory,
-        });
-      }
-    }
-
     // Update TrainingMeta paths and add them to their new storage
     for (const { source, dest, meta } of movedTrainingMetas) {
       const newSourceBookPath = pathMap.get(meta.sourceBookPath)!;
@@ -404,18 +309,10 @@ export class AppMetaManager {
       dest.meta.trainingMeta[meta.trainingBookPath] = meta;
     }
 
-    // Update TrainingHistory
-    for (const { dest, newPath, trainingHistory } of movedTrainingHistory) {
-      dest.meta.trainingHistory[newPath] = trainingHistory;
-    }
-
     // Save all metas
     const changed = new Set<StorageMetaManager>();
     for (const { source, dest } of movedTrainingMetas) {
       changed.add(source);
-      changed.add(dest);
-    }
-    for (const { dest } of movedTrainingHistory) {
       changed.add(dest);
     }
 

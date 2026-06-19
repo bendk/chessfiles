@@ -5,7 +5,6 @@ import { AppStorage, ChessfilesStorageLocal, filename, joinPath } from ".";
 import { MockLocalStorage } from "./testutils";
 import type { Activity, LibraryActivity } from "~/lib/activity";
 import { newLibraryActivity, newTrainingActivity } from "~/lib/activity";
-import type { TrainingHistory } from "~/lib/node";
 import { Book, RootNode, RootNodeType } from "~/lib/node";
 import type { TrainingMeta } from "~/lib/training";
 import { defaultTrainingSettings, Training } from "~/lib/training";
@@ -40,12 +39,11 @@ class TestChessfilesStorageLocal extends ChessfilesStorageLocal {
 
   async writeMetadata(
     trainingMeta: Record<string, TrainingMeta>,
-    trainingHistory: Record<string, TrainingHistory>,
     activity: Activity[],
   ) {
     await this.createFile(
       "/ChessfilesData.json",
-      JSON.stringify({ trainingMeta, trainingHistory, activity }),
+      JSON.stringify({ trainingMeta, activity }),
     );
   }
 }
@@ -53,11 +51,7 @@ class TestChessfilesStorageLocal extends ChessfilesStorageLocal {
 function testBook(name: string): Book {
   const node = RootNode.fromInitialPosition(RootNodeType.Normal);
   node.headers.set("test-name", name);
-  return new Book([node], {
-    added: 1000,
-    lastTrained: 2000,
-    trainingCount: 10,
-  });
+  return new Book([node]);
 }
 
 function testTraining(
@@ -199,25 +193,6 @@ class TestAppStorage extends AppStorage {
       ),
     );
   }
-
-  async checkTrainingHistory(expected: {
-    s1: Record<string, TrainingHistory>;
-    s2: Record<string, TrainingHistory>;
-  }) {
-    if (await this.s1.exists("/ChessfilesData.json")) {
-      const s1 = JSON.parse(await this.s1.readFile("/ChessfilesData.json"));
-      expect(s1.trainingHistory).toEqual(expected.s1);
-    } else {
-      expect({}).toEqual(expected.s1);
-    }
-
-    if (await this.s2.exists("/ChessfilesData.json")) {
-      const s2 = JSON.parse(await this.s2.readFile("/ChessfilesData.json"));
-      expect(s2.trainingHistory).toEqual(expected.s2);
-    } else {
-      expect({}).toEqual(expected.s2);
-    }
-  }
 }
 
 /**
@@ -262,9 +237,6 @@ describe("AppStorage", () => {
       {
         "/s1/ChessfilesTraining/training-1.pgn": training.meta,
       },
-      {
-        "/s1/MyBook.pgn": book.trainingHistory,
-      },
       [activity],
     );
     await s1.createDir("/ChessfilesTraining");
@@ -275,12 +247,6 @@ describe("AppStorage", () => {
     const storage = testAppStorage([s1, s2]);
     expect(await storage.listActivity()).toEqual([activity]);
     await storage.checkTraining({ s1: [training], s2: [] });
-    await storage.checkTrainingHistory({
-      s1: {
-        "/s1/MyBook.pgn": book.trainingHistory,
-      },
-      s2: {},
-    });
   });
 
   test("merge engine data", async () => {
@@ -299,7 +265,6 @@ describe("AppStorage", () => {
       {
         "/s1/ChessfilesTraining/training-1.pgn": training1.meta,
       },
-      {},
       [activity1],
     );
     await s1.createDir("/ChessfilesTraining");
@@ -312,7 +277,6 @@ describe("AppStorage", () => {
       {
         "/s2/ChessfilesTraining/training-2.pgn": training2.meta,
       },
-      {},
       [activity2],
     );
     await s2.createDir("/ChessfilesTraining");
@@ -342,11 +306,13 @@ describe("AppStorage", () => {
           correctCount: 1,
           incorrectCount: 2,
           linesTrained: 3,
+          lastGainedRank: 0,
           totalLines: 4,
           lastTrained: 1,
+          trainingCount: 1,
+          rank: 0,
         },
       },
-      {},
       [],
     );
     await s1.createDir("/ChessfilesTraining");
@@ -390,7 +356,6 @@ describe("AppStorage", () => {
     expect(activity2.length).toEqual(2);
     expect(activity2[0].type).toEqual("library");
     expect((activity2[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
-    expect(await storage.listTrainingHistory()).toEqual([book.trainingHistory]);
   });
 
   test("saving training", async () => {
@@ -488,9 +453,6 @@ describe("AppStorage", () => {
       {
         "/s1/ChessfilesTraining/training.pgn": training.meta,
       },
-      {
-        "/s1/MyBook.pgn": book.trainingHistory,
-      },
       [],
     );
 
@@ -515,12 +477,6 @@ describe("AppStorage", () => {
     training.meta.trainingBookPath = "/s2/ChessfilesTraining/training.pgn";
     // The training data should have moved from s1 to s2
     await storage.checkTraining({ s1: [], s2: [training] });
-    await storage.checkTrainingHistory({
-      s1: {},
-      s2: {
-        "/s2/MyBook.pgn": book.trainingHistory,
-      },
-    });
   });
 
   test("copy single file", async () => {
@@ -537,9 +493,6 @@ describe("AppStorage", () => {
     await s1.writeMetadata(
       {
         "/s1/ChessfilesTraining/training.pgn": training.meta,
-      },
-      {
-        "/s1/MyBook.pgn": book.trainingHistory,
       },
       [],
     );
@@ -565,16 +518,6 @@ describe("AppStorage", () => {
     });
     // The training data should stay with the source file
     await storage.checkTraining({ s1: [training], s2: [] });
-
-    // The training history should be copied
-    await storage.checkTrainingHistory({
-      s1: {
-        "/s1/MyBook.pgn": book.trainingHistory,
-      },
-      s2: {
-        "/s2/MyBook.pgn": book.trainingHistory,
-      },
-    });
   });
 
   test("delete file", async () => {
@@ -591,9 +534,6 @@ describe("AppStorage", () => {
     await s1.writeMetadata(
       {
         "/s1/ChessfilesTraining/training.pgn": training.meta,
-      },
-      {
-        "/s1/MyBook.pgn": book.trainingHistory,
       },
       [],
     );
@@ -613,7 +553,6 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s1", {});
     await storage.checkFiles("/s2", {});
     await storage.checkTraining({ s1: [], s2: [] });
-    await storage.checkTrainingHistory({ s1: {}, s2: {} });
   });
 
   test("move single directory", async () => {
@@ -707,12 +646,6 @@ describe("AppStorage", () => {
         "/s1/ChessfilesTraining/training-kings-gambit.pgn":
           kingsGambitTraining.meta,
       },
-      {
-        "/s1/Sicilian.pgn": sicilian.trainingHistory,
-        "/s1/KingsGambit.pgn": kingsGambit.trainingHistory,
-        "/s1/My Openings/London.pgn": london.trainingHistory,
-        "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn.trainingHistory,
-      },
       [],
     );
 
@@ -752,18 +685,6 @@ describe("AppStorage", () => {
     await storage.checkTraining({
       s1: [kingsGambitTraining],
       s2: [sicilianTraining],
-    });
-
-    // The training history should be moved
-    await storage.checkTrainingHistory({
-      s1: {
-        "/s1/KingsGambit.pgn": kingsGambit.trainingHistory,
-        "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn.trainingHistory,
-      },
-      s2: {
-        "/s2/Sicilian.pgn": sicilian.trainingHistory,
-        "/s2/My Openings/London.pgn": london.trainingHistory,
-      },
     });
   });
 
@@ -810,12 +731,6 @@ describe("AppStorage", () => {
         "/s1/ChessfilesTraining/training-kings-gambit.pgn":
           kingsGambitTraining.meta,
       },
-      {
-        "/s1/Sicilian.pgn": sicilian.trainingHistory,
-        "/s1/KingsGambit.pgn": kingsGambit.trainingHistory,
-        "/s1/My Openings/London.pgn": london.trainingHistory,
-        "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn.trainingHistory,
-      },
       [],
     );
 
@@ -857,20 +772,6 @@ describe("AppStorage", () => {
     await storage.checkTraining({
       s1: [kingsGambitTraining, sicilianTraining],
       s2: [],
-    });
-
-    // The training history should be copied
-    await storage.checkTrainingHistory({
-      s1: {
-        "/s1/KingsGambit.pgn": kingsGambit.trainingHistory,
-        "/s1/Sicilian.pgn": sicilian.trainingHistory,
-        "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn.trainingHistory,
-        "/s1/My Openings/London.pgn": london.trainingHistory,
-      },
-      s2: {
-        "/s2/Sicilian.pgn": sicilian.trainingHistory,
-        "/s2/My Openings/London.pgn": london.trainingHistory,
-      },
     });
   });
 
@@ -1066,7 +967,6 @@ describe("AppStorage", () => {
       {
         "/s1/ChessfilesTraining/training-1.pgn": training.meta,
       },
-      {},
       [],
     );
 
@@ -1115,7 +1015,6 @@ describe("AppStorage", () => {
       {
         "/s1/ChessfilesTraining/training-1.pgn": training.meta,
       },
-      {},
       [],
     );
 

@@ -2,7 +2,6 @@ import type { ChessfilesStorage, DirEntry, PathComponent } from ".";
 import { joinPath, pathComponents } from ".";
 import { AppMetaManager } from "./meta";
 import { Book } from "~/lib/node";
-import type { TrainingHistory } from "~/lib/node";
 import type { Activity, TrainingActivity } from "~/lib/activity";
 import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
@@ -179,13 +178,12 @@ export class AppStorage {
     path = joinPath(this.dir(), path);
 
     await this.writeFile(path, book.export());
-    await metaManager.onSaveBook(path, book.trainingHistory);
+    await metaManager.onSaveBook(path);
   }
 
-  async incrementTrainingHistory(meta: TrainingMeta): Promise<void> {
-    const book = await this.readBook(meta.sourceBookPath);
-    book.incrementTrainingHistory();
-    await this.writeBook(meta.sourceBookPath, book);
+  async saveMetaAfterTrainingCompleted(meta: TrainingMeta): Promise<void> {
+    meta.trainingCount += 1;
+    await this.updateTrainingMeta(meta);
   }
 
   async exists(path: string): Promise<boolean> {
@@ -322,8 +320,6 @@ export class AppStorage {
     }
     if (fileOpType == "move-file") {
       steps.push({ type: "update-metadata-on-move" });
-    } else if (fileOpType == "copy-file") {
-      steps.push({ type: "update-metadata-on-copy" });
     }
     return steps;
   }
@@ -463,11 +459,6 @@ export class AppStorage {
           const metaManager = await this.metaManager;
           await metaManager.onFilesMoved(changedPaths);
         }
-      } else if (step.type == "update-metadata-on-copy") {
-        if (!dryRun && changedPaths.length > 0) {
-          const metaManager = await this.metaManager;
-          await metaManager.onFilesCopied(changedPaths);
-        }
       } else if (step.type == "update-metadata-on-delete") {
         const metaManager = await this.metaManager;
         if (!dryRun) {
@@ -525,8 +516,6 @@ export class AppStorage {
     } else if (step.type == "update-metadata-on-delete") {
       return 40;
     } else if (step.type == "update-metadata-on-move") {
-      return 50;
-    } else if (step.type == "update-metadata-on-copy") {
       return 50;
     }
     throw Error(`workForStep: invalid step ${step}`);
@@ -596,8 +585,17 @@ export class AppStorage {
     };
   }
 
-  async listTrainingHistory(): Promise<TrainingHistory[]> {
-    return (await this.metaManager).listTrainingHistory();
+  async loadTrainingMeta(bookFilename: string): Promise<TrainingMeta> {
+    const bookPath = this.absPath(bookFilename);
+    const metaManager = await this.metaManager;
+    const meta = metaManager
+      .listTraining()
+      .find((meta) => meta.sourceBookPath == bookPath);
+    if (meta === undefined) {
+      throw new TrainingNotFoundError();
+    } else {
+      return meta;
+    }
   }
 
   async createOrLoadTraining(bookPath: string): Promise<Training> {
@@ -627,6 +625,11 @@ export class AppStorage {
     const pgnData = await this.readFile(meta.trainingBookPath);
 
     return Training.import(meta, pgnData, settings);
+  }
+
+  async updateTrainingMeta(meta: TrainingMeta) {
+    const metaManager = await this.metaManager;
+    await metaManager.saveTrainingMeta(meta);
   }
 
   async updateTraining(training: Training): Promise<void> {
@@ -679,8 +682,7 @@ type OperationStep =
   | { type: "move-file"; sourcePath: string; destPath: string }
   | { type: "copy-file"; sourcePath: string; destPath: string }
   | { type: "update-metadata-on-delete"; paths: string[] }
-  | { type: "update-metadata-on-move" }
-  | { type: "update-metadata-on-copy" };
+  | { type: "update-metadata-on-move" };
 
 export interface OperationCallbacks {
   shouldOverwrite?: (path: string) => Promise<boolean>;

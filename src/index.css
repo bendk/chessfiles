@@ -97,4 +97,4 @@ html {
   @apply bg-gray-800 text-gray-200;
 }
 
-@source inline("col-span-2 col-span-3 col-span-4");
+@source inline("col-span-2 col-span-3 col-span-4 col-span-5");

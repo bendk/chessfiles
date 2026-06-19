@@ -56,33 +56,3 @@ export function activityDescription(a: Activity): string {
   }
   return "<unknown>";
 }
-
-export function activityTimeAgo(
-  timestamp: number | undefined,
-  currentTimestamp: number,
-) {
-  if (timestamp === undefined) {
-    return "never";
-  }
-  // Do some basic checking that the meta doesn't have a future timestamp because it was
-  // stored by a client with a weird clock
-  const seconds = Math.max((currentTimestamp - timestamp) / 1000, 0);
-  const table: [number, string, string][] = [
-    [604800, "week", "weeks"],
-    [86400, "day", "days"],
-    [3600, "hour", "hours"],
-    [60, "minute", "minutes"],
-  ];
-
-  for (const [amount, singular, plural] of table) {
-    if (seconds >= amount) {
-      const count = Math.round(seconds / amount);
-      if (count === 1) {
-        return `${count} ${singular} ago`;
-      } else {
-        return `${count} ${plural} ago`;
-      }
-    }
-  }
-  return "now";
-}

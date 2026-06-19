@@ -16,7 +16,13 @@ import type { AppStorage } from "~/lib/storage";
 import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
 import type { AppControls, StatusTracker } from "~/components";
-import { menuItem, Button, MenuButton, StatusError } from "~/components";
+import {
+  menuItem,
+  Button,
+  MenuButton,
+  StatusError,
+  TrainingRankIcon,
+} from "~/components";
 
 export interface TrainingSessionProps {
   storage: AppStorage;
@@ -248,12 +254,19 @@ export function TrainingSession(props: TrainingSessionProps) {
       case "show-training-summary": {
         refetchGameList();
         if (!historySaved()) {
-          props.storage.incrementTrainingHistory(props.training.meta);
+          props.storage.saveMetaAfterTrainingCompleted(props.training.meta);
         }
 
         return (
           <>
             <h2 class="text-2xl">Training complete</h2>
+            <Show when={s.gainedRank}>
+              <div class="pt-2 pb-4">
+                <h2 class="text-2xl text-success">New Training Rank!</h2>
+                <TrainingRankIcon rank={props.training.meta.rank} />
+              </div>
+            </Show>
+
             <Button
               class="mt-2 w-full"
               text="Train again"
@@ -269,6 +282,11 @@ export function TrainingSession(props: TrainingSessionProps) {
                 })
               }
             />
+
+            <Show when={!s.gainedRank}>
+              <h2 class="pt-8 text-2xl">Training Rank</h2>
+              <TrainingRankIcon rank={props.training.meta.rank} />
+            </Show>
             <h2 class="pt-8 text-2xl">Games</h2>
             <div class="max-h-160 overflow-y-auto">
               <Index each={gameList()}>

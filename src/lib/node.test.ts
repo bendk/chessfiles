@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { type Move, parseSan, Nag } from "./chess";
-import { RootNode, Book, RootNodeType } from "./node";
+import { RootNode, RootNodeType } from "./node";
 import { buildNode } from "./testutils";
 
 export function moveList(root: RootNode, moves: string[]): Move[] {
@@ -106,20 +106,5 @@ describe("Node import/export", function () {
     // workaround the fact that `id` changes each import by design
     importedNode.id = node.id;
     expect(importedNode).toEqual(node);
-  });
-});
-
-describe("Book", function () {
-  test("import/export training history", () => {
-    const rootNode = buildNode(RootNodeType.Normal, { e4: { e5: {} } });
-    const book = new Book([rootNode]);
-    book.trainingHistory.added = 1000;
-    book.trainingHistory.lastTrained = 2000;
-    book.trainingHistory.trainingCount = 10;
-
-    const book2 = Book.import(book.export());
-    expect(book2.trainingHistory.added).toEqual(1000);
-    expect(book2.trainingHistory.lastTrained).toEqual(2000);
-    expect(book2.trainingHistory.trainingCount).toEqual(10);
   });
 });

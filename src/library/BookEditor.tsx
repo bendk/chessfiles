@@ -1,4 +1,12 @@
-import { createMemo, createSignal, Match, Show, Switch } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  Match,
+  Show,
+  Switch,
+} from "solid-js";
 import type { Book } from "~/lib/node";
 import { RootNode, RootNodeType } from "~/lib/node";
 import { type AppStorage } from "~/lib/storage";
@@ -9,11 +17,20 @@ import {
   Button,
   ChooserDialog,
   Dialog,
+  Loader,
   Table,
   TableCell,
   TableGripperCell,
   TableMenuCell,
+  TrainingRankIcon,
+  MenuButton,
 } from "../components";
+import type { TrainingMeta } from "~/lib/training";
+import {
+  lastTrainedTimeDisplay,
+  nextRankAvailableTimeDisplay,
+  TrainingRank,
+} from "~/lib/training";
 
 export interface BookEditorProps {
   book: Book;
@@ -36,11 +53,19 @@ type DialogInfo =
   | {
       type: "copy";
       rootNode: RootNode;
+    }
+  | {
+      type: "edit-training";
     };
 
 export function BookEditor(props: BookEditorProps) {
   const [reorderCounter, setReorderCounter] = createSignal(0);
   const [dialogInfo, setDialogInfo] = createSignal<DialogInfo | null>(null);
+  const [trainingMeta, { mutate: mutateTrainingMeta }] = createResource(
+    async () => {
+      return props.storage.loadTrainingMeta(props.filename);
+    },
+  );
 
   const [currentRootNode, setCurrentRootNode] = createSignal<RootNode | null>(
     null,
@@ -213,6 +238,20 @@ export function BookEditor(props: BookEditorProps) {
           }}
         />
       );
+    } else if (info.type == "edit-training") {
+      return (
+        <EditTrainingInfoDialog
+          meta={trainingMeta()}
+          onSave={async (meta) => {
+            mutateTrainingMeta(meta);
+            await props.status.perform("saving training", async () => {
+              await props.storage.updateTrainingMeta(meta);
+            });
+            setDialogInfo(null);
+          }}
+          onClose={() => setDialogInfo(null)}
+        />
+      );
     }
   });
 
@@ -238,25 +277,62 @@ export function BookEditor(props: BookEditorProps) {
             <Button text="Exit" onClick={props.onExit} />
           </div>
           <Show when={props.book.rootNodes.length > 0}>
-            <Table
-              each={rootNodes()}
-              columns={3}
-              onReorder={onReorder}
-              menu={menu}
-              onMenuSelect={onMenuAction}
-              growColumn={1}
-              onClick={(entry) => onMenuAction(entry, "open")}
-            >
-              {(item) => (
-                <>
-                  <TableGripperCell item={item} />
-                  <TableCell grow item={item} class="flex items-center gap-2">
-                    {item.value.displayName(item.index())}
-                  </TableCell>
-                  <TableMenuCell item={item} />
-                </>
-              )}
-            </Table>
+            <div class="flex gap-8">
+              <Table
+                each={rootNodes()}
+                columns={3}
+                onReorder={onReorder}
+                menu={menu}
+                onMenuSelect={onMenuAction}
+                growColumn={1}
+                onClick={(entry) => onMenuAction(entry, "open")}
+              >
+                {(item) => (
+                  <>
+                    <TableGripperCell item={item} />
+                    <TableCell grow item={item} class="flex items-center gap-2">
+                      {item.value.displayName(item.index())}
+                    </TableCell>
+                    <TableMenuCell item={item} />
+                  </>
+                )}
+              </Table>
+              <Show when={props.book.hasTraining()}>
+                <div class="flex flex-col w-80 gap-1">
+                  <h3 class="text-xl">Training Info</h3>
+                  <Show when={trainingMeta()}>
+                    {(meta) => {
+                      const now = Date.now();
+                      const m = meta();
+                      return (
+                        <>
+                          <div class="flex items-center gap-2">
+                            Rank: <TrainingRankIcon rank={m.rank} />
+                          </div>
+                          <div class="flex items-center gap-2">
+                            Last trained: {lastTrainedTimeDisplay(m, now)}
+                          </div>
+                          <div class="flex items-center gap-2">
+                            Next rank in: {nextRankAvailableTimeDisplay(m, now)}
+                          </div>
+                          <Button
+                            class="mt-4"
+                            text="Train book"
+                            onClick={onTrainBook}
+                          />
+                          <Button
+                            text="Edit training info"
+                            onClick={() =>
+                              setDialogInfo({ type: "edit-training" })
+                            }
+                          />
+                        </>
+                      );
+                    }}
+                  </Show>
+                </div>
+              </Show>
+            </div>
           </Show>
           <div class="flex pt-8 gap-8">
             <Button
@@ -268,12 +344,85 @@ export function BookEditor(props: BookEditorProps) {
               text="Add training game"
               onClick={() => addGame(RootNodeType.Training)}
             />
-            <Show when={props.book.hasTraining()}>
-              <Button text="Train book" onClick={onTrainBook} />
-            </Show>
           </div>
         </div>
       </Match>
     </Switch>
+  );
+}
+
+interface EditTrainingInfoDialogProps {
+  meta: TrainingMeta | undefined;
+  onSave: (meta: TrainingMeta) => void;
+  onClose: () => void;
+}
+
+function EditTrainingInfoDialog(props: EditTrainingInfoDialogProps) {
+  const [draft, setDraft] = createSignal<TrainingMeta | undefined>(props.meta);
+  createEffect(() => {
+    if (props.meta) {
+      setDraft(props.meta);
+    }
+  });
+
+  function rankMenuItem(rank: number): MenuItem {
+    return menuItem(rank.toString(), "", {
+      icon: <TrainingRankIcon rank={rank} />,
+    });
+  }
+
+  return (
+    <Dialog
+      onSubmit={() => {
+        const toSave = draft();
+        if (toSave) {
+          props.onSave(toSave);
+        } else {
+          props.onClose();
+        }
+      }}
+      onClose={props.onClose}
+      title="Edit training info"
+      submitText="Save"
+      closeText="Cancel"
+    >
+      <Show fallback=<Loader /> when={draft()}>
+        {(draft) => {
+          return (
+            <>
+              <MenuButton
+                onSelect={(rankString) => {
+                  setDraft({
+                    ...draft(),
+                    rank: Number.parseInt(rankString),
+                  });
+                }}
+                icon={
+                  <div class="flex items-center gap-2">
+                    Rank
+                    <TrainingRankIcon rank={draft().rank} />
+                  </div>
+                }
+                style="flat"
+                items={[
+                  rankMenuItem(TrainingRank.Silver1),
+                  rankMenuItem(TrainingRank.Silver2),
+                  rankMenuItem(TrainingRank.Silver3),
+                  rankMenuItem(TrainingRank.Silver4),
+                  rankMenuItem(TrainingRank.Gold1),
+                  rankMenuItem(TrainingRank.Gold2),
+                  rankMenuItem(TrainingRank.Gold3),
+                  rankMenuItem(TrainingRank.Gold4),
+                  rankMenuItem(TrainingRank.Diamond1),
+                  rankMenuItem(TrainingRank.Diamond2),
+                  rankMenuItem(TrainingRank.Diamond3),
+                  rankMenuItem(TrainingRank.Diamond4),
+                ]}
+              />
+            </>
+          );
+        }}
+      </Show>
+    </Dialog>
   );
 }

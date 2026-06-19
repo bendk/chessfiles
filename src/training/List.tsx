@@ -33,6 +33,7 @@ import {
   TrainingExistsError,
   TrainingNotFoundError,
 } from "../lib/storage/";
+import { TrainingRankIcon } from "./Rank.tsx";
 
 export interface TrainingListProps {
   storage: AppStorage;
@@ -282,16 +283,19 @@ export function TrainingList(props: TrainingListProps) {
                 <Match when={true}>
                   <Table
                     each={trainingListing()?.metas ?? []}
-                    columns={4}
+                    columns={5}
                     onClick={(meta) => onMenuAction(meta, "open")}
                     menu={menu}
                     onMenuSelect={onMenuAction}
-                    headers={["Name", "Progress", "Last trained", ""]}
+                    headers={["Name", "Rank", "Progress", "Last trained", ""]}
                   >
                     {(item) => (
                       <>
                         <TableCell grow item={item}>
                           {item.value.name}
+                        </TableCell>
+                        <TableCell item={item}>
+                          <TrainingRankIcon rank={item.value.rank} />
                         </TableCell>
                         <TableCell item={item}>
                           <Progress

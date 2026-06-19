@@ -278,7 +278,10 @@ describe("Training", () => {
 
     training.finishLine();
     checkTraining(training, {
-      state: { type: "show-training-summary" },
+      state: {
+        type: "show-training-summary",
+        gainedRank: true,
+      },
       position: Chess.default(),
       correct: 2,
       incorrect: 0,
@@ -420,6 +423,7 @@ describe("Training", () => {
     checkTraining(training, {
       state: {
         type: "show-training-summary",
+        gainedRank: true,
       },
       position: Chess.default(),
       correct: 3,

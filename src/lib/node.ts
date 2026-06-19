@@ -29,29 +29,16 @@ export enum RootNodeType {
   Training = 1,
 }
 
-export interface TrainingHistory {
-  added: number;
-  lastTrained: number;
-  trainingCount: number;
-}
-
 export class Book {
-  trainingHistory: TrainingHistory;
   // JSON string that the training code uses to store the current line for in-progress sessions
   currentLineData?: string;
 
-  constructor(
-    public rootNodes: RootNode[],
-    trainingHistory?: TrainingHistory,
-  ) {
-    this.trainingHistory = trainingHistory ?? newTrainingHistory();
-  }
+  constructor(public rootNodes: RootNode[]) {}
 
   static import(pgn: string): Book {
-    const trainingHistory = parseTrainingHistory(pgn);
     const currentLineData = parseCurrentLineData(pgn);
     const games = parsePgn(pgn);
-    const book = new Book(games.map(RootNode.import), trainingHistory);
+    const book = new Book(games.map(RootNode.import));
     if (currentLineData !== undefined) {
       book.currentLineData = currentLineData;
     }
@@ -60,9 +47,7 @@ export class Book {
 
   export(): string {
     const games = this.rootNodes.map((node) => node.export());
-    const gameData = games.map(pgnToString).join("\n\n");
-
-    return `${exportTrainingHistory(this.trainingHistory)}\n${gameData}`;
+    return games.map(pgnToString).join("\n\n");
   }
 
   exportTraining(): string {
@@ -83,35 +68,9 @@ export class Book {
     this.currentLineData = data;
   }
 
-  incrementTrainingHistory() {
-    this.trainingHistory.lastTrained = new Date().getTime();
-    this.trainingHistory.trainingCount += 1;
-  }
-
   hasTraining(): boolean {
     return this.rootNodes.some((n) => n.isTraining());
   }
-}
-
-function exportTrainingHistory(history: TrainingHistory): string {
-  const json = JSON.stringify(history);
-  return `%chessfiles-training-history ${json}\n`;
-}
-
-function parseTrainingHistory(pgnData: string): TrainingHistory {
-  const re = /%chessfiles-training-history\s+([^\n]+)\n/;
-  const m = pgnData.match(re);
-  if (m !== null) {
-    const h = JSON.parse(m[1]);
-    if (
-      typeof h.added == "number" &&
-      typeof h.lastTrained == "number" &&
-      typeof h.trainingCount == "number"
-    ) {
-      return h;
-    }
-  }
-  return newTrainingHistory();
 }
 
 function exportCurrentLineData(currentLineData: string | undefined): string {
@@ -128,14 +87,6 @@ function parseCurrentLineData(pgnData: string): string | undefined {
     return m[1];
   }
   return undefined;
-}
-
-export function newTrainingHistory(): TrainingHistory {
-  return {
-    added: new Date().getTime(),
-    lastTrained: 0,
-    trainingCount: 0,
-  };
 }
 
 /**

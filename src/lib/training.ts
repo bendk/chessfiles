@@ -1,7 +1,8 @@
 import type { ChildNode, Node, RootNode } from "./node";
 import type { TrainingActivity } from "./activity";
 import { v4 as uuidv4 } from "uuid";
-import { activityTimeAgo, newTrainingActivity } from "./activity";
+import { newTrainingActivity } from "./activity";
+import { futureTimeDisplay, pastTimeDisplay } from "./util";
 import { Book, Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, makeSan, normalizeMove, Chess } from "./chess";
@@ -74,6 +75,7 @@ export class Training {
       sourceBookPath,
       trainingBookPath,
       settings,
+      rank: TrainingRank.Silver1,
       correctCount: 0,
       incorrectCount: 0,
       linesTrained: 0,
@@ -82,6 +84,8 @@ export class Training {
         0,
       ),
       lastTrained: Date.now(),
+      lastGainedRank: 0,
+      trainingCount: 0,
       currentLine: [],
     };
     return new Training(settings, meta, rootNodes);
@@ -145,7 +149,7 @@ export class Training {
     this.advanceToChild(nodeForMove);
   }
 
-  finishLine() {
+  finishLine(updateMetaRank = true) {
     assertIsDefined(this.currentRootNode);
     this.removeCurrentLineFromRootNode();
     this.currentLine = [];
@@ -155,7 +159,14 @@ export class Training {
     this.board = newBoard(this.currentRootNode);
     this.currentNode = this.currentRootNode;
     if (this.currentNode === undefined) {
-      this.state = { type: "show-training-summary" };
+      const startingRank = this.meta.rank;
+      if (updateMetaRank && this.meta.incorrectCount == 0) {
+        this.meta = updateRank(this.meta, Date.now());
+      }
+      this.state = {
+        type: "show-training-summary",
+        gainedRank: this.meta.rank > startingRank,
+      };
     } else {
       this.updateStateForCurrentNode();
     }
@@ -404,7 +415,7 @@ export class Training {
 
     if (training.currentLine.length > 0) {
       if (!training.rootNodeHasMovesAfterCurrentLine()) {
-        training.finishLine();
+        training.finishLine(false);
       } else {
         training.currentLineReplayCount = training.currentLine.length - 1;
         training.state = { type: "advance-after-delay" };
@@ -416,7 +427,10 @@ export class Training {
 
 function initialState(rootNode: RootNode | undefined): TrainingState {
   if (rootNode === undefined) {
-    return { type: "show-training-summary" };
+    return {
+      type: "show-training-summary",
+      gainedRank: false,
+    };
   }
   if (
     rootNode.color() === undefined ||
@@ -459,8 +473,42 @@ export interface TrainingMeta {
   correctCount: number;
   incorrectCount: number;
   linesTrained: number;
+  rank: number;
   totalLines: number;
   lastTrained: number;
+  lastGainedRank: number;
+  trainingCount: number;
+}
+
+export const TrainingRank = {
+  Silver1: 0,
+  Silver2: 1,
+  Silver3: 2,
+  Silver4: 3,
+  Gold1: 4,
+  Gold2: 5,
+  Gold3: 6,
+  Gold4: 7,
+  Diamond1: 8,
+  Diamond2: 9,
+  Diamond3: 10,
+  Diamond4: 11,
+} as const;
+
+// Fixup a TrainingMeta just loaded from disk
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function fixupLoadedTrainingMeta(meta: any): TrainingMeta {
+  return {
+    // Default values for metas that are missing them
+    correctCount: 0,
+    incorrectCount: 0,
+    linesTrained: 0,
+    rank: 0,
+    totalLines: 0,
+    lastTrained: 0,
+    lastGainedRank: 0,
+    ...meta,
+  };
 }
 
 /**
@@ -514,6 +562,7 @@ export interface TrainingStateShowLineSummary {
  */
 export interface TrainingStateShowSummary {
   type: "show-training-summary";
+  gainedRank: boolean;
 }
 
 export type TrainingState =
@@ -663,5 +712,79 @@ export function trainingTimeAgo(
   timestamp: number | undefined,
   currentTimestamp: number,
 ) {
-  return activityTimeAgo(timestamp, currentTimestamp);
+  return pastTimeDisplay(timestamp, currentTimestamp);
+}
+
+export function updateRank(meta: TrainingMeta, now: number): TrainingMeta {
+  // clamp meta.lastGainedRank to handle wonky clocks
+  if (meta.lastGainedRank > now) {
+    meta = {
+      ...meta,
+      lastGainedRank: now,
+    };
+  }
+
+  const next = nextRankAvailableTime(meta, now);
+  if (next !== null && next <= now) {
+    meta = {
+      ...meta,
+      lastGainedRank: now,
+      rank: meta.rank + 1,
+    };
+  }
+
+  return meta;
+}
+
+function nextRankAvailableTime(meta: TrainingMeta, now: number): number | null {
+  const one_day = 86_400_000;
+  switch (meta.rank) {
+    // Silver has no cooldown
+    case TrainingRank.Silver1:
+    case TrainingRank.Silver2:
+    case TrainingRank.Silver3:
+    case TrainingRank.Silver4:
+      return now;
+
+    // Gold has a 7 day cooldown before gaining additional ranks
+    case TrainingRank.Gold1:
+    case TrainingRank.Gold2:
+    case TrainingRank.Gold3:
+    case TrainingRank.Gold4:
+      return Math.max(meta.lastGainedRank + one_day * 7, now);
+
+    // Diamond has a 30 day cooldown before gaining additional ranks
+    case TrainingRank.Diamond1:
+    case TrainingRank.Diamond2:
+    case TrainingRank.Diamond3:
+      return Math.max(meta.lastGainedRank + one_day * 30, now);
+
+    // Can't advance past diamond 4
+    default:
+      return null;
+  }
+}
+
+export function nextRankAvailableTimeDisplay(
+  meta: TrainingMeta,
+  now?: number,
+): string {
+  if (now === undefined) {
+    now = Date.now();
+  }
+  const nextTime = nextRankAvailableTime(meta, now);
+  if (nextTime == null) {
+    return "Never";
+  }
+  return futureTimeDisplay(nextTime, now);
+}
+
+export function lastTrainedTimeDisplay(
+  meta: TrainingMeta,
+  now?: number,
+): string {
+  if (now === undefined) {
+    now = Date.now();
+  }
+  return pastTimeDisplay(meta.lastTrained, now);
 }

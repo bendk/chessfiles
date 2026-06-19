@@ -9,11 +9,12 @@ import {
   Match,
   Switch,
 } from "solid-js";
-import { activityDescription, activityTimeAgo } from "~/lib/activity";
+import { activityDescription } from "~/lib/activity";
 import { dropbox, lichess } from "~/lib/auth";
 import type { AppStorage } from "~/lib/storage";
 import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
+import { pastTimeDisplay } from "~/lib/util";
 import type { StatusTracker, AppControls } from "~/components";
 import Database from "lucide-solid/icons/database";
 import {
@@ -233,7 +234,7 @@ export function Home(props: HomeProps) {
                       {activityDescription(item.value)}
                     </TableCell>
                     <TableCell class="text-sm" item={item}>
-                      {activityTimeAgo(item.value.timestamp, currentTimestamp)}
+                      {pastTimeDisplay(item.value.timestamp, currentTimestamp)}
                     </TableCell>
                   </>
                 )}
