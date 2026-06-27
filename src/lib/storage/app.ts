@@ -180,6 +180,7 @@ export class AppStorage {
   }
 
   async readBook(path: string): Promise<Book> {
+    path = joinPath(this.dir(), path);
     const data = await this.readFile(path);
     const book = Book.import(data);
     this.cacheTrainingMeta(path, book.trainingMeta);
@@ -601,6 +602,7 @@ export class AppStorage {
   }
 
   async loadBookAndTraining(bookPath: string): Promise<[Book, Training]> {
+    bookPath = joinPath(this.dir(), bookPath);
     const book = await this.readBook(bookPath);
     if (!book.hasTraining()) {
       throw new TrainingNotFoundError();
@@ -612,6 +614,7 @@ export class AppStorage {
   }
 
   async loadTraining(bookPath: string): Promise<Training> {
+    bookPath = joinPath(this.dir(), bookPath);
     const [, training] = await this.loadBookAndTraining(bookPath);
     return training;
   }
@@ -621,6 +624,7 @@ export class AppStorage {
     book: Book,
     training: Training,
   ): Promise<void> {
+    bookPath = joinPath(this.dir(), bookPath);
     const metaManager = await this.metaManager;
     book.setTraining(training);
     await this.writeBook(bookPath, book);
@@ -644,6 +648,7 @@ export class AppStorage {
   }
 
   async removeTraining(bookPath: string): Promise<void> {
+    bookPath = joinPath(this.dir(), bookPath);
     if (!(await this.exists(bookPath))) {
       console.warn("path not found in removeTraining", bookPath);
       const metaManager = await this.metaManager;
@@ -656,6 +661,7 @@ export class AppStorage {
   }
 
   async restartTraining(bookPath: string): Promise<Training> {
+    bookPath = joinPath(this.dir(), bookPath);
     if (!(await this.exists(bookPath))) {
       throw new FileNotFoundError();
     }

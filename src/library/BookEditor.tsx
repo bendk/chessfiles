@@ -1,7 +1,6 @@
 import {
   createEffect,
   createMemo,
-  createResource,
   createSignal,
   Match,
   Show,
@@ -61,11 +60,6 @@ type DialogInfo =
 export function BookEditor(props: BookEditorProps) {
   const [reorderCounter, setReorderCounter] = createSignal(0);
   const [dialogInfo, setDialogInfo] = createSignal<DialogInfo | null>(null);
-  const [trainingMeta, { mutate: mutateTrainingMeta }] = createResource(
-    async () => {
-      return (await props.storage.loadTraining(props.filename)).meta;
-    },
-  );
 
   const [currentRootNode, setCurrentRootNode] = createSignal<RootNode | null>(
     null,
@@ -241,9 +235,8 @@ export function BookEditor(props: BookEditorProps) {
     } else if (info.type == "edit-training") {
       return (
         <EditTrainingInfoDialog
-          meta={trainingMeta()}
+          meta={props.book.trainingMeta}
           onSave={async (meta) => {
-            mutateTrainingMeta(meta);
             props.book.trainingMeta = meta;
             await props.status.perform("saving training", async () => {
               await props.storage.writeBook(props.filename, props.book);
@@ -298,40 +291,34 @@ export function BookEditor(props: BookEditorProps) {
                   </>
                 )}
               </Table>
-              <Show when={props.book.hasTraining()}>
-                <div class="flex flex-col w-80 gap-1">
-                  <h3 class="text-xl">Training Info</h3>
-                  <Show when={trainingMeta()}>
-                    {(meta) => {
-                      const now = Date.now();
-                      const m = meta();
-                      return (
-                        <>
-                          <div class="flex items-center gap-2">
-                            Rank: <TrainingRankIcon rank={m.rank} />
-                          </div>
-                          <div class="flex items-center gap-2">
-                            Last trained: {lastTrainedTimeDisplay(m, now)}
-                          </div>
-                          <div class="flex items-center gap-2">
-                            Next rank in: {nextRankAvailableTimeDisplay(m, now)}
-                          </div>
-                          <Button
-                            class="mt-4"
-                            text="Train book"
-                            onClick={onTrainBook}
-                          />
-                          <Button
-                            text="Edit training info"
-                            onClick={() =>
-                              setDialogInfo({ type: "edit-training" })
-                            }
-                          />
-                        </>
-                      );
-                    }}
-                  </Show>
-                </div>
+              <Show when={props.book.trainingMeta}>
+                {(meta) => {
+                  const now = Date.now();
+                  return (
+                    <div class="flex flex-col w-80 gap-1">
+                      <h3 class="text-xl">Training Info</h3>
+                      <div class="flex items-center gap-2">
+                        Rank: <TrainingRankIcon rank={meta().rank} />
+                      </div>
+                      <div class="flex items-center gap-2">
+                        Last trained: {lastTrainedTimeDisplay(meta(), now)}
+                      </div>
+                      <div class="flex items-center gap-2">
+                        Next rank in:{" "}
+                        {nextRankAvailableTimeDisplay(meta(), now)}
+                      </div>
+                      <Button
+                        class="mt-4"
+                        text="Train book"
+                        onClick={onTrainBook}
+                      />
+                      <Button
+                        text="Edit training info"
+                        onClick={() => setDialogInfo({ type: "edit-training" })}
+                      />
+                    </div>
+                  );
+                }}
               </Show>
             </div>
           </Show>

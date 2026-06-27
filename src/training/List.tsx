@@ -69,6 +69,7 @@ export function TrainingList(props: TrainingListProps) {
       menuItem("open", "Open", {
         disabled: meta.linesTrained >= meta.totalLines,
       }),
+      menuItem("edit-book", "Edit Book"),
       menuItem("restart", "Restart"),
       menuItem("delete", "Delete"),
     ];
@@ -87,6 +88,11 @@ export function TrainingList(props: TrainingListProps) {
       props.status.perform("deleting training", async () => {
         await props.storage.removeTraining(meta.bookPath);
         await refetchTrainingListing();
+      });
+    } else if (action == "edit-book") {
+      props.controls.setPage({
+        name: "files",
+        initialPath: meta.bookPath,
       });
     } else if (action == "restart") {
       await props.status.perform("restarting training", async () => {
