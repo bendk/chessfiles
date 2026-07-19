@@ -6,7 +6,6 @@ import Undo from "lucide-solid/icons/undo";
 import { moveEquals } from "~/lib/chess";
 import type { Move, Nag, Shape } from "~/lib/chess";
 import type { RootNode } from "~/lib/node";
-import { RootNodeType } from "~/lib/node";
 import type { EditorView } from "~/lib/editor";
 import { Editor as EditorBackend } from "~/lib/editor";
 import {
@@ -385,12 +384,8 @@ function Header(props: HeaderProps) {
       </div>
       <div class="text-3xl truncate">
         <Switch>
-          <Match when={props.rootNode.type == RootNodeType.Normal}>
-            {props.name}
-          </Match>
-          <Match when={props.rootNode.type == RootNodeType.Training}>
-            {props.name}
-          </Match>
+          <Match when={props.rootNode.isNormal()}>{props.name}</Match>
+          <Match when={props.rootNode.isTraining()}>{props.name}</Match>
         </Switch>
       </div>
       <div class="w-100 flex justify-end gap-8">

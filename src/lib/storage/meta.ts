@@ -1,7 +1,7 @@
-import type { ChessfilesStorage } from "./base";
+import type { ChessfilesStorage, TrainingMetaWithPath } from "./base";
 import { filename } from "./base";
 import { newLibraryActivity } from "~/lib/activity";
-import { fixupLoadedTrainingMeta } from "~/lib/training";
+import { fixupLoadedTrainingMeta, trainingMetaEquals } from "~/lib/training";
 import type { Activity, TrainingActivity } from "~/lib/activity";
 import type { TrainingMeta } from "~/lib/training";
 
@@ -18,7 +18,7 @@ const META_PATH = "/ChessfilesData.json";
  * - Moving stored training files so they're always on the same storage as their metadata
  */
 export interface StorageMeta {
-  // Map trainingBookPath to the TrainingMeta entries
+  // Map sourceBookPath to the TrainingMeta entries
   trainingMeta: Record<string, TrainingMeta>;
   activity: Activity[];
 }
@@ -60,42 +60,7 @@ class StorageMetaManager {
       meta.trainingMeta[key] = fixupLoadedTrainingMeta(trainingMeta);
     }
     const manager = new StorageMetaManager(storageName, storage, meta);
-    await manager.onLoad();
     return manager;
-  }
-
-  /**
-   * Perform first-load actions
-   */
-  private async onLoad() {
-    if (!(await this.storage.exists("/ChessfilesTraining"))) {
-      await this.storage.createDir("/ChessfilesTraining");
-    }
-    const trainingFiles = await this.storage.listDir("/ChessfilesTraining");
-    const trainingFilePaths = new Set(
-      trainingFiles.map(
-        (e) => `/${this.storageName}/ChessfilesTraining/${e.filename}`,
-      ),
-    );
-
-    // Remove files in `ChessfilesTraining` with no corresponding metadata
-    for (const path of trainingFilePaths) {
-      if (this.meta.trainingMeta[path] === undefined) {
-        await this.storage.remove(path.slice(this.storageName.length + 1));
-      }
-    }
-
-    // Remove metadata entry with no corresponding file in `ChessfilesTraining`
-    let removedEntry = false;
-    for (const key of Object.keys(this.meta.trainingMeta)) {
-      if (!trainingFilePaths.has(key)) {
-        delete this.meta.trainingMeta[key];
-        removedEntry = true;
-      }
-    }
-    if (removedEntry) {
-      await this.saveMeta();
-    }
   }
 
   matchesPath(path: string): boolean {
@@ -111,6 +76,10 @@ class StorageMetaManager {
     );
   }
 
+  fullPath(path: string): string {
+    return `/${this.storageName}${path}`;
+  }
+
   async saveMeta() {
     if (await this.storage.exists(META_PATH)) {
       await this.storage.writeFile(META_PATH, JSON.stringify(this.meta));
@@ -119,40 +88,41 @@ class StorageMetaManager {
     }
   }
 
-  async saveTrainingMeta(meta: TrainingMeta): Promise<void> {
-    this.meta.trainingMeta[meta.trainingBookPath] = meta;
+  async saveTrainingMeta(
+    sourceBookPath: string,
+    meta: TrainingMeta | undefined,
+  ) {
+    if (meta !== undefined) {
+      if (
+        this.meta.trainingMeta[sourceBookPath] &&
+        trainingMetaEquals(meta, this.meta.trainingMeta[sourceBookPath])
+      ) {
+        return;
+      }
+      this.meta.trainingMeta[sourceBookPath] = meta;
+    } else {
+      if (this.meta.trainingMeta[sourceBookPath] === undefined) {
+        return;
+      }
+      delete this.meta.trainingMeta[sourceBookPath];
+    }
     await this.saveMeta();
   }
 
-  async removeTrainingMeta(meta: TrainingMeta): Promise<void> {
-    delete this.meta.trainingMeta[meta.trainingBookPath];
-    await this.saveMeta();
-    const enginePath = this.enginePath(meta.trainingBookPath);
-    if (await this.storage.exists(enginePath)) {
-      await this.storage.remove(enginePath);
-    }
+  getTrainingMeta(sourceBookPath: string): TrainingMeta | undefined {
+    return this.meta.trainingMeta[this.enginePath(sourceBookPath)];
+  }
+
+  addTrainingMeta(sourceBookPath: string, meta: TrainingMeta) {
+    this.meta.trainingMeta[this.enginePath(sourceBookPath)] = meta;
+  }
+
+  removeTrainingMeta(sourceBookPath: string) {
+    delete this.meta.trainingMeta[this.enginePath(sourceBookPath)];
   }
 
   addActivity(activity: Activity) {
     this.meta.activity.push(activity);
-  }
-
-  /**
-   * Remove any training metas that match a set of book paths
-   *
-   * Returns the list of removed metas
-   *
-   * Does not call `saveMeta()`, the AppMetaManager is responsible for that.
-   */
-  removeMatchingMetas(sourceBookPaths: Set<string>): TrainingMeta[] {
-    const removed: TrainingMeta[] = [];
-    for (const [trainingPath, meta] of Object.entries(this.meta.trainingMeta)) {
-      if (sourceBookPaths.has(meta.sourceBookPath)) {
-        removed.push(this.meta.trainingMeta[trainingPath]);
-        delete this.meta.trainingMeta[trainingPath];
-      }
-    }
-    return removed;
   }
 
   async readFile(path: string): Promise<string> {
@@ -230,43 +200,76 @@ export class AppMetaManager {
     await storageMetaManager.saveMeta();
   }
 
-  listTraining(): TrainingMeta[] {
-    const metas = [];
-    for (const storageMetaManagers of this.storageMetaManagers) {
-      metas.push(...Object.values(storageMetaManagers.meta.trainingMeta));
+  listTraining(): TrainingMetaWithPath[] {
+    const entries = [];
+    for (const storageMetaManager of this.storageMetaManagers) {
+      for (const [bookPath, meta] of Object.entries(
+        storageMetaManager.meta.trainingMeta,
+      )) {
+        entries.push({
+          ...meta,
+          bookPath: storageMetaManager.fullPath(bookPath),
+        });
+      }
     }
-    metas.sort((a, b) => b.lastTrained - a.lastTrained);
-    return metas;
+    entries.sort((a, b) => b.lastTrained - a.lastTrained);
+    return entries;
   }
 
-  async saveTrainingMeta(meta: TrainingMeta): Promise<void> {
-    const storageMetaManager = this.lookupStorageMetaManager(
-      meta.trainingBookPath,
-    );
-    await storageMetaManager.saveTrainingMeta(meta);
+  getTrainingMeta(sourceBookPath: string): TrainingMeta | undefined {
+    const storageMetaManager = this.lookupStorageMetaManager(sourceBookPath);
+    return storageMetaManager.getTrainingMeta(sourceBookPath);
   }
 
-  async removeTrainingMeta(meta: TrainingMeta): Promise<void> {
-    const storageMetaManager = this.lookupStorageMetaManager(
-      meta.trainingBookPath,
-    );
-    await storageMetaManager.removeTrainingMeta(meta);
+  async cacheTrainingMeta(bookPath: string, meta: TrainingMeta | undefined) {
+    const storageMetaManager = this.lookupStorageMetaManager(bookPath);
+    const engineSourceBookPath = storageMetaManager.enginePath(bookPath);
+    await storageMetaManager.saveTrainingMeta(engineSourceBookPath, meta);
   }
 
   /**
    * Update metadata after files have been deleted
    */
   async onFilesDeleted(paths: string[]): Promise<void> {
-    const pathSet = new Set(paths);
-
-    for (const storageMetaManager of this.storageMetaManagers) {
-      const removed = storageMetaManager.removeMatchingMetas(pathSet);
-      if (removed.length > 0) {
-        for (const meta of removed) {
-          await storageMetaManager.remove(meta.trainingBookPath);
-        }
-        await storageMetaManager.saveMeta();
+    for (const [
+      storageMetaManager,
+      metaManagerPaths,
+    ] of this.lookupStorageMetaManagers(paths)) {
+      for (const path of metaManagerPaths) {
+        storageMetaManager.removeTrainingMeta(path);
       }
+      await storageMetaManager.saveMeta();
+    }
+  }
+
+  /**
+   * Update metadata after files have been copy
+   *
+   * Inputs an array of [sourcePath, destPath] items.
+   */
+  async onFilesCopied(paths: [string, string][]): Promise<void> {
+    const changed = new Set<StorageMetaManager>();
+    const pathMap = new Map(paths);
+
+    for (const [
+      storageMetaManager,
+      metaManagerPaths,
+    ] of this.lookupStorageMetaManagers([...pathMap.keys()])) {
+      for (const path of metaManagerPaths) {
+        const meta = storageMetaManager.getTrainingMeta(path);
+        if (meta === undefined) {
+          continue;
+        }
+        const newPath = pathMap.get(path)!;
+        const destStorageMetaManager = this.lookupStorageMetaManager(newPath);
+
+        destStorageMetaManager.addTrainingMeta(newPath, meta);
+        changed.add(destStorageMetaManager);
+      }
+    }
+
+    for (const storageMetaManager of changed) {
+      await storageMetaManager.saveMeta();
     }
   }
 
@@ -276,44 +279,26 @@ export class AppMetaManager {
    * Inputs an array of [sourcePath, destPath] items.
    */
   async onFilesMoved(paths: [string, string][]): Promise<void> {
-    const pathMap = new Map(paths);
-    const sourcePathSet = new Set(pathMap.keys());
-
-    const movedTrainingMetas = [];
-
-    for (const storageMetaManager of this.storageMetaManagers) {
-      const removed = storageMetaManager.removeMatchingMetas(sourcePathSet);
-      for (const meta of removed) {
-        const newPath = pathMap.get(meta.sourceBookPath)!;
-        const destStorageMetaManager = this.lookupStorageMetaManager(newPath);
-        movedTrainingMetas.push({
-          source: storageMetaManager,
-          dest: destStorageMetaManager,
-          meta,
-        });
-      }
-    }
-
-    // Update TrainingMeta paths and add them to their new storage
-    for (const { source, dest, meta } of movedTrainingMetas) {
-      const newSourceBookPath = pathMap.get(meta.sourceBookPath)!;
-      // If the book moved to a new storage, move the training book as well
-      if (source !== dest) {
-        const content = await source.readFile(meta.trainingBookPath);
-        const newTrainingBookPath = `/${dest.storageName}/ChessfilesTraining/${filename(meta.trainingBookPath)}`;
-        await dest.createFile(newTrainingBookPath, content);
-        await source.remove(meta.trainingBookPath);
-        meta.trainingBookPath = newTrainingBookPath;
-      }
-      meta.sourceBookPath = newSourceBookPath;
-      dest.meta.trainingMeta[meta.trainingBookPath] = meta;
-    }
-
-    // Save all metas
     const changed = new Set<StorageMetaManager>();
-    for (const { source, dest } of movedTrainingMetas) {
-      changed.add(source);
-      changed.add(dest);
+    const pathMap = new Map(paths);
+
+    for (const [
+      storageMetaManager,
+      metaManagerPaths,
+    ] of this.lookupStorageMetaManagers([...pathMap.keys()])) {
+      for (const path of metaManagerPaths) {
+        const meta = storageMetaManager.getTrainingMeta(path);
+        if (meta === undefined) {
+          continue;
+        }
+        const newPath = pathMap.get(path)!;
+        const destStorageMetaManager = this.lookupStorageMetaManager(newPath);
+
+        storageMetaManager.removeTrainingMeta(path);
+        destStorageMetaManager.addTrainingMeta(newPath, meta);
+        changed.add(storageMetaManager);
+        changed.add(destStorageMetaManager);
+      }
     }
 
     for (const storageMetaManager of changed) {
@@ -328,5 +313,22 @@ export class AppMetaManager {
       }
     }
     throw Error(`no StorageMetaManager found for ${path}`);
+  }
+
+  private lookupStorageMetaManagers(
+    paths: string[],
+  ): Map<StorageMetaManager, string[]> {
+    const managerMap = new Map();
+
+    for (const path of paths) {
+      const manager = this.lookupStorageMetaManager(path);
+      const entry = managerMap.get(manager);
+      if (entry) {
+        entry.push(path);
+      } else {
+        managerMap.set(manager, [path]);
+      }
+    }
+    return managerMap;
   }
 }

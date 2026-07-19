@@ -1,12 +1,10 @@
-import type { ChildNode, Node, RootNode } from "./node";
+import type { ChildNode, Node, RootNode, Book } from "./node";
 import type { TrainingActivity } from "./activity";
-import { v4 as uuidv4 } from "uuid";
 import { newTrainingActivity } from "./activity";
 import { futureTimeDisplay, pastTimeDisplay } from "./util";
-import { Book, Priority } from "./node";
+import { Priority } from "./node";
 import type { Move, Shape } from "./chess";
 import { makeFen, makeSan, normalizeMove, Chess } from "./chess";
-import { filename, joinPath } from "~/lib/storage";
 
 export type Score = "correct" | "incorrect";
 
@@ -20,9 +18,9 @@ export class Training {
   board: TrainingBoard;
   activity: TrainingActivity;
   settings: TrainingSettings;
-  private currentRootNode: RootNode | undefined;
-  private rootNodesToGo: RootNode[];
-  private currentLine: CurrentLineEntry[];
+  currentRootNode: RootNode | undefined;
+  currentLine: CurrentLineEntry[];
+  rootNodesToGo: RootNode[];
   private draftEntry: DraftHistoryEntry;
   private currentNode: Node | undefined;
 
@@ -35,14 +33,20 @@ export class Training {
   constructor(
     settings: TrainingSettings,
     meta: TrainingMeta,
-    rootNodes: RootNode[],
+    currentRootNode: RootNode | undefined,
+    rootNodesToGo: RootNode[],
   ) {
     this.meta = meta;
     this.settings = settings;
     if (settings.shuffle) {
-      shuffleArray(rootNodes);
+      shuffleArray(rootNodesToGo);
     }
-    [this.currentRootNode, ...this.rootNodesToGo] = rootNodes;
+    this.currentRootNode = currentRootNode;
+    this.rootNodesToGo = rootNodesToGo;
+    if (this.currentRootNode === undefined && this.rootNodesToGo.length > 0) {
+      [this.currentRootNode, ...this.rootNodesToGo] = this.rootNodesToGo;
+    }
+
     this.currentNode = this.currentRootNode;
     this.currentLine = [];
     this.draftEntry = {
@@ -52,43 +56,6 @@ export class Training {
     this.activity = newTrainingActivity(meta.name);
     this.board = newBoard(this.currentRootNode);
     this.state = initialState(this.currentRootNode);
-  }
-
-  static create(
-    settings: TrainingSettings,
-    sourceBookPath: string,
-    sourceBook: Book,
-    trainingDir: string,
-    trainingFilename?: string,
-  ): Training {
-    const bookFilename = filename(sourceBookPath);
-    const trainingBookPath = joinPath(
-      trainingDir,
-      trainingFilename ?? `${uuidv4()}.pgn`,
-    );
-    const name = bookFilename.split(".")[0];
-    const rootNodes = sourceBook.rootNodes
-      .filter((n) => n.isTraining())
-      .map((n) => n.clone());
-    const meta = {
-      name,
-      sourceBookPath,
-      trainingBookPath,
-      settings,
-      rank: TrainingRank.Silver1,
-      correctCount: 0,
-      incorrectCount: 0,
-      linesTrained: 0,
-      totalLines: rootNodes.reduce(
-        (count, node) => count + node.lineCount(),
-        0,
-      ),
-      lastTrained: Date.now(),
-      lastGainedRank: 0,
-      trainingCount: 0,
-      currentLine: [],
-    };
-    return new Training(settings, meta, rootNodes);
   }
 
   restart(book: Book): Training {
@@ -108,6 +75,7 @@ export class Training {
         ),
         lastTrained: Date.now(),
       },
+      undefined,
       rootNodes,
     );
   }
@@ -375,53 +343,19 @@ export class Training {
   }
 
   /**
-   * Export this training session as a PGN file
-   *
-   * This returns all the data not stored in `meta`.
+   * Resume an in-progress training session
    */
-  exportPgn(): string {
-    const rootNodes = [
-      ...(this.currentRootNode ? [this.currentRootNode] : []),
-      ...this.rootNodesToGo,
-    ];
+  resume(currentLine: CurrentLineEntry[]) {
+    this.currentLine = currentLine;
 
-    const book = new Book(rootNodes);
-    if (book.rootNodes.length > 0) {
-      book.setTrainingCurrentLineData(JSON.stringify(this.currentLine));
-    }
-    return book.exportTraining();
-  }
-
-  /**
-   * Import training session data
-   *
-   * This recreates a `Training` object using:
-   *   - A training meta from the `TrainingMetaList`
-   *   - A PGN string, loaded from disk
-   *   - The `TrainingSettings`, also loaded from disk
-   */
-  static import(
-    meta: TrainingMeta,
-    pgnData: string,
-    settings: TrainingSettings,
-  ): Training {
-    const book = Book.import(pgnData);
-    const rootNodes = book.rootNodes
-      .filter((n) => n.isTraining())
-      .map((n) => n.clone());
-    const training = new Training(settings, meta, rootNodes);
-    const currentLineData = book.getTrainingCurrentLineData();
-    training.currentLine = currentLineData ? JSON.parse(currentLineData) : [];
-
-    if (training.currentLine.length > 0) {
-      if (!training.rootNodeHasMovesAfterCurrentLine()) {
-        training.finishLine(false);
+    if (this.currentLine.length > 0) {
+      if (!this.rootNodeHasMovesAfterCurrentLine()) {
+        this.finishLine(false);
       } else {
-        training.currentLineReplayCount = training.currentLine.length - 1;
-        training.state = { type: "advance-after-delay" };
+        this.currentLineReplayCount = this.currentLine.length - 1;
+        this.state = { type: "advance-after-delay" };
       }
     }
-    return training;
   }
 }
 
@@ -465,10 +399,15 @@ export function defaultTrainingSettings(): TrainingSettings {
 
 /**
  * Metadata about a training session
+ *
+ * This is stored in the book and cached in ChessfilesData.json.
  */
 export interface TrainingMeta {
-  trainingBookPath: string;
-  sourceBookPath: string;
+  // When adding fields, make sure to also update:
+  //   - newTrainingMeta
+  //   - fixupLoadedTrainingMeta
+  //   - trainingMetaEquals
+  active: boolean;
   name: string;
   correctCount: number;
   incorrectCount: number;
@@ -495,11 +434,45 @@ export const TrainingRank = {
   Diamond4: 11,
 } as const;
 
+export function trainingMetaEquals(
+  training1: TrainingMeta,
+  training2: TrainingMeta,
+): boolean {
+  return (
+    training1.active == training2.active &&
+    training1.name == training2.name &&
+    training1.correctCount == training2.correctCount &&
+    training1.incorrectCount == training2.incorrectCount &&
+    training1.linesTrained == training2.linesTrained &&
+    training1.rank == training2.rank &&
+    training1.totalLines == training2.totalLines &&
+    training1.lastTrained == training2.lastTrained &&
+    training1.lastGainedRank == training2.lastGainedRank &&
+    training1.trainingCount == training2.trainingCount
+  );
+}
+
+export function newTrainingMeta(name: string, book: Book): TrainingMeta {
+  return {
+    active: false,
+    name,
+    rank: TrainingRank.Silver1,
+    correctCount: 0,
+    incorrectCount: 0,
+    linesTrained: 0,
+    totalLines: book.trainingLineCount(),
+    lastTrained: Date.now(),
+    lastGainedRank: 0,
+    trainingCount: 0,
+  };
+}
+
 // Fixup a TrainingMeta just loaded from disk
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function fixupLoadedTrainingMeta(meta: any): TrainingMeta {
   return {
     // Default values for metas that are missing them
+    active: true,
     correctCount: 0,
     incorrectCount: 0,
     linesTrained: 0,

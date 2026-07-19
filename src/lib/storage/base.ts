@@ -1,3 +1,5 @@
+import type { TrainingMeta } from "~/lib/training";
+
 export abstract class ChessfilesStorage {
   abstract listDir(path: string): Promise<DirEntry[]>;
   abstract readFile(path: string): Promise<string>;
@@ -19,6 +21,10 @@ export type DirEntryType = "engine" | "dir" | "file";
 export interface DirEntry {
   filename: string;
   type: DirEntryType;
+}
+
+export interface TrainingMetaWithPath extends TrainingMeta {
+  bookPath: string;
 }
 
 export function joinPath(dir: string, filename: string): string {

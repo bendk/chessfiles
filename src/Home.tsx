@@ -12,7 +12,6 @@ import {
 import { activityDescription } from "~/lib/activity";
 import { dropbox, lichess } from "~/lib/auth";
 import type { AppStorage } from "~/lib/storage";
-import type { TrainingMeta } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
 import { pastTimeDisplay } from "~/lib/util";
 import type { StatusTracker, AppControls } from "~/components";
@@ -50,9 +49,9 @@ export function Home(props: HomeProps) {
   const [trainingListing] = createResource(() => props.storage.listTraining());
   const [activityListing] = createResource(() => props.storage.listActivity());
 
-  function openTraining(meta: TrainingMeta) {
+  function openTraining(path: string) {
     props.status.perform("opening training", async () => {
-      const training = await props.storage.loadTraining(meta);
+      const training = await props.storage.loadTraining(path);
       props.controls.setPage({
         name: "training",
         initialTraining: training,
@@ -71,7 +70,7 @@ export function Home(props: HomeProps) {
         <Table
           each={training.metas}
           columns={4}
-          onClick={openTraining}
+          onClick={(e) => openTraining(e.bookPath)}
           headers={["Name", "Progress", "Last trained", ""]}
         >
           {(item) => (

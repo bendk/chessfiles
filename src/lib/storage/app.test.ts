@@ -1,13 +1,17 @@
 import { createRoot } from "solid-js";
 import { afterAll, describe, test, expect } from "vitest";
 import type { ChessfilesStorage } from ".";
-import { AppStorage, ChessfilesStorageLocal, filename, joinPath } from ".";
+import { AppStorage, ChessfilesStorageLocal, joinPath, splitPath } from ".";
 import { MockLocalStorage } from "./testutils";
-import type { Activity, LibraryActivity } from "~/lib/activity";
-import { newLibraryActivity, newTrainingActivity } from "~/lib/activity";
+import type {
+  Activity,
+  LibraryActivity,
+  TrainingActivity,
+} from "~/lib/activity";
+import { newLibraryActivity } from "~/lib/activity";
 import { Book, RootNode, RootNodeType } from "~/lib/node";
 import type { TrainingMeta } from "~/lib/training";
-import { defaultTrainingSettings, Training } from "~/lib/training";
+import { defaultTrainingSettings } from "~/lib/training";
 
 class TestStorageEngines {
   local: ChessfilesStorageLocal;
@@ -32,11 +36,6 @@ class TestChessfilesStorageLocal extends ChessfilesStorageLocal {
     super(new MockLocalStorage());
   }
 
-  async checkTrainingFilenames(expected: string[]) {
-    const entries = await this.listDir("/ChessfilesTraining");
-    expect(entries.map((e) => e.filename)).toEqual(expected);
-  }
-
   async writeMetadata(
     trainingMeta: Record<string, TrainingMeta>,
     activity: Activity[],
@@ -54,27 +53,19 @@ function testBook(name: string): Book {
   return new Book([node]);
 }
 
-function testTraining(
-  bookPath: string,
-  book: Book,
-  trainingFilename: string,
-): Training {
-  let trainingDir;
-  if (bookPath.startsWith("/s1")) {
-    trainingDir = `/s1/ChessfilesTraining/`;
-  } else if (bookPath.startsWith("/s2")) {
-    trainingDir = `/s2/ChessfilesTraining/`;
-  } else {
-    throw Error(`invalid book path: ${bookPath}`);
-  }
+type ActivityData =
+  | Omit<TrainingActivity, "id" | "timestamp">
+  | Omit<LibraryActivity, "id" | "timestamp">;
 
-  return Training.create(
-    defaultTrainingSettings(),
-    bookPath,
-    book,
-    trainingDir,
-    trainingFilename,
+async function checkActivityData(
+  storage: AppStorage,
+  expected: ActivityData[],
+) {
+  const actualData = (await storage.listActivity()).map(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    ({ id, timestamp, ...data }) => data,
   );
+  expect(actualData).toEqual(expected);
 }
 
 class TestAppStorage extends AppStorage {
@@ -129,11 +120,7 @@ class TestAppStorage extends AppStorage {
       path = path.slice(3);
       const engineListDir = new Map(
         (await this.s1.listDir(path))
-          .filter(
-            (e) =>
-              e.filename != "ChessfilesData.json" &&
-              e.filename != "ChessfilesTraining",
-          )
+          .filter((e) => e.filename != "ChessfilesData.json")
           .map((e) => [e.filename, e.type]),
       );
       expect(engineListDir).toEqual(expectedFileTypes);
@@ -141,11 +128,7 @@ class TestAppStorage extends AppStorage {
       path = path.slice(3);
       const engineListDir = new Map(
         (await this.s2.listDir(path))
-          .filter(
-            (e) =>
-              e.filename != "ChessfilesData.json" &&
-              e.filename != "ChessfilesTraining",
-          )
+          .filter((e) => e.filename != "ChessfilesData.json")
           .map((e) => [e.filename, e.type]),
       );
       expect(engineListDir).toEqual(expectedFileTypes);
@@ -170,27 +153,31 @@ class TestAppStorage extends AppStorage {
     }
   }
 
-  async checkTraining(expected: { s1: Training[]; s2: Training[] }) {
+  async checkBooks(expected: Record<string, Book>) {
+    const expectedData = new Map<string, Record<string, string>>();
+    for (const [path, book] of Object.entries(expected)) {
+      const [dir, filename] = splitPath(path);
+      const entry = expectedData.get(dir);
+      if (entry) {
+        entry[filename] = book.export();
+      } else {
+        expectedData.set(dir, {});
+      }
+    }
+    for (const [dir, expectedEntries] of expectedData) {
+      for (const [filename, content] of Object.entries(expectedEntries)) {
+        await this.checkFileContents(joinPath(dir, filename), content);
+      }
+    }
+
+    const expectedTrainingMetas = Object.entries(expected)
+      .filter(([, b]) => b.trainingMeta !== undefined && b.trainingMeta.active)
+      .map(([bookPath, b]) => ({
+        ...b.trainingMeta,
+        bookPath,
+      }));
     expect(new Set((await this.listTraining()).metas)).toEqual(
-      new Set(expected.s1.concat(expected.s2).map((training) => training.meta)),
-    );
-    await this.checkFiles(
-      "/s1/ChessfilesTraining",
-      Object.fromEntries(
-        expected.s1.map((training) => [
-          filename(training.meta.trainingBookPath),
-          training.exportPgn(),
-        ]),
-      ),
-    );
-    await this.checkFiles(
-      "/s2/ChessfilesTraining",
-      Object.fromEntries(
-        expected.s2.map((training) => [
-          filename(training.meta.trainingBookPath),
-          training.exportPgn(),
-        ]),
-      ),
+      new Set(expectedTrainingMetas),
     );
   }
 }
@@ -220,7 +207,7 @@ describe("AppStorage", () => {
   test("initial load", async () => {
     const storage = testAppStorage();
     expect(await storage.listActivity()).toEqual([]);
-    await storage.checkTraining({ s1: [], s2: [] });
+    await storage.checkBooks({});
     await storage.checkFiles("/", {
       s1: "engine",
       s2: "engine",
@@ -229,105 +216,61 @@ describe("AppStorage", () => {
 
   test("load with stored data", async () => {
     const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
+    );
     const activity = newLibraryActivity("MyBook.pgn", 1);
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-1.pgn": training.meta,
+        "/MyBook.pgn": training.meta,
       },
       [activity],
     );
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training-1.pgn",
-      training.exportPgn(),
-    );
+    await s1.createFile("/MyBook.pgn", book.export());
     const storage = testAppStorage([s1, s2]);
     expect(await storage.listActivity()).toEqual([activity]);
-    await storage.checkTraining({ s1: [training], s2: [] });
+    await storage.checkBooks({ "/s1/MyBook.pgn": book });
   });
 
   test("merge engine data", async () => {
     const book1 = testBook("MyBook");
     const activity1 = newLibraryActivity("MyBook.pgn", 1);
-    const training1 = testTraining("/s1/MyBook.pgn", book1, "training-1.pgn");
+    const training1 = book1.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
+    );
     const book2 = testBook("MyOtherBook");
     const activity2 = newLibraryActivity("MyOtherBook.pgn", 2);
-    const training2 = testTraining(
-      "/s2/MyOtherBook.pgn",
-      book2,
-      "training-2.pgn",
+    const training2 = book2.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyOtherBook.pgn",
     );
     const s1 = new TestChessfilesStorageLocal();
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-1.pgn": training1.meta,
+        "/MyBook.pgn": training1.meta,
       },
       [activity1],
     );
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training-1.pgn",
-      training1.exportPgn(),
-    );
+    await s1.createFile("/MyBook.pgn", book1.export());
     const s2 = new TestChessfilesStorageLocal();
     await s2.writeMetadata(
       {
-        "/s2/ChessfilesTraining/training-2.pgn": training2.meta,
+        "/MyOtherBook.pgn": training2.meta,
       },
       [activity2],
     );
-    await s2.createDir("/ChessfilesTraining");
-    await s2.createFile(
-      "/ChessfilesTraining/training-2.pgn",
-      training2.exportPgn(),
-    );
+    await s2.createFile("/MyOtherBook.pgn", book2.export());
 
     const storage = testAppStorage([s1, s2]);
     expect(await storage.listActivity()).toEqual([activity2, activity1]);
-    await storage.checkTraining({ s1: [training1], s2: [training2] });
-  });
-
-  test("invalid training meta", async () => {
-    const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
-    const s1 = new TestChessfilesStorageLocal();
-    const s2 = new TestChessfilesStorageLocal();
-    await s1.writeMetadata(
-      {
-        "/s1/ChessfilesTraining/training-1.pgn": training.meta,
-        // TrainingMeta entry that doesn't have a corresponding PGN file on disk
-        "/s1/ChessfilesTraining/training-2.pgn": {
-          trainingBookPath: "/s1/ChessfilesTraining/training-2.pgn",
-          sourceBookPath: "/s1/does-not-exist.pgn",
-          name: "MyBook2",
-          correctCount: 1,
-          incorrectCount: 2,
-          linesTrained: 3,
-          lastGainedRank: 0,
-          totalLines: 4,
-          lastTrained: 1,
-          trainingCount: 1,
-          rank: 0,
-        },
-      },
-      [],
-    );
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training-1.pgn",
-      training.exportPgn(),
-    );
-    // Training file with no corresponding TrainingMeta
-    await s1.createFile(
-      "/ChessfilesTraining/training-with-no-meta.pgn",
-      "Fake training data",
-    );
-
-    const storage = testAppStorage([s1, s2]);
-    await storage.checkTraining({ s1: [training], s2: [] });
+    await storage.checkBooks({
+      "/s1/MyBook.pgn": book1,
+      "/s2/MyOtherBook.pgn": book2,
+    });
   });
 
   test("saving books", async () => {
@@ -341,10 +284,12 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2", {
       "MyBook.pgn": book.export(),
     });
-    const activity = await storage.listActivity();
-    expect(activity.length).toEqual(1);
-    expect(activity[0].type).toEqual("library");
-    expect((activity[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
+    await checkActivityData(storage, [
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+    ]);
 
     // updates
     book.rootNodes.push(RootNode.fromInitialPosition(RootNodeType.Normal));
@@ -352,112 +297,138 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2", {
       "MyBook.pgn": book.export(),
     });
-    const activity2 = await storage.listActivity();
-    expect(activity2.length).toEqual(2);
-    expect(activity2[0].type).toEqual("library");
-    expect((activity2[0] as LibraryActivity).filename).toEqual("MyBook.pgn");
+    await checkActivityData(storage, [
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+    ]);
   });
 
   test("saving training", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
+    const storage = testAppStorage([s1, s2]);
+
+    // Save
+
     const book = new Book([
       RootNode.fromInitialPosition(RootNodeType.Training),
     ]);
-    await s2.createFile("/MyBook.pgn", book.export());
-
-    const storage = testAppStorage([s1, s2]);
-
-    // Initial creation
-    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
-    await storage.checkFiles("/s2/ChessfilesTraining", {
-      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
-    });
-
-    expect(await storage.listActivity()).toEqual([]);
-    const activity = {
-      ...newTrainingActivity("MyBook", 1),
-      correctCount: 4,
-      incorrectCount: 1,
-      linesTrained: 2,
-    };
-
-    training.activity = activity;
+    let training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
+    );
+    await storage.writeBook("/s1/MyBook.pgn", book);
+    await storage.checkBooks({ "/s1/MyBook.pgn": book });
+    expect((await storage.readBook("/s1/MyBook.pgn")).trainingMeta).toEqual(
+      training.meta,
+    );
+    await checkActivityData(storage, [
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+    ]);
 
     // Update
-    await storage.updateTraining(training);
+    training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
+    );
+    training.activity.correctCount = 3;
+    training.activity.incorrectCount = 2;
+    training.activity.linesTrained = 4;
+    training.meta.trainingCount += 1;
+    await storage.updateTraining("/s1/MyBook.pgn", book, training);
+    await storage.checkBooks({ "/s1/MyBook.pgn": book });
+    await checkActivityData(storage, [
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+      {
+        type: "training",
+        name: "MyBook",
+        linesTrained: 4,
+        correctCount: 3,
+        incorrectCount: 2,
+      },
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+    ]);
 
-    expect(await storage.listActivity()).toEqual([activity]);
-
-    // Update without any new activity
-    training.activity = newTrainingActivity("MyBook", 1);
-    await storage.updateTraining(training);
-
-    await storage.checkFiles("/s2/ChessfilesTraining", {
-      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
-    });
-
-    expect(await storage.listActivity()).toEqual([activity]);
+    // Save without any new activity
+    await storage.writeBook("/s1/MyBook.pgn", book);
+    await storage.checkBooks({ "/s1/MyBook.pgn": book });
+    await checkActivityData(storage, [
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+      {
+        type: "training",
+        name: "MyBook",
+        linesTrained: 4,
+        correctCount: 3,
+        incorrectCount: 2,
+      },
+      {
+        type: "library",
+        filename: "MyBook.pgn",
+      },
+    ]);
   });
 
   test("remove training", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
-    const book = new Book([
-      RootNode.fromInitialPosition(RootNodeType.Training),
-    ]);
-    await s2.createFile("/MyBook.pgn", book.export());
-
     const storage = testAppStorage([s1, s2]);
 
-    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
-    await storage.checkFiles("/s2/ChessfilesTraining", {
-      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
-    });
+    let book = new Book([RootNode.fromInitialPosition(RootNodeType.Training)]);
+    book.getOrCreateTraining(defaultTrainingSettings(), "MyBook.pgn");
+    book.trainingMeta!.trainingCount = 1;
 
-    await storage.updateTraining(training);
-    await storage.removeTraining(training.meta);
-    await storage.checkTraining({ s1: [], s2: [] });
-    await storage.checkFiles("/s2/ChessfilesTraining", {});
-  });
+    await storage.writeBook("/s1/MyBook.pgn", book);
 
-  test("load existing training", async () => {
-    const s1 = new TestChessfilesStorageLocal();
-    const s2 = new TestChessfilesStorageLocal();
-    const book = new Book([
-      RootNode.fromInitialPosition(RootNodeType.Training),
-    ]);
-    await s2.createFile("/MyBook.pgn", book.export());
-
-    const storage = testAppStorage([s1, s2]);
-
-    await storage.createOrLoadTraining("/s2/MyBook.pgn");
-    const training = await storage.createOrLoadTraining("/s2/MyBook.pgn");
-    await storage.checkFiles("/s2/ChessfilesTraining", {
-      [filename(training.meta.trainingBookPath)]: training.exportPgn(),
-    });
+    await storage.removeTraining("/s1/MyBook.pgn");
+    // The training session should be deleted, but the meta should still be there
+    book = await storage.readBook("/s1/MyBook.pgn");
+    expect(book.hasTrainingSession()).toEqual(false);
+    expect(book.trainingMeta).not.toBe(undefined);
+    expect(book.trainingMeta?.active).toEqual(false);
+    expect(book.trainingMeta?.totalLines).toEqual(1);
+    expect(book.trainingMeta?.trainingCount).toEqual(1);
+    await storage.checkBooks({ "/s1/MyBook.pgn": book });
   });
 
   test("move single file", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
     const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training.pgn");
-    await s1.createFile("/MyBook.pgn", book.export());
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training.pgn",
-      training.exportPgn(),
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
     );
+    await s1.createFile("/MyBook.pgn", book.export());
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training.pgn": training.meta,
+        "/MyBook.pgn": training.meta,
       },
       [],
     );
 
     const storage = testAppStorage([s1, s2]);
-
     storage.setDir("/s1");
     await storage.move(
       [
@@ -469,34 +440,24 @@ describe("AppStorage", () => {
       "/s2/",
       {},
     );
-    await storage.checkFiles("/s1", {});
-    await storage.checkFiles("/s2", {
-      "MyBook.pgn": book.export(),
-    });
-    training.meta.sourceBookPath = "/s2/MyBook.pgn";
-    training.meta.trainingBookPath = "/s2/ChessfilesTraining/training.pgn";
-    // The training data should have moved from s1 to s2
-    await storage.checkTraining({ s1: [], s2: [training] });
+    await storage.checkBooks({ "/s2/MyBook.pgn": book });
   });
 
   test("copy single file", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
     const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training.pgn");
-    await s1.createFile("/MyBook.pgn", book.export());
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training.pgn",
-      training.exportPgn(),
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
     );
+    await s1.createFile("/MyBook.pgn", book.export());
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training.pgn": training.meta,
+        "/MyBook.pgn": training.meta,
       },
       [],
     );
-
     const storage = testAppStorage([s1, s2]);
 
     storage.setDir("/s1");
@@ -517,27 +478,27 @@ describe("AppStorage", () => {
       "MyBook.pgn": book.export(),
     });
     // The training data should stay with the source file
-    await storage.checkTraining({ s1: [training], s2: [] });
+    await storage.checkBooks({
+      "/s1/MyBook.pgn": book,
+      "/s2/MyBook.pgn": book,
+    });
   });
 
   test("delete file", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
     const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training.pgn");
-    await s1.createFile("/MyBook.pgn", book.export());
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training.pgn",
-      training.exportPgn(),
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
     );
+    await s1.createFile("/MyBook.pgn", book.export());
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training.pgn": training.meta,
+        "/MyBook.pgn": training.meta,
       },
       [],
     );
-
     const storage = testAppStorage([s1, s2]);
 
     storage.setDir("/s1");
@@ -552,7 +513,7 @@ describe("AppStorage", () => {
     );
     await storage.checkFiles("/s1", {});
     await storage.checkFiles("/s2", {});
-    await storage.checkTraining({ s1: [], s2: [] });
+    await storage.checkBooks({});
   });
 
   test("move single directory", async () => {
@@ -576,9 +537,10 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2", {
       "My Openings": "dir",
     });
+    await storage.checkBooks({});
   });
 
-  test("move single directory", async () => {
+  test("copy single directory", async () => {
     const s1 = new TestChessfilesStorageLocal();
     const s2 = new TestChessfilesStorageLocal();
     await s1.createDir("/My Openings");
@@ -601,6 +563,7 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2", {
       "My Openings": "dir",
     });
+    await storage.checkBooks({});
   });
 
   test("move multiple files/directories", async () => {
@@ -610,41 +573,29 @@ describe("AppStorage", () => {
     // Data that we move for this test
     await s1.createDir("/My Openings");
     const sicilian = testBook("sicilian");
-    const sicilianTraining = testTraining(
-      "/s1/Sicilian.pgn",
-      sicilian,
-      "training-sicilian.pgn",
+    const sicilianTraining = sicilian.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "Sicilian.pgn",
     );
     const london = testBook("london");
     await s1.createFile("/Sicilian.pgn", sicilian.export());
     await s1.createFile("/My Openings/London.pgn", london.export());
-    await s1.createDir("/ChessfilesTraining/");
-    await s1.createFile(
-      "/ChessfilesTraining/training-sicilian.pgn",
-      sicilianTraining.exportPgn(),
-    );
 
     // Data doesn't move
     await s1.createDir("/My Endgames");
     const kingAndPawn = testBook("king-and-pawn");
     await s1.createFile("/My Endgames/king-and-pawn.pgn", kingAndPawn.export());
     const kingsGambit = testBook("kings-gambit");
-    const kingsGambitTraining = testTraining(
-      "/s1/KingsGambit.pgn",
-      kingsGambit,
-      "training-kings-gambit.pgn",
+    const kingsGambitTraining = kingsGambit.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "KingsGambit.pgn",
     );
     await s1.createFile("/KingsGambit.pgn", kingsGambit.export());
-    await s1.createFile(
-      "/ChessfilesTraining/training-kings-gambit.pgn",
-      kingsGambitTraining.exportPgn(),
-    );
 
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-sicilian.pgn": sicilianTraining.meta,
-        "/s1/ChessfilesTraining/training-kings-gambit.pgn":
-          kingsGambitTraining.meta,
+        "/Sicilian.pgn": sicilianTraining.meta,
+        "/KingsGambit.pgn": kingsGambitTraining.meta,
       },
       [],
     );
@@ -679,12 +630,11 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2/My Openings", {
       "London.pgn": london.export(),
     });
-    sicilianTraining.meta.sourceBookPath = "/s2/Sicilian.pgn";
-    sicilianTraining.meta.trainingBookPath =
-      "/s2/ChessfilesTraining/training-sicilian.pgn";
-    await storage.checkTraining({
-      s1: [kingsGambitTraining],
-      s2: [sicilianTraining],
+    await storage.checkBooks({
+      "/s1/KingsGambit.pgn": kingsGambit,
+      "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn,
+      "/s2/Sicilian.pgn": sicilian,
+      "/s2/My Openings/London.pgn": london,
     });
   });
 
@@ -695,41 +645,29 @@ describe("AppStorage", () => {
     // Data that we copy for this test
     await s1.createDir("/My Openings");
     const sicilian = testBook("sicilian");
-    const sicilianTraining = testTraining(
-      "/s1/Sicilian.pgn",
-      sicilian,
-      "training-sicilian.pgn",
+    const sicilianTraining = sicilian.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "Sicilian.pgn",
     );
     const london = testBook("london");
     await s1.createFile("/Sicilian.pgn", sicilian.export());
     await s1.createFile("/My Openings/London.pgn", london.export());
-    await s1.createDir("/ChessfilesTraining/");
-    await s1.createFile(
-      "/ChessfilesTraining/training-sicilian.pgn",
-      sicilianTraining.exportPgn(),
-    );
 
     // Data doesn't get copied
     await s1.createDir("/My Endgames");
     const kingAndPawn = testBook("king-and-pawn");
     await s1.createFile("/My Endgames/king-and-pawn.pgn", kingAndPawn.export());
     const kingsGambit = testBook("kings-gambit");
-    const kingsGambitTraining = testTraining(
-      "/s1/KingsGambit.pgn",
-      kingsGambit,
-      "training-kings-gambit.pgn",
+    const kingsGambitTraining = kingsGambit.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "KingsGambit.pgn",
     );
     await s1.createFile("/KingsGambit.pgn", kingsGambit.export());
-    await s1.createFile(
-      "/ChessfilesTraining/training-kings-gambit.pgn",
-      kingsGambitTraining.exportPgn(),
-    );
 
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-sicilian.pgn": sicilianTraining.meta,
-        "/s1/ChessfilesTraining/training-kings-gambit.pgn":
-          kingsGambitTraining.meta,
+        "/Sicilian.pgn": sicilianTraining.meta,
+        "/KingsGambit.pgn": kingsGambitTraining.meta,
       },
       [],
     );
@@ -769,9 +707,13 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s2/My Openings", {
       "London.pgn": london.export(),
     });
-    await storage.checkTraining({
-      s1: [kingsGambitTraining, sicilianTraining],
-      s2: [],
+
+    await storage.checkBooks({
+      "/s1/KingsGambit.pgn": kingsGambit,
+      "/s1/Sicilian.pgn": sicilian,
+      "/s1/My Endgames/king-and-pawn.pgn": kingAndPawn,
+      "/s2/Sicilian.pgn": sicilian,
+      "/s2/My Openings/London.pgn": london,
     });
   });
 
@@ -955,17 +897,15 @@ describe("AppStorage", () => {
     const s2 = new TestChessfilesStorageLocal();
 
     const book = testBook("MyBook");
-    const training = testTraining("/s1/MyBook.pgn", book, "training-1.pgn");
-    await s1.createFile("/MyBook.pgn", book.export());
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training-1.pgn",
-      training.exportPgn(),
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
     );
+    await s1.createFile("/MyBook.pgn", book.export());
     await s1.createDir("/directory");
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-1.pgn": training.meta,
+        "/MyBook.pgn": training.meta,
       },
       [],
     );
@@ -989,8 +929,9 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s1/directory", {
       "MyBook.pgn": book.export(),
     });
-    training.meta.sourceBookPath = "/s1/directory/MyBook.pgn";
-    await storage.checkTraining({ s1: [training], s2: [] });
+    await storage.checkBooks({
+      "/s1/directory/MyBook.pgn": book,
+    });
   });
 
   test("move inside source dir", async () => {
@@ -998,22 +939,16 @@ describe("AppStorage", () => {
     const s2 = new TestChessfilesStorageLocal();
 
     const book = testBook("MyBook");
-    const training = testTraining(
-      "/s1/directory/MyBook.pgn",
-      book,
-      "training-1.pgn",
+    const training = book.getOrCreateTraining(
+      defaultTrainingSettings(),
+      "MyBook.pgn",
     );
     await s1.createDir("/directory");
     await s1.createDir("/directory/subdirectory");
     await s1.createFile("/directory/MyBook.pgn", book.export());
-    await s1.createDir("/ChessfilesTraining");
-    await s1.createFile(
-      "/ChessfilesTraining/training-1.pgn",
-      training.exportPgn(),
-    );
     await s1.writeMetadata(
       {
-        "/s1/ChessfilesTraining/training-1.pgn": training.meta,
+        "/directory/MyBook.pgn": training.meta,
       },
       [],
     );
@@ -1040,7 +975,8 @@ describe("AppStorage", () => {
     await storage.checkFiles("/s1/directory/subdirectory", {
       "MyBook.pgn": book.export(),
     });
-    training.meta.sourceBookPath = "/s1/directory/subdirectory/MyBook.pgn";
-    await storage.checkTraining({ s1: [training], s2: [] });
+    await storage.checkBooks({
+      "/s1/directory/subdirectory/MyBook.pgn": book,
+    });
   });
 });

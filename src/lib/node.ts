@@ -14,6 +14,12 @@ import {
   pgnStartingPosition,
   pgnToString,
 } from "./chess";
+import type {
+  CurrentLineEntry,
+  TrainingMeta,
+  TrainingSettings,
+} from "./training";
+import { newTrainingMeta, fixupLoadedTrainingMeta, Training } from "./training";
 
 /**
  * Move priority values
@@ -27,66 +33,174 @@ export enum Priority {
 export enum RootNodeType {
   Normal = 0,
   Training = 1,
+  TrainingSessionCurrentNode = 2,
 }
 
 export class Book {
-  // JSON string that the training code uses to store the current line for in-progress sessions
-  currentLineData?: string;
+  // TrainingMeta for books with training files
+  public trainingMeta: TrainingMeta | undefined;
+
+  // Current training session
+  public trainingSessionResumeData: TrainingSessionResumeData | undefined;
 
   constructor(public rootNodes: RootNode[]) {}
 
   static import(pgn: string): Book {
-    const currentLineData = parseCurrentLineData(pgn);
     const games = parsePgn(pgn);
     const book = new Book(games.map(RootNode.import));
-    if (currentLineData !== undefined) {
-      book.currentLineData = currentLineData;
-    }
+    book.parsePgnComments(pgn);
     return book;
   }
 
   export(): string {
     const games = this.rootNodes.map((node) => node.export());
-    return games.map(pgnToString).join("\n\n");
-  }
-
-  exportTraining(): string {
-    const games = this.rootNodes.map((node) => node.export());
     const gameData = games.map(pgnToString).join("\n\n");
+    const comments = this.exportPgnComments();
 
-    return `${exportCurrentLineData(this.currentLineData)}\n${gameData}`;
-  }
-
-  /**
-   * Get the serialized current line, for a training file book
-   */
-  getTrainingCurrentLineData(): string | undefined {
-    return this.currentLineData;
-  }
-
-  setTrainingCurrentLineData(data: string) {
-    this.currentLineData = data;
+    return `${comments}\n${gameData}`;
   }
 
   hasTraining(): boolean {
     return this.rootNodes.some((n) => n.isTraining());
   }
+
+  hasTrainingSession(): boolean {
+    return this.rootNodes.some((n) => n.isTrainingSessionCurrentNode());
+  }
+
+  trainingSessionRootNode(): RootNode | undefined {
+    return this.rootNodes.find((n) => n.isTrainingSessionCurrentNode());
+  }
+
+  // Generate PGN comments to store non-game data, like the TrainingMeta
+  private exportPgnComments(): string {
+    const lines: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function handleField(data: any, commentName: string) {
+      if (data !== undefined) {
+        const json = JSON.stringify(data);
+        lines.push(`%${commentName} ${json}`);
+      }
+    }
+    handleField(this.trainingMeta, "chessfiles-training-meta");
+    handleField(this.trainingSessionResumeData, "chessfiles-training-session");
+    return lines.join("\n");
+  }
+
+  private parsePgnComments(pgnData: string) {
+    const re = /^%([\w-]+)\s+([^\n]+)$/;
+    const parsedComments: Record<string, string> = {};
+    for (const line of pgnData.split("\n")) {
+      const m = line.match(re);
+      if (m !== null) {
+        parsedComments[m[1]] = m[2];
+      }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function handleField(commentName: string): any | undefined {
+      return (
+        (parsedComments[commentName] &&
+          JSON.parse(parsedComments[commentName])) ||
+        undefined
+      );
+    }
+
+    this.trainingMeta = fixupLoadedTrainingMeta(
+      handleField("chessfiles-training-meta"),
+    );
+    this.trainingSessionResumeData = fixupTrainingSessionResumeData(
+      handleField("chessfiles-training-session"),
+    );
+  }
+
+  getOrCreateTraining(
+    settings: TrainingSettings,
+    bookFilename: string,
+  ): Training {
+    const trainingName = bookFilename.split(".")[0];
+    if (this.trainingMeta === undefined) {
+      this.trainingMeta = newTrainingMeta(trainingName, this);
+    } else {
+      // Make sure the meta has the correct name.  We can't do this in `fixupLoadedTrainingMeta`
+      // since we don't know the book path at that point.
+      this.trainingMeta.name = trainingName;
+    }
+    const currentRootNode = this.trainingSessionRootNode();
+    const rootNodesStarted = new Set(
+      this.trainingSessionResumeData?.rootNodesStarted ?? [],
+    );
+    const rootNodesToGo = this.rootNodes
+      .filter((n) => n.isTraining() && !rootNodesStarted.has(n.id))
+      .map((n) => n.clone());
+
+    const training = new Training(
+      settings,
+      this.trainingMeta,
+      currentRootNode,
+      rootNodesToGo,
+    );
+    if (this.trainingSessionResumeData !== undefined) {
+      try {
+        training.resume(this.trainingSessionResumeData.currentLine);
+      } catch (e) {
+        console.warn("Error resuming training session, skipping this", e);
+      }
+    }
+    this.trainingMeta.active = true;
+    return training;
+  }
+
+  setTraining(training: Training) {
+    this.rootNodes = this.rootNodes.filter(
+      (n) => !n.isTrainingSessionCurrentNode(),
+    );
+    const rootNodesToGo = new Set(training.rootNodesToGo.map((n) => n.id));
+    const rootNodesStarted = this.rootNodes
+      .map((n) => n.id)
+      .filter((nid) => !rootNodesToGo.has(nid));
+    this.trainingMeta = training.meta;
+    this.trainingSessionResumeData = {
+      currentLine: training.currentLine,
+      rootNodesStarted,
+    };
+    if (training.currentRootNode) {
+      const currentRootNode = training.currentRootNode.clone();
+      currentRootNode.type = RootNodeType.TrainingSessionCurrentNode;
+      this.rootNodes.push(currentRootNode);
+    }
+  }
+
+  deleteTraining() {
+    this.rootNodes = this.rootNodes.filter(
+      (n) => !n.isTrainingSessionCurrentNode(),
+    );
+    this.trainingSessionResumeData = undefined;
+    if (this.trainingMeta) {
+      this.trainingMeta.active = false;
+    }
+  }
+
+  updateTrainingMetaOnSave() {
+    if (this.trainingMeta) {
+      this.trainingMeta.totalLines = this.trainingLineCount();
+    }
+  }
+
+  trainingLineCount(): number {
+    return this.rootNodes
+      .filter((n) => n.isTraining())
+      .reduce((count, node) => count + node.lineCount(), 0);
+  }
 }
 
-function exportCurrentLineData(currentLineData: string | undefined): string {
-  if (currentLineData === undefined) {
-    return "";
-  }
-  return `%chessfiles-training-current-line ${currentLineData}\n`;
-}
-
-function parseCurrentLineData(pgnData: string): string | undefined {
-  const re = /%chessfiles-training-current-line\s+([^\n]+)\n/;
-  const m = pgnData.match(re);
-  if (m !== null) {
-    return m[1];
-  }
-  return undefined;
+/**
+ * Data for the in-progress training sessions
+ */
+export interface TrainingSessionResumeData {
+  currentLine: CurrentLineEntry[];
+  // Root node IDs for nodes that have been started and potentially completed.
+  // These will be skipped when generating the `rootNodesToGo` field.
+  rootNodesStarted: string[];
 }
 
 /**
@@ -316,8 +430,16 @@ export class RootNode extends Node {
     }
   }
 
+  isNormal(): boolean {
+    return this.type == RootNodeType.Normal;
+  }
+
   isTraining(): boolean {
     return this.type == RootNodeType.Training;
+  }
+
+  isTrainingSessionCurrentNode(): boolean {
+    return this.type == RootNodeType.TrainingSessionCurrentNode;
   }
 
   static import(game: PgnGame): RootNode {
@@ -442,4 +564,17 @@ export class ChildNode extends Node {
     clone.shapes = this.shapes;
     return clone;
   }
+}
+
+// Fixup a TrainingSessionResumeData just loaded from disk
+export function fixupTrainingSessionResumeData(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any,
+): TrainingSessionResumeData {
+  return {
+    // Default values for metas that are missing them
+    rootNodesStarted: [],
+    currentLine: [],
+    ...data,
+  };
 }

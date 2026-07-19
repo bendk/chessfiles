@@ -13,6 +13,7 @@ export {
   TrainingNotFoundError,
   type DirEntry,
   type DirEntryType,
+  type TrainingMetaWithPath,
 } from "./base";
 import type { Storage } from "~/lib/settings";
 import { ChessfilesStorage } from "./base";

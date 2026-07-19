@@ -24,26 +24,21 @@ import {
   TableCell,
   TableMenuCell,
 } from "~/components";
-import type { AppStorage } from "~/lib/storage";
+import type { AppStorage, TrainingMetaWithPath } from "~/lib/storage";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import { trainingTimeAgo } from "~/lib/training";
-import {
-  filename,
-  FileNotFoundError,
-  TrainingExistsError,
-  TrainingNotFoundError,
-} from "../lib/storage/";
+import { filename, FileNotFoundError } from "../lib/storage/";
 import { TrainingRankIcon } from "./Rank.tsx";
 
 export interface TrainingListProps {
   storage: AppStorage;
   status: StatusTracker;
-  openTraining: (meta: TrainingMeta) => Promise<void>;
+  openTraining: (bookPath: string) => Promise<void>;
   controls: AppControls;
 }
 
 type DialogInfo =
-  | { type: "finished"; meta: TrainingMeta }
+  | { type: "finished"; meta: TrainingMetaWithPath }
   | { type: "new-session" }
   | { type: "settings" };
 
@@ -59,8 +54,8 @@ export function TrainingList(props: TrainingListProps) {
       console.error("invalid dialog for restartFininshedMeta (${d})");
       return;
     }
-    const training = await props.storage.restartTraining(d.meta);
-    await props.openTraining(training.meta);
+    await props.storage.restartTraining(d.meta.bookPath);
+    await props.openTraining(d.meta.bookPath);
     setDialog(null);
     refetchTrainingListing();
   }
@@ -79,24 +74,24 @@ export function TrainingList(props: TrainingListProps) {
     ];
   }
 
-  async function onMenuAction(meta: TrainingMeta, action: string) {
+  async function onMenuAction(meta: TrainingMetaWithPath, action: string) {
     if (action == "open") {
       if (meta.linesTrained >= meta.totalLines) {
         setDialog({ type: "finished", meta });
         return;
       }
       props.status.perform("opening training", async () => {
-        await props.openTraining(meta);
+        await props.openTraining(meta.bookPath);
       });
     } else if (action == "delete") {
       props.status.perform("deleting training", async () => {
-        await props.storage.removeTraining(meta);
+        await props.storage.removeTraining(meta.bookPath);
         await refetchTrainingListing();
       });
     } else if (action == "restart") {
       await props.status.perform("restarting training", async () => {
         try {
-          await props.storage.restartTraining(meta);
+          await props.storage.restartTraining(meta.bookPath);
         } catch (e) {
           if (e instanceof FileNotFoundError) {
             throw new StatusError(
@@ -174,26 +169,18 @@ export function TrainingList(props: TrainingListProps) {
             error={chooserError()}
             onSelect={async (path) => {
               props.status.perform("creating training", async () => {
-                let training;
-                try {
-                  training = await props.storage.createOrLoadTraining(path);
-                } catch (e) {
-                  if (e instanceof TrainingExistsError) {
-                    setChooserError(
-                      "Training already in progress for that book",
-                    );
-                    return;
-                  }
-                  if (e instanceof TrainingNotFoundError) {
-                    setChooserError(
-                      `${filename(path)} does not contain a training game`,
-                    );
-                    return;
-                  }
-                  setDialog(null);
-                  throw e;
+                const book = await props.storage.readBook(path);
+                if (!book.hasTraining()) {
+                  setChooserError(
+                    `${filename(path)} does not contain a training game`,
+                  );
+                  return;
                 }
-                await props.openTraining(training.meta);
+                if (book.hasTrainingSession()) {
+                  setChooserError("Training already in progress for that book");
+                  return;
+                }
+                await props.openTraining(path);
                 setDialog(null);
               });
             }}

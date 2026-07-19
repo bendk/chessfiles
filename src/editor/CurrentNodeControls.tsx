@@ -3,7 +3,6 @@ import Tags from "lucide-solid/icons/tags";
 import { Nag, nagText } from "~/lib/chess";
 import { Field } from "@ark-ui/solid";
 import type { RootNode } from "~/lib/node";
-import { RootNodeType } from "~/lib/node";
 import type { Editor, EditorView } from "~/lib/editor";
 import { createMemo, Match, Switch } from "solid-js";
 import { menuItem, Button, MenuButton } from "~/components";
@@ -73,7 +72,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
 
   return (
     <Switch>
-      <Match when={props.isRoot && props.rootNode.type == RootNodeType.Normal}>
+      <Match when={props.isRoot && props.rootNode.isNormal()}>
         <div class="flex flex-col gap-4 grow h-full pb-4">
           <Field.Root class="flex flex-col gap-1">
             <Field.Label>Game notes</Field.Label>
@@ -100,9 +99,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
           </div>
         </div>
       </Match>
-      <Match
-        when={props.isRoot && props.rootNode.type == RootNodeType.Training}
-      >
+      <Match when={props.isRoot && props.rootNode.isTraining()}>
         <div class="flex flex-col gap-4">
           <div class="italic">
             Add moves that you want to memorize. Train them later from the

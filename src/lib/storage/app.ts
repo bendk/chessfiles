@@ -5,13 +5,14 @@ import { Book } from "~/lib/node";
 import type { Activity, TrainingActivity } from "~/lib/activity";
 import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
-import { Training } from "~/lib/training";
+import type { Training } from "~/lib/training";
 import * as dropbox from "~/lib/auth/dropbox";
-import type { DirEntryType } from "./base";
+import type { DirEntryType, TrainingMetaWithPath } from "./base";
 import {
   FileExistsError,
   FileNotFoundError,
   TrainingNotFoundError,
+  filename,
   normalizePath,
   splitPath,
 } from "./base";
@@ -21,7 +22,7 @@ import { ChessfilesStorageDropbox } from "./dropbox";
 import { createMemo, createSignal } from "solid-js";
 
 export interface TrainingListing {
-  metas: TrainingMeta[];
+  metas: TrainingMetaWithPath[];
   activity: TrainingActivity[];
 }
 
@@ -170,20 +171,22 @@ export class AppStorage {
   }
 
   async readBook(path: string): Promise<Book> {
-    return Book.import(await this.readFile(path));
+    const data = await this.readFile(path);
+    const book = Book.import(data);
+    this.cacheTrainingMeta(path, book.trainingMeta);
+    return book;
   }
 
   async writeBook(path: string, book: Book): Promise<void> {
+    book.updateTrainingMetaOnSave();
+    this.writeBookData(path, book);
     const metaManager = await this.metaManager;
-    path = joinPath(this.dir(), path);
-
-    await this.writeFile(path, book.export());
     await metaManager.onSaveBook(path);
+    await this.cacheTrainingMeta(path, book.trainingMeta);
   }
 
-  async saveMetaAfterTrainingCompleted(meta: TrainingMeta): Promise<void> {
-    meta.trainingCount += 1;
-    await this.updateTrainingMeta(meta);
+  private async writeBookData(path: string, book: Book): Promise<void> {
+    await this.writeFile(this.absPath(path), book.export());
   }
 
   async exists(path: string): Promise<boolean> {
@@ -225,11 +228,6 @@ export class AppStorage {
   async createDir(path: string) {
     const [storage, storagePath] = this.resolvePath(path);
     await storage.createDir(storagePath);
-  }
-
-  private async deleteFile(path: string) {
-    const [storage, storagePath] = this.resolvePath(path);
-    await storage.remove(storagePath);
   }
 
   absPath(path: string): string {
@@ -320,6 +318,8 @@ export class AppStorage {
     }
     if (fileOpType == "move-file") {
       steps.push({ type: "update-metadata-on-move" });
+    } else if (fileOpType == "copy-file") {
+      steps.push({ type: "update-metadata-on-copy" });
     }
     return steps;
   }
@@ -454,6 +454,11 @@ export class AppStorage {
           }
         }
         changedPaths.push([step.sourcePath, step.destPath]);
+      } else if (step.type == "update-metadata-on-copy") {
+        if (!dryRun && changedPaths.length > 0) {
+          const metaManager = await this.metaManager;
+          await metaManager.onFilesCopied(changedPaths);
+        }
       } else if (step.type == "update-metadata-on-move") {
         if (!dryRun && changedPaths.length > 0) {
           const metaManager = await this.metaManager;
@@ -515,6 +520,8 @@ export class AppStorage {
       return 10;
     } else if (step.type == "update-metadata-on-delete") {
       return 40;
+    } else if (step.type == "update-metadata-on-copy") {
+      return 50;
     } else if (step.type == "update-metadata-on-move") {
       return 50;
     }
@@ -525,7 +532,6 @@ export class AppStorage {
     if (
       dir == "/" &&
       (entry.filename == "ChessfilesData.json" ||
-        entry.filename == "ChessfilesTraining" ||
         entry.filename == "ChessfilesTrainingSettings")
     ) {
       return true;
@@ -577,97 +583,80 @@ export class AppStorage {
 
   async listTraining(): Promise<TrainingListing> {
     const metaManager = await this.metaManager;
-    const trainingMetas = metaManager.listTraining();
+    const metas = metaManager.listTraining();
     const activity = metaManager.listActivity();
     return {
-      metas: trainingMetas,
+      metas: metas.filter((m) => m.active),
       activity: activity.filter((a) => a.type == "training").slice(0, 20),
     };
   }
 
-  async loadTrainingMeta(bookFilename: string): Promise<TrainingMeta> {
-    const bookPath = this.absPath(bookFilename);
-    const metaManager = await this.metaManager;
-    const meta = metaManager
-      .listTraining()
-      .find((meta) => meta.sourceBookPath == bookPath);
-    if (meta === undefined) {
-      throw new TrainingNotFoundError();
-    } else {
-      return meta;
-    }
-  }
-
-  async createOrLoadTraining(bookPath: string): Promise<Training> {
-    const metaManager = await this.metaManager;
-    for (const existingMeta of metaManager.listTraining()) {
-      if (existingMeta.sourceBookPath == bookPath) {
-        return this.loadTraining(existingMeta);
-      }
-    }
-
+  async loadBookAndTraining(bookPath: string): Promise<[Book, Training]> {
     const book = await this.readBook(bookPath);
     if (!book.hasTraining()) {
       throw new TrainingNotFoundError();
     }
     const settings = await this.readTrainingSettings();
-    const [storageName] = this.engineForPath(bookPath);
-    const trainingDir = `/${storageName}/ChessfilesTraining/`;
-    const training = Training.create(settings, bookPath, book, trainingDir);
+    const training = book.getOrCreateTraining(settings, filename(bookPath));
+    await this.writeBook(bookPath, book);
+    return [book, training];
+  }
 
-    metaManager.saveTrainingMeta(training.meta);
-    await this.saveTraining(training);
+  async loadTraining(bookPath: string): Promise<Training> {
+    const [, training] = await this.loadBookAndTraining(bookPath);
     return training;
   }
 
-  async loadTraining(meta: TrainingMeta): Promise<Training> {
-    const settings = await this.readTrainingSettings();
-    const pgnData = await this.readFile(meta.trainingBookPath);
-
-    return Training.import(meta, pgnData, settings);
-  }
-
-  async updateTrainingMeta(meta: TrainingMeta) {
+  async updateTraining(
+    bookPath: string,
+    book: Book,
+    training: Training,
+  ): Promise<void> {
     const metaManager = await this.metaManager;
-    await metaManager.saveTrainingMeta(meta);
-  }
-
-  async updateTraining(training: Training): Promise<void> {
-    const metaManager = await this.metaManager;
-    await this.saveTraining(training);
-    await metaManager.saveTrainingMeta(training.meta);
-  }
-
-  async removeTraining(meta: TrainingMeta): Promise<void> {
-    const metaManager = await this.metaManager;
-    await this.deleteFile(meta.trainingBookPath);
-    await metaManager.removeTrainingMeta(meta);
-  }
-
-  async restartTraining(meta: TrainingMeta): Promise<Training> {
-    const training = await this.loadTraining(meta);
-    if (!(await this.exists(meta.sourceBookPath))) {
-      throw new FileNotFoundError();
-    }
-    const book = await this.readBook(meta.sourceBookPath);
-    const updated = training.restart(book);
-    await this.updateTraining(updated);
-    return updated;
-  }
-
-  private async saveTraining(training: Training): Promise<void> {
-    const metaManager = await this.metaManager;
-    await this.writeFile(training.meta.trainingBookPath, training.exportPgn());
-
+    book.setTraining(training);
+    await this.writeBook(bookPath, book);
+    await metaManager.cacheTrainingMeta(bookPath, training.meta);
     if (
       training.activity.correctCount > 0 ||
       training.activity.incorrectCount > 0
     ) {
-      metaManager.addTrainingActivity(
-        training.activity,
-        training.meta.trainingBookPath,
-      );
+      await metaManager.addTrainingActivity(training.activity, bookPath);
     }
+  }
+
+  // Make sure the cached data is up-to-date.
+  // This is a no-nop if the cached data matches the loaded data
+  private async cacheTrainingMeta(
+    bookPath: string,
+    meta: TrainingMeta | undefined,
+  ) {
+    const metaManager = await this.metaManager;
+    await metaManager.cacheTrainingMeta(bookPath, meta);
+  }
+
+  async removeTraining(bookPath: string): Promise<void> {
+    if (!(await this.exists(bookPath))) {
+      console.warn("path not found in removeTraining", bookPath);
+      const metaManager = await this.metaManager;
+      metaManager.cacheTrainingMeta(bookPath, undefined);
+      return;
+    }
+    const book = await this.readBook(bookPath);
+    book.deleteTraining();
+    await this.writeBook(bookPath, book);
+  }
+
+  async restartTraining(bookPath: string): Promise<Training> {
+    if (!(await this.exists(bookPath))) {
+      throw new FileNotFoundError();
+    }
+    const book = await this.readBook(bookPath);
+    const settings = await this.readTrainingSettings();
+    const training = book.getOrCreateTraining(settings, filename(bookPath));
+    const updated = training.restart(book);
+    book.setTraining(updated);
+    await this.writeBook(bookPath, book);
+    return updated;
   }
 
   _metaManagerForTesting(): Promise<AppMetaManager> {
@@ -682,7 +671,8 @@ type OperationStep =
   | { type: "move-file"; sourcePath: string; destPath: string }
   | { type: "copy-file"; sourcePath: string; destPath: string }
   | { type: "update-metadata-on-delete"; paths: string[] }
-  | { type: "update-metadata-on-move" };
+  | { type: "update-metadata-on-move" }
+  | { type: "update-metadata-on-copy" };
 
 export interface OperationCallbacks {
   shouldOverwrite?: (path: string) => Promise<boolean>;

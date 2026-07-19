@@ -5,7 +5,7 @@ import type {
   TrainingSettings,
   TrainingState,
 } from "./training";
-import { Training } from "./training";
+import type { Training } from "./training";
 import type { Move, Shape } from "./chess";
 import { makeFen, parseSan, playSan, Chess } from "./chess";
 import { Book, RootNodeType } from "./node";
@@ -99,16 +99,20 @@ function frenchDefenseRootNode() {
   });
 }
 
+function createBookAndTraining(
+  rootNodes: RootNode[],
+  settings = testSettings,
+): [Book, Training] {
+  const book = new Book(rootNodes);
+  const training = book.getOrCreateTraining(settings, "test book.pgn");
+  return [book, training];
+}
+
 function createTraining(
   rootNodes: RootNode[],
   settings = testSettings,
 ): Training {
-  return Training.create(
-    settings,
-    "/test book.pgn",
-    new Book(rootNodes),
-    "/ChessfilesTraining/test.pgn",
-  );
+  return createBookAndTraining(rootNodes, settings)[1];
 }
 
 const testSettings: TrainingSettings = {
@@ -434,7 +438,7 @@ describe("Training", () => {
 
   test("resuming a session", () => {
     // Start a training session and play some moves
-    let training = createTraining([openingRootNode()]);
+    let [book, training] = createBookAndTraining([openingRootNode()]);
     let position = Chess.default();
     training.advance();
     playSan(position, "e4");
@@ -451,9 +455,10 @@ describe("Training", () => {
 
     // Restart the session, the session should move back to the start of the line and play the
     // moves forward
-    const meta = training.meta;
-    const pgnData = training.exportPgn();
-    training = Training.import(meta, pgnData, testSettings);
+    book.setTraining(training);
+    const pgnData = book.export();
+    book = Book.import(pgnData);
+    training = book.getOrCreateTraining(testSettings, "test book.pgn");
     position = Chess.default();
     checkTraining(training, {
       state: { type: "advance-after-delay" },
@@ -1433,5 +1438,116 @@ describe("Training", () => {
     expect(training.state.type).toEqual("show-line-summary");
     training.finishLine();
     expect(training.state.type).toEqual("show-training-summary");
+  });
+
+  test("handle import errors", () => {
+    const [book, training] = createBookAndTraining([openingRootNode()]);
+
+    const position = Chess.default();
+    training.advance();
+    playSan(position, "e4");
+    checkTraining(training, {
+      state: { type: "choose-move", wrongMoves: [] },
+      position,
+      correct: 0,
+      incorrect: 0,
+      linesTrained: 0,
+      shapes: [
+        {
+          from: 0,
+          to: 0,
+          color: "blue",
+        },
+      ],
+    });
+    book.setTraining(training);
+
+    function checkStateAfterImport(
+      tweakBookBeforeExport: (book: Book) => void,
+      expectedResult: CheckTrainingSpec,
+    ) {
+      const exportBook = Book.import(book.export());
+      tweakBookBeforeExport(exportBook);
+      const imported = Book.import(exportBook.export());
+      const importedTraining = imported.getOrCreateTraining(
+        testSettings,
+        "test book.pgn",
+      );
+      // Call advance to force the training code to deal with `currentLine`
+      importedTraining.advance();
+      checkTraining(importedTraining, expectedResult);
+    }
+
+    checkStateAfterImport(
+      (book) => {
+        // @ts-expect-error: simulating an invalid training meta
+        book.trainingMeta = {};
+      },
+      {
+        state: { type: "choose-move", wrongMoves: [] },
+        position,
+        correct: 0,
+        incorrect: 0,
+        linesTrained: 0,
+        shapes: [
+          {
+            from: 0,
+            to: 0,
+            color: "blue",
+          },
+        ],
+      },
+    );
+
+    checkStateAfterImport(
+      (book) => {
+        // @ts-expect-error: simulating a invalid current line
+        book.trainingSessionResumeData.currentLine = [
+          {
+            move: {
+              // @ts-expect-error: simulating a invalid current line
+              from: "k2",
+              // @ts-expect-error: simulating a invalid current line
+              to: "k4",
+            },
+          },
+        ];
+      },
+      {
+        state: { type: "choose-move", wrongMoves: [] },
+        position,
+        correct: 0,
+        incorrect: 0,
+        linesTrained: 0,
+        shapes: [
+          {
+            from: 0,
+            to: 0,
+            color: "blue",
+          },
+        ],
+      },
+    );
+
+    checkStateAfterImport(
+      (book) => {
+        // @ts-expect-error: simulating an invalid rootNodesStarted field
+        book.trainingSessionResumeData.rootNodesStarted = null;
+      },
+      {
+        state: { type: "choose-move", wrongMoves: [] },
+        position,
+        correct: 0,
+        incorrect: 0,
+        linesTrained: 0,
+        shapes: [
+          {
+            from: 0,
+            to: 0,
+            color: "blue",
+          },
+        ],
+      },
+    );
   });
 });

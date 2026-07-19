@@ -63,7 +63,7 @@ export function BookEditor(props: BookEditorProps) {
   const [dialogInfo, setDialogInfo] = createSignal<DialogInfo | null>(null);
   const [trainingMeta, { mutate: mutateTrainingMeta }] = createResource(
     async () => {
-      return props.storage.loadTrainingMeta(props.filename);
+      return (await props.storage.loadTraining(props.filename)).meta;
     },
   );
 
@@ -183,7 +183,7 @@ export function BookEditor(props: BookEditorProps) {
     let success = false;
     await props.status.perform("opening training", async () => {
       const path = props.storage.absPath(props.filename);
-      const training = await props.storage.createOrLoadTraining(path);
+      const training = await props.storage.loadTraining(path);
       props.controls.setPage({
         name: "training",
         initialTraining: training,
@@ -244,8 +244,9 @@ export function BookEditor(props: BookEditorProps) {
           meta={trainingMeta()}
           onSave={async (meta) => {
             mutateTrainingMeta(meta);
+            props.book.trainingMeta = meta;
             await props.status.perform("saving training", async () => {
-              await props.storage.updateTrainingMeta(meta);
+              await props.storage.writeBook(props.filename, props.book);
             });
             setDialogInfo(null);
           }}

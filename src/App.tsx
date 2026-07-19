@@ -68,7 +68,7 @@ function App() {
             storage={storage}
             status={status}
             controls={controls}
-            initialTraining={page().initialTraining}
+            initialTrainingPath={page().initialPath}
           />
         </Match>
       </Switch>

@@ -11,7 +11,7 @@ import { Board } from "~/editor/Board";
 import { GameDialog } from "~/editor/GameDialog";
 import { makeSanAndPlay } from "~/lib/chess";
 import type { Move } from "~/lib/chess";
-import { RootNodeType } from "~/lib/node";
+import type { Book } from "~/lib/node";
 import type { AppStorage } from "~/lib/storage";
 import { FileNotFoundError } from "~/lib/storage";
 import type { Training } from "~/lib/training";
@@ -27,6 +27,8 @@ import {
 export interface TrainingSessionProps {
   storage: AppStorage;
   status: StatusTracker;
+  book: Book;
+  bookPath: string;
   training: Training;
   controls: AppControls;
   onExit: () => void;
@@ -55,10 +57,8 @@ export function TrainingSession(props: TrainingSessionProps) {
 
   const [gameList, { refetch: refetchGameList }] = createResource(async () => {
     if (state().type == "show-training-summary") {
-      const book = await props.storage.readBook(
-        props.training.meta.sourceBookPath,
-      );
-      return book.rootNodes.filter((node) => node.type == RootNodeType.Normal);
+      const book = await props.storage.readBook(props.bookPath);
+      return book.rootNodes.filter((node) => node.isNormal());
     } else {
       return [];
     }
@@ -67,7 +67,11 @@ export function TrainingSession(props: TrainingSessionProps) {
   async function onExit() {
     props.status.perform("saving training", async () => {
       if (needsSave()) {
-        await props.storage.updateTraining(props.training);
+        await props.storage.updateTraining(
+          props.bookPath,
+          props.book,
+          props.training,
+        );
       }
       props.onExit();
     });
@@ -79,7 +83,11 @@ export function TrainingSession(props: TrainingSessionProps) {
       setTimeout(advance, 500);
     } else if (s.type == "show-line-summary") {
       props.status.perform("saving training", async () => {
-        await props.storage.updateTraining(props.training);
+        await props.storage.updateTraining(
+          props.bookPath,
+          props.book,
+          props.training,
+        );
         setNeedsSave(false);
       });
     }
@@ -111,9 +119,7 @@ export function TrainingSession(props: TrainingSessionProps) {
     props.status.perform("restarting training", async () => {
       setHistorySaved(false);
       try {
-        props.training = await props.storage.restartTraining(
-          props.training.meta,
-        );
+        props.training = await props.storage.restartTraining(props.bookPath);
       } catch (e) {
         if (e instanceof FileNotFoundError) {
           throw new StatusError(
@@ -254,7 +260,9 @@ export function TrainingSession(props: TrainingSessionProps) {
       case "show-training-summary": {
         refetchGameList();
         if (!historySaved()) {
-          props.storage.saveMetaAfterTrainingCompleted(props.training.meta);
+          props.book.trainingMeta = props.training.meta;
+          props.book.trainingMeta.trainingCount += 1;
+          props.storage.writeBook(props.bookPath, props.book);
         }
 
         return (
@@ -278,7 +286,7 @@ export function TrainingSession(props: TrainingSessionProps) {
               onClick={() =>
                 props.controls.setPage({
                   name: "files",
-                  initialPath: props.training.meta.sourceBookPath,
+                  initialPath: props.bookPath,
                 })
               }
             />
