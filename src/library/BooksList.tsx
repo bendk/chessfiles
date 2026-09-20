@@ -10,6 +10,7 @@ import {
   Table,
   TableCell,
   TableMenuCell,
+  TrainingRankIcon,
 } from "~/components";
 import { Match, Show, Switch } from "solid-js";
 
@@ -47,8 +48,8 @@ export function BooksList(props: BooksListProps) {
       <Match when={true}>
         <Table
           each={props.storage.files()}
-          columns={2}
-          growColumn={props.bulkMode ? 1 : 0}
+          columns={4}
+          growColumn={props.bulkMode ? 2 : 1}
           menu={menu}
           idMap={(item) => item.filename}
           onMenuSelect={(entry, action) => props.onFileAction(entry, action)}
@@ -74,7 +75,7 @@ export function BooksList(props: BooksListProps) {
                   />
                 </TableCell>
               </Show>
-              <TableCell item={item} class="flex items-center gap-2">
+              <TableCell item={item} class="items-center">
                 <Switch>
                   <Match when={item.value.type == "file"}>
                     <BookIcon size={20} />
@@ -86,7 +87,14 @@ export function BooksList(props: BooksListProps) {
                     <Database size={20} />
                   </Match>
                 </Switch>
+              </TableCell>
+              <TableCell item={item} class="items-center">
                 {item.value.filename}
+              </TableCell>
+              <TableCell item={item}>
+                <Show when={item.value.trainingRank !== undefined}>
+                  {<TrainingRankIcon rank={item.value.trainingRank ?? 0} />}
+                </Show>
               </TableCell>
               <Show when={!props.bulkMode}>
                 <TableMenuCell item={item} />

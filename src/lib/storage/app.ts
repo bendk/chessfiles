@@ -109,6 +109,15 @@ export class AppStorage {
         if (a.type == "file" && b.type == "dir") return 1;
         return a.filename.localeCompare(b.filename);
       });
+      // add trainingMeta
+      const metaManager = await this.metaManager;
+      for (const file of files) {
+        const trainingMeta = metaManager.getTrainingMeta(
+          joinPath(this.dir(), file.filename),
+        );
+        file.trainingRank = trainingMeta?.rank;
+      }
+
       this.setFiles(files);
     } finally {
       this.setLoading(false);

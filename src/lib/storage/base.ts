@@ -21,6 +21,7 @@ export type DirEntryType = "engine" | "dir" | "file";
 export interface DirEntry {
   filename: string;
   type: DirEntryType;
+  trainingRank?: number;
 }
 
 export interface TrainingMetaWithPath extends TrainingMeta {
