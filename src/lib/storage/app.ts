@@ -242,6 +242,12 @@ export class AppStorage {
     await storage.createDir(storagePath);
   }
 
+  async createDirIfNotExists(path: string) {
+    if (!(await this.isDir(path))) {
+      await this.createDir(path);
+    }
+  }
+
   absPath(path: string): string {
     return joinPath(this.dir(), path);
   }
@@ -570,6 +576,63 @@ export class AppStorage {
         yield entry;
       }
       callbacks.progress?.(i + 1, entries.length);
+    }
+  }
+
+  /**
+   * Import files and directories into `path`
+   *
+   * This is the inverse of `exportEntries`.  Entry paths are relative to `path` and missing parent
+   * directories are created automatically.  If a file already exists, `callbacks.shouldOverwrite`
+   * is used to decide whether to overwrite it.  If that's not set, this throws `FileExistsError`.
+   */
+  async importEntries(
+    path: string,
+    entries: ZipEntry[],
+    callbacks: OperationCallbacks = {},
+  ): Promise<void> {
+    path = joinPath(this.dir(), path);
+
+    try {
+      for (const [i, entry] of entries.entries()) {
+        if (callbacks.canceled?.()) {
+          return;
+        }
+        callbacks.progress?.(i, entries.length);
+        const components = entry.path.split("/");
+        if (components.length == 0 || components[0] == "__MACOSX") {
+          continue;
+        }
+        if (components.includes("..")) {
+          throw new Error(`importEntries: invalid path: ${entry.path}`);
+        }
+        const entryPath = joinPath(path, entry.path);
+
+        if (entry.type == "dir") {
+          await this.createDirIfNotExists(entryPath);
+        } else if (entry.type == "file" && entryPath.endsWith(".pgn")) {
+          const [dir] = splitPath(entryPath);
+          await this.createDirIfNotExists(dir);
+          if (await this.exists(entryPath)) {
+            if (callbacks.shouldOverwrite === undefined) {
+              throw new FileExistsError(entryPath);
+            }
+            if (!(await callbacks.shouldOverwrite(entryPath))) {
+              callbacks.log?.(`skipping ${entry.path}`);
+              continue;
+            }
+            callbacks.log?.(`overwriting ${entry.path}`);
+          } else {
+            callbacks.log?.(`importing ${entry.path}`);
+          }
+          await this.writeFile(entryPath, entry.content);
+          // Call readBook to update the training meta cache
+          await this.readBook(entryPath);
+        }
+      }
+      callbacks.progress?.(entries.length, entries.length);
+    } finally {
+      this.refetchFiles();
     }
   }
 

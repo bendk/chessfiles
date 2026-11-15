@@ -1,4 +1,11 @@
-import { strToU8, Zip, ZipDeflate, ZipPassThrough } from "fflate";
+import {
+  strFromU8,
+  strToU8,
+  unzipSync,
+  Zip,
+  ZipDeflate,
+  ZipPassThrough,
+} from "fflate";
 
 export type ZipEntry =
   | {
@@ -54,4 +61,15 @@ export async function createZip(
     throw zipError;
   }
   return new Blob(chunks, { type: "application/zip" });
+}
+
+/**
+ * Read all entries from a zip file
+ */
+export function readZip(data: Uint8Array): ZipEntry[] {
+  return Object.entries(unzipSync(data)).map(([path, content]) =>
+    path.endsWith("/")
+      ? { type: "dir", path: path.slice(0, -1) }
+      : { type: "file", path, content: strFromU8(content) },
+  );
 }

@@ -9,9 +9,11 @@ import MoveRight from "lucide-solid/icons/move-right";
 import Square from "lucide-solid/icons/square";
 import SquareCheck from "lucide-solid/icons/square-check";
 import Trash from "lucide-solid/icons/trash-2";
+import Upload from "lucide-solid/icons/upload";
 import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
 import { normalizeNewFilename, joinPath, splitPath } from "~/lib/storage";
-import { createZip } from "~/lib/zip";
+import type { ZipEntry } from "~/lib/zip";
+import { createZip, readZip } from "~/lib/zip";
 import type { Book } from "~/lib/node";
 import type { AppControls, StatusTracker } from "~/components";
 import { Button, ChooserDialog, Dialog, StandardLayout } from "~/components";
@@ -269,6 +271,27 @@ export function Library(props: LibraryProps) {
     });
   }
 
+  let importInput: HTMLInputElement | undefined;
+
+  function onImportPgn(file: File) {
+    const dir = props.storage.dir();
+    setDialog({
+      type: "operation-progress",
+      title: "Importing PGN",
+      operation: async (callbacks) => {
+        let entries: ZipEntry[];
+        if (file.name.toLowerCase().endsWith(".pgn")) {
+          entries = [
+            { type: "file", path: file.name, content: await file.text() },
+          ];
+        } else {
+          entries = readZip(new Uint8Array(await file.arrayBuffer()));
+        }
+        await props.storage.importEntries(dir, entries, callbacks);
+      },
+    });
+  }
+
   const renderedDialog = createMemo(() => {
     const d = dialog();
 
@@ -495,6 +518,26 @@ export function Library(props: LibraryProps) {
                     icon={<Download />}
                     disabled={props.storage.dir() == "/"}
                     onClick={onExportPgn}
+                  />
+                  <Button
+                    text="Import PGN"
+                    icon={<Upload />}
+                    disabled={props.storage.dir() == "/"}
+                    onClick={() => importInput?.click()}
+                  />
+                  <input
+                    ref={importInput}
+                    type="file"
+                    accept=".zip,.pgn"
+                    class="hidden"
+                    onChange={(e) => {
+                      const file = e.currentTarget.files?.[0];
+                      // Reset so that selecting the same file again triggers onChange
+                      e.currentTarget.value = "";
+                      if (file) {
+                        onImportPgn(file);
+                      }
+                    }}
                   />
                 </div>
               </Match>
