@@ -150,7 +150,7 @@ export function CurrentNodeControls(props: CurrentNodeControlsProps) {
             }}
             onChange={props.commitDraftComment}
             rows="3"
-          ></textarea>
+          />
           <div class="pt-4 flex items-center justify-start">
             <MenuButton
               placement="bottom-start"

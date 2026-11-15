@@ -347,7 +347,7 @@ export function Tablebase(props: BookProps) {
                         >
                           {item().san}
                         </button>
-                        <div class="col-span-2"></div>
+                        <div class="col-span-2" />
                       </>
                     )}
                   </Index>
@@ -398,7 +398,7 @@ export function Tablebase(props: BookProps) {
                         >
                           {item().san}
                         </button>
-                        <div class="col-span-2"></div>
+                        <div class="col-span-2" />
                       </>
                     )}
                   </Index>

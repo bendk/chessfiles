@@ -92,7 +92,7 @@ export function Menu(props: MenuProps) {
     const resolvedItems = items() ?? props.items ?? [];
     return resolvedItems.map((item) => {
       if (item.type == "separator") {
-        return <ArkMenu.Separator class="h-px bg-fg-3"></ArkMenu.Separator>;
+        return <ArkMenu.Separator class="h-px bg-fg-3" />;
       }
       if (item.type == "header") {
         return (

@@ -56,19 +56,19 @@ function PromotionSelector(props: PromotionSelectorProps) {
       <button
         class={`piece-queen-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("queen")}
-      ></button>
+      />
       <button
         class={`piece-rook-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("rook")}
-      ></button>
+      />
       <button
         class={`piece-bishop-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("bishop")}
-      ></button>
+      />
       <button
         class={`piece-knight-${props.color} cursor-pointer h-[25%] bg-cover hover-bg`}
         onClick={() => props.onSelect("knight")}
-      ></button>
+      />
     </div>
   );
 }

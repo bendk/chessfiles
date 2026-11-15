@@ -119,7 +119,6 @@ export function moveButton(
   selected: boolean,
 ): JSXElement {
   const currentMoves = [...moveList.moves, move.node.move];
-  let eventHandlers = undefined;
   let text = move.san + move.nags.map(nagText).join(" ");
 
   if (showNumber) {
@@ -130,7 +129,7 @@ export function moveButton(
     }
   }
 
-  eventHandlers = contextMenuEventHandlers(context.menu, () => {
+  const eventHandlers = contextMenuEventHandlers(context.menu, () => {
     const items = [];
     if (context.reorderMenuItems) {
       context.setReorderMoves(currentMoves);
