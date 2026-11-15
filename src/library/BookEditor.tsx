@@ -271,7 +271,7 @@ export function BookEditor(props: BookEditorProps) {
             <Button text="Exit" onClick={props.onExit} />
           </div>
           <Show when={props.book.rootNodes.length > 0}>
-            <div class="flex gap-8">
+            <div class="flex gap-8 items-start">
               <Table
                 each={rootNodes()}
                 columns={3}
