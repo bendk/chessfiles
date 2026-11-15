@@ -979,4 +979,33 @@ describe("AppStorage", () => {
       "/s1/directory/subdirectory/MyBook.pgn": book,
     });
   });
+
+  test("export entries", async () => {
+    const s1 = new TestChessfilesStorageLocal();
+    const s2 = new TestChessfilesStorageLocal();
+    await s1.writeMetadata({}, []);
+    await s1.createFile("/a.pgn", "a");
+    await s1.createDir("/dir");
+    await s1.createFile("/dir/b.pgn", "b");
+    await s1.createDir("/dir/empty");
+    const storage = testAppStorage([s1, s2]);
+
+    async function exportedEntries(path: string) {
+      const entries = [];
+      for await (const entry of storage.exportEntries(path)) {
+        entries.push(entry);
+      }
+      return entries.sort((a, b) => a.path.localeCompare(b.path));
+    }
+    expect(await exportedEntries("/s1")).toEqual([
+      { type: "file", path: "a.pgn", content: "a" },
+      { type: "dir", path: "dir" },
+      { type: "file", path: "dir/b.pgn", content: "b" },
+      { type: "dir", path: "dir/empty" },
+    ]);
+    expect(await exportedEntries("/s1/dir")).toEqual([
+      { type: "file", path: "b.pgn", content: "b" },
+      { type: "dir", path: "empty" },
+    ]);
+  });
 });

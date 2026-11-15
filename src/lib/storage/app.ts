@@ -7,6 +7,7 @@ import { StatusTracker } from "~/components";
 import type { TrainingMeta, TrainingSettings } from "~/lib/training";
 import type { Training } from "~/lib/training";
 import * as dropbox from "~/lib/auth/dropbox";
+import type { ZipEntry } from "~/lib/zip";
 import type { DirEntryType, TrainingMetaWithPath } from "./base";
 import {
   FileExistsError,
@@ -518,6 +519,58 @@ export class AppStorage {
       }
     }
     return results;
+  }
+
+  /**
+   * Read all files and directories under `path`, for exporting
+   *
+   * Yields zip entries with paths relative to `path`.  The directory tree is listed up front so
+   * that progress can be reported, then files are read lazily, as the entries are consumed.
+   */
+  async *exportEntries(
+    path: string,
+    callbacks: OperationCallbacks = {},
+  ): AsyncGenerator<ZipEntry> {
+    path = joinPath(this.dir(), path);
+    const entries: ZipEntry[] = [];
+    const todo = [""];
+
+    while (true) {
+      const relativePath = todo.pop();
+      if (relativePath === undefined) {
+        break;
+      }
+      if (callbacks.canceled?.()) {
+        return;
+      }
+      for (const entry of await this.listDir(joinPath(path, relativePath))) {
+        const entryPath = joinPath(relativePath, entry.filename);
+        if (entry.type == "file") {
+          // Set content to "" for now and read it later.
+          // This avoids loading all data into memory at once.
+          entries.push({ type: "file", path: entryPath, content: "" });
+        } else {
+          entries.push({ type: "dir", path: entryPath });
+          todo.push(entryPath);
+        }
+      }
+    }
+
+    for (const [i, entry] of entries.entries()) {
+      if (callbacks.canceled?.()) {
+        return;
+      }
+      callbacks.log?.(`exporting ${entry.path}`);
+      if (entry.type == "file") {
+        yield {
+          ...entry,
+          content: await this.readFile(joinPath(path, entry.path)),
+        };
+      } else {
+        yield entry;
+      }
+      callbacks.progress?.(i + 1, entries.length);
+    }
   }
 
   private workForStep(step: OperationStep): number {

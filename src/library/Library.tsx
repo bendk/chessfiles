@@ -3,6 +3,7 @@ import BookPlus from "lucide-solid/icons/book-plus";
 import BulkMode from "lucide-solid/icons/list-todo";
 import FolderTree from "lucide-solid/icons/folder-tree";
 import Copy from "lucide-solid/icons/copy";
+import Download from "lucide-solid/icons/download";
 import FolderPlus from "lucide-solid/icons/folder-plus";
 import MoveRight from "lucide-solid/icons/move-right";
 import Square from "lucide-solid/icons/square";
@@ -10,6 +11,7 @@ import SquareCheck from "lucide-solid/icons/square-check";
 import Trash from "lucide-solid/icons/trash-2";
 import type { AppStorage, DirEntry, OperationCallbacks } from "~/lib/storage";
 import { normalizeNewFilename, joinPath, splitPath } from "~/lib/storage";
+import { createZip } from "~/lib/zip";
 import type { Book } from "~/lib/node";
 import type { AppControls, StatusTracker } from "~/components";
 import { Button, ChooserDialog, Dialog, StandardLayout } from "~/components";
@@ -244,6 +246,29 @@ export function Library(props: LibraryProps) {
     setSelectedFiles(new Set<DirEntry>());
   }
 
+  function onExportPgn() {
+    const dir = props.storage.dir();
+    setDialog({
+      type: "operation-progress",
+      title: "Exporting PGN",
+      operation: async (callbacks) => {
+        const blob = await createZip(
+          props.storage.exportEntries(dir, callbacks),
+        );
+        if (callbacks.canceled?.()) {
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `ChessFiles.zip`;
+        link.click();
+        // Give the browser a chance to start the download before revoking
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+    });
+  }
+
   const renderedDialog = createMemo(() => {
     const d = dialog();
 
@@ -464,6 +489,12 @@ export function Library(props: LibraryProps) {
                     text="Create Folder"
                     icon={<FolderPlus />}
                     onClick={() => setDialog({ type: "create-folder" })}
+                  />
+                  <Button
+                    text="Export PGN"
+                    icon={<Download />}
+                    disabled={props.storage.dir() == "/"}
+                    onClick={onExportPgn}
                   />
                 </div>
               </Match>
